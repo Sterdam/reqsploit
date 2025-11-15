@@ -312,10 +312,13 @@ export class RequestQueue extends EventEmitter {
 
       const proxyReq = requestModule.request(options, (proxyRes) => {
         // Forward response to client
-        pendingReq.clientRes.writeHead(
-          proxyRes.statusCode || 200,
-          proxyRes.headers
-        );
+        // Only write headers if they haven't been sent yet
+        if (!pendingReq.clientRes.headersSent) {
+          pendingReq.clientRes.writeHead(
+            proxyRes.statusCode || 200,
+            proxyRes.headers
+          );
+        }
         proxyRes.pipe(pendingReq.clientRes);
 
         proxyRes.on('end', () => {
