@@ -7,6 +7,7 @@ import { certificateManager } from './certificate-manager.js';
 import { HTTPRequest, HTTPResponse, ProxyConfig, RequestFilters } from '../../types/proxy.types.js';
 import { ProxyError } from '../../utils/errors.js';
 import { proxyLogger } from '../../utils/logger.js';
+import { RequestQueue, PendingRequest } from './request-queue.js';
 
 export interface ProxyStats {
   totalRequests: number;
@@ -27,6 +28,8 @@ export class MITMProxy extends EventEmitter {
   private filters: RequestFilters;
   private stats: ProxyStats;
   private isRunning: boolean = false;
+  private requestQueue: RequestQueue;
+  private proxySessionId: string;
 
   constructor(config: ProxyConfig) {
     super();
@@ -34,6 +37,7 @@ export class MITMProxy extends EventEmitter {
     this.port = config.port;
     this.interceptMode = config.interceptMode;
     this.filters = config.filters || {};
+    this.proxySessionId = crypto.randomUUID();
     this.stats = {
       totalRequests: 0,
       interceptedRequests: 0,
@@ -41,9 +45,19 @@ export class MITMProxy extends EventEmitter {
       startTime: new Date(),
     };
 
+    // Initialize request queue
+    this.requestQueue = new RequestQueue();
+
+    // Forward queue events to proxy events
+    this.requestQueue.on('request:held', (data) => this.emit('request:held', data));
+    this.requestQueue.on('request:forwarded', (data) => this.emit('request:forwarded', data));
+    this.requestQueue.on('request:dropped', (data) => this.emit('request:dropped', data));
+    this.requestQueue.on('queue:changed', (data) => this.emit('queue:changed', data));
+
     proxyLogger.info('MITM Proxy initialized', {
       userId: this.userId,
       port: this.port,
+      proxySessionId: this.proxySessionId,
     });
   }
 
@@ -98,7 +112,10 @@ export class MITMProxy extends EventEmitter {
       return;
     }
 
-    return new Promise((resolve) => {
+    return new Promise(async (resolve) => {
+      // Shutdown request queue first (forward all pending requests)
+      await this.requestQueue.shutdown();
+
       this.server!.close(() => {
         this.isRunning = false;
         proxyLogger.info('MITM Proxy stopped', { userId: this.userId, port: this.port });
@@ -146,10 +163,25 @@ export class MITMProxy extends EventEmitter {
 
       this.emit('request:intercepted', { ...request, isIntercepted: shouldIntercept });
 
-      // Wait for user action if intercepted (forward, modify, or block)
-      // For now, we'll forward automatically
+      // If should intercept, hold in queue for user action
+      if (shouldIntercept) {
+        const pendingRequest: PendingRequest = {
+          ...request,
+          userId: this.userId,
+          proxySessionId: this.proxySessionId,
+          isIntercepted: true,
+          queuedAt: new Date(),
+          clientReq,
+          clientRes,
+          isHttps: false,
+        };
 
-      // Forward request to target
+        await this.requestQueue.hold(pendingRequest);
+        // Request is now in queue, will be forwarded later via WebSocket command
+        return;
+      }
+
+      // Not intercepted - forward immediately
       const targetUrl = new URL(request.url);
       const options: http.RequestOptions = {
         hostname: targetUrl.hostname,
@@ -177,8 +209,11 @@ export class MITMProxy extends EventEmitter {
         clientRes.end('Bad Gateway');
       });
 
-      // Forward request body
-      clientReq.pipe(proxyReq);
+      // Write request body if present
+      if (request.body) {
+        proxyReq.write(request.body);
+      }
+      proxyReq.end();
     } catch (error) {
       proxyLogger.error('HTTP request handling error', { error });
       clientRes.writeHead(500, { 'Content-Type': 'text/plain' });
@@ -277,7 +312,26 @@ export class MITMProxy extends EventEmitter {
 
       this.emit('request:intercepted', { ...request, isIntercepted: shouldIntercept });
 
-      // Forward to target server
+      // If should intercept, hold in queue for user action
+      if (shouldIntercept) {
+        const pendingRequest: PendingRequest = {
+          ...request,
+          userId: this.userId,
+          proxySessionId: this.proxySessionId,
+          isIntercepted: true,
+          queuedAt: new Date(),
+          clientReq,
+          clientRes,
+          isHttps: true,
+          targetHost,
+        };
+
+        await this.requestQueue.hold(pendingRequest);
+        // Request is now in queue, will be forwarded later via WebSocket command
+        return;
+      }
+
+      // Not intercepted - forward immediately
       const targetUrl = new URL(request.url);
       const options: https.RequestOptions = {
         hostname: targetUrl.hostname,
@@ -303,7 +357,11 @@ export class MITMProxy extends EventEmitter {
         clientRes.end('Bad Gateway');
       });
 
-      clientReq.pipe(proxyReq);
+      // Write request body if present
+      if (request.body) {
+        proxyReq.write(request.body);
+      }
+      proxyReq.end();
     } catch (error) {
       proxyLogger.error('HTTPS request handling error', { error });
       clientRes.writeHead(500);
@@ -462,5 +520,19 @@ export class MITMProxy extends EventEmitter {
    */
   isActive(): boolean {
     return this.isRunning;
+  }
+
+  /**
+   * Get request queue instance for external control (WebSocket handlers)
+   */
+  getRequestQueue(): RequestQueue {
+    return this.requestQueue;
+  }
+
+  /**
+   * Get proxy session ID
+   */
+  getSessionId(): string {
+    return this.proxySessionId;
   }
 }

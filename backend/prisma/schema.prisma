@@ -93,14 +93,15 @@ model User {
   updatedAt     DateTime @updatedAt
 
   // Relations
-  sessions        Session[]
-  proxySessions   ProxySession[]
-  certificates    Certificate[]
-  requestLogs     RequestLog[]
-  aiAnalyses      AIAnalysis[]
-  tokenUsage      TokenUsage[]
-  subscription    Subscription?
-  projects        Project[]
+  sessions         Session[]
+  proxySessions    ProxySession[]
+  certificates     Certificate[]
+  requestLogs      RequestLog[]
+  aiAnalyses       AIAnalysis[]
+  tokenUsage       TokenUsage[]
+  subscription     Subscription?
+  projects         Project[]
+  fuzzingCampaigns FuzzingCampaign[]
 
   @@index([email])
   @@index([plan])
@@ -331,4 +332,58 @@ model Subscription {
   @@index([status])
   @@index([stripeCustomerId])
   @@map("subscriptions")
+}
+
+// Fuzzing Campaigns (Intruder)
+model FuzzingCampaign {
+  id                String   @id @default(uuid())
+  userId            String
+  name              String
+  requestTemplate   Json // Original request with §markers§
+  payloadPositions  Json // Marker positions and types
+  payloadSets       Json // Payload assignments
+  attackType        String // sniper|battering_ram|pitchfork|cluster_bomb
+  concurrency       Int      @default(5)
+  delayMs           Int      @default(0)
+  status            String   @default("pending") // pending|running|paused|completed|stopped
+  totalRequests     Int      @default(0)
+  completedRequests Int      @default(0)
+  failedRequests    Int      @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  startedAt         DateTime?
+  completedAt       DateTime?
+
+  // Relations
+  user    User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  results FuzzingResult[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("fuzzing_campaigns")
+}
+
+// Fuzzing Results
+model FuzzingResult {
+  id             String   @id @default(uuid())
+  campaignId     String
+  payloadSet     Json // Actual payloads used
+  request        Json // Full request sent
+  statusCode     Int?
+  responseLength Int?
+  responseTime   Int? // milliseconds
+  response       Json? // Headers + body
+  error          String?
+  timestamp      DateTime @default(now())
+
+  // Relations
+  campaign FuzzingCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId])
+  @@index([statusCode])
+  @@index([responseLength])
+  @@index([responseTime])
+  @@index([timestamp])
+  @@map("fuzzing_results")
 }

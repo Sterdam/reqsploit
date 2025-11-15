@@ -8,6 +8,10 @@ import { RequestList } from '../components/RequestList';
 import { RequestViewer } from '../components/RequestViewer';
 import { AIAnalysisPanel } from '../components/AIAnalysisPanel';
 import { ProjectManager } from '../components/ProjectManager';
+import { InterceptPanel } from '../components/InterceptPanel';
+import { RepeaterPanel } from '../components/RepeaterPanel';
+import { DecoderPanel } from '../components/DecoderPanel';
+import { IntruderPanel } from '../components/IntruderPanel';
 import { Header } from '../components/Header';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
@@ -22,7 +26,8 @@ export function Dashboard() {
   const [showRequests, setShowRequests] = useState(true);
   const [showAI, setShowAI] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
-  const [mobileMenu, setMobileMenu] = useState<'projects' | 'requests' | 'viewer' | 'ai'>('viewer');
+  const [mobileMenu, setMobileMenu] = useState<'projects' | 'requests' | 'viewer' | 'ai' | 'intercept' | 'repeater' | 'decoder' | 'intruder'>('viewer');
+  const [centerTab, setCenterTab] = useState<'history' | 'intercept' | 'repeater' | 'decoder' | 'intruder'>('history');
 
   // Detect mobile
   useEffect(() => {
@@ -92,6 +97,38 @@ export function Dashboard() {
           >
             AI
           </button>
+          <button
+            onClick={() => setMobileMenu('intercept')}
+            className={`flex-1 px-4 py-3 text-sm font-medium transition ${
+              mobileMenu === 'intercept' ? 'bg-blue-600/20 text-blue-400 border-b-2 border-blue-600' : 'text-gray-400'
+            }`}
+          >
+            Intercept
+          </button>
+          <button
+            onClick={() => setMobileMenu('repeater')}
+            className={`flex-1 px-4 py-3 text-sm font-medium transition ${
+              mobileMenu === 'repeater' ? 'bg-blue-600/20 text-blue-400 border-b-2 border-blue-600' : 'text-gray-400'
+            }`}
+          >
+            Repeater
+          </button>
+          <button
+            onClick={() => setMobileMenu('decoder')}
+            className={`flex-1 px-4 py-3 text-sm font-medium transition ${
+              mobileMenu === 'decoder' ? 'bg-blue-600/20 text-blue-400 border-b-2 border-blue-600' : 'text-gray-400'
+            }`}
+          >
+            Decoder
+          </button>
+          <button
+            onClick={() => setMobileMenu('intruder')}
+            className={`flex-1 px-4 py-3 text-sm font-medium transition ${
+              mobileMenu === 'intruder' ? 'bg-blue-600/20 text-blue-400 border-b-2 border-blue-600' : 'text-gray-400'
+            }`}
+          >
+            Intruder
+          </button>
         </div>
 
         {/* Mobile Content */}
@@ -119,6 +156,10 @@ export function Dashboard() {
               )}
             </>
           )}
+          {mobileMenu === 'intercept' && <InterceptPanel />}
+          {mobileMenu === 'repeater' && <RepeaterPanel />}
+          {mobileMenu === 'decoder' && <DecoderPanel />}
+          {mobileMenu === 'intruder' && <IntruderPanel />}
         </div>
       </div>
     );
@@ -190,7 +231,7 @@ export function Dashboard() {
             </button>
           )}
 
-          {/* Center - Request/Response Viewer */}
+          {/* Center - Tabbed View: History / Intercept */}
           <Panel defaultSize={35} minSize={25}>
             <div className="h-full flex flex-col relative">
               {showRequests && (
@@ -211,7 +252,69 @@ export function Dashboard() {
                   <ChevronRight className="w-4 h-4 text-gray-400" />
                 </button>
               )}
-              <RequestViewer />
+
+              {/* Tabs */}
+              <div className="flex border-b border-white/10 bg-[#0A1929]">
+                <button
+                  onClick={() => setCenterTab('history')}
+                  className={`px-6 py-3 text-sm font-medium transition ${
+                    centerTab === 'history'
+                      ? 'text-blue-400 border-b-2 border-blue-600 bg-[#0D1F2D]'
+                      : 'text-gray-400 hover:text-gray-300 hover:bg-white/5'
+                  }`}
+                >
+                  History
+                </button>
+                <button
+                  onClick={() => setCenterTab('intercept')}
+                  className={`px-6 py-3 text-sm font-medium transition ${
+                    centerTab === 'intercept'
+                      ? 'text-blue-400 border-b-2 border-blue-600 bg-[#0D1F2D]'
+                      : 'text-gray-400 hover:text-gray-300 hover:bg-white/5'
+                  }`}
+                >
+                  Intercept
+                </button>
+                <button
+                  onClick={() => setCenterTab('repeater')}
+                  className={`px-6 py-3 text-sm font-medium transition ${
+                    centerTab === 'repeater'
+                      ? 'text-blue-400 border-b-2 border-blue-600 bg-[#0D1F2D]'
+                      : 'text-gray-400 hover:text-gray-300 hover:bg-white/5'
+                  }`}
+                >
+                  Repeater
+                </button>
+                <button
+                  onClick={() => setCenterTab('decoder')}
+                  className={`px-6 py-3 text-sm font-medium transition ${
+                    centerTab === 'decoder'
+                      ? 'text-blue-400 border-b-2 border-blue-600 bg-[#0D1F2D]'
+                      : 'text-gray-400 hover:text-gray-300 hover:bg-white/5'
+                  }`}
+                >
+                  Decoder
+                </button>
+                <button
+                  onClick={() => setCenterTab('intruder')}
+                  className={`px-6 py-3 text-sm font-medium transition ${
+                    centerTab === 'intruder'
+                      ? 'text-blue-400 border-b-2 border-blue-600 bg-[#0D1F2D]'
+                      : 'text-gray-400 hover:text-gray-300 hover:bg-white/5'
+                  }`}
+                >
+                  Intruder
+                </button>
+              </div>
+
+              {/* Tab Content */}
+              <div className="flex-1 overflow-hidden">
+                {centerTab === 'history' && <RequestViewer />}
+                {centerTab === 'intercept' && <InterceptPanel />}
+                {centerTab === 'repeater' && <RepeaterPanel />}
+                {centerTab === 'decoder' && <DecoderPanel />}
+                {centerTab === 'intruder' && <IntruderPanel />}
+              </div>
             </div>
           </Panel>
 

@@ -12,6 +12,9 @@ import authRoutes from './api/routes/auth.routes.js';
 import proxyRoutes from './api/routes/proxy.routes.js';
 import certificateRoutes from './api/routes/certificate.routes.js';
 import aiRoutes from './api/routes/ai.routes.js';
+import repeaterRoutes from './api/routes/repeater.routes.js';
+import decoderRoutes from './api/routes/decoder.routes.js';
+import intruderRoutes from './api/routes/intruder.routes.js';
 import requestsRoutes from './routes/requests.routes.js';
 import projectsRoutes from './routes/projects.routes.js';
 import analysisRoutes from './routes/analysis.routes.js';
@@ -114,6 +117,9 @@ app.use('/api/auth', authRoutes);
 app.use('/api/proxy', proxyRoutes);
 app.use('/api/certificates', certificateRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/repeater', repeaterRoutes);
+app.use('/api/decoder', decoderRoutes);
+app.use('/api/intruder', intruderRoutes);
 
 // New comprehensive routes
 app.use('/api/requests', requestsRoutes);

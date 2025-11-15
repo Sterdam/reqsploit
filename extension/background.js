@@ -38,7 +38,7 @@ chrome.runtime.onInstalled.addListener(() => {
 });
 
 /**
- * Check if backend is reachable
+ * Check if backend is reachable and sync proxy state
  */
 async function checkBackendConnection() {
   try {
@@ -48,6 +48,11 @@ async function checkBackendConnection() {
     });
 
     backendConnected = response.ok;
+
+    // If backend is connected, sync proxy state
+    if (backendConnected) {
+      await syncProxyState();
+    }
 
     // Update extension icon
     updateIcon();
@@ -61,62 +66,175 @@ async function checkBackendConnection() {
 }
 
 /**
+ * Sync proxy state from backend
+ * Checks if there's an active proxy session on the backend
+ */
+async function syncProxyState() {
+  try {
+    const token = await getAuthToken();
+    if (!token) {
+      // No token, assume proxy is off
+      proxyEnabled = false;
+      chrome.storage.local.set({ proxyEnabled: false });
+      return;
+    }
+
+    const response = await fetch(`${BACKEND_URL}/api/proxy/session/status`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+      signal: AbortSignal.timeout(3000),
+    });
+
+    if (!response.ok) {
+      // If unauthorized or error, assume no session
+      proxyEnabled = false;
+      chrome.storage.local.set({ proxyEnabled: false });
+      return;
+    }
+
+    const data = await response.json();
+    const hasActiveSession = data.success && data.data.hasActiveSession;
+
+    // Update local state to match backend
+    if (hasActiveSession !== proxyEnabled) {
+      proxyEnabled = hasActiveSession;
+      chrome.storage.local.set({ proxyEnabled: hasActiveSession });
+
+      // If backend has session but Chrome proxy not configured, configure it
+      if (hasActiveSession) {
+        await configureProxySettings();
+      } else {
+        await clearProxySettings();
+      }
+    }
+  } catch (error) {
+    // On error, don't change state
+    console.warn('Failed to sync proxy state:', error);
+  }
+}
+
+/**
+ * Configure Chrome proxy settings without starting backend session
+ */
+async function configureProxySettings() {
+  const config = {
+    mode: 'fixed_servers',
+    rules: {
+      singleProxy: {
+        scheme: 'http',
+        host: PROXY_HOST,
+        port: PROXY_PORT,
+      },
+      bypassList: ['localhost', '127.0.0.1'],
+    },
+  };
+
+  return new Promise((resolve, reject) => {
+    chrome.proxy.settings.set(
+      { value: config, scope: 'regular' },
+      () => {
+        if (chrome.runtime.lastError) {
+          reject(chrome.runtime.lastError);
+        } else {
+          updateIcon();
+          resolve();
+        }
+      }
+    );
+  });
+}
+
+/**
+ * Clear Chrome proxy settings
+ */
+async function clearProxySettings() {
+  const config = {
+    mode: 'direct',
+  };
+
+  return new Promise((resolve, reject) => {
+    chrome.proxy.settings.set(
+      { value: config, scope: 'regular' },
+      () => {
+        if (chrome.runtime.lastError) {
+          reject(chrome.runtime.lastError);
+        } else {
+          updateIcon();
+          resolve();
+        }
+      }
+    );
+  });
+}
+
+/**
  * Enable proxy configuration
  */
 async function enableProxy() {
   try {
-    // 1. Start backend proxy session
     const token = await getAuthToken();
+    if (!token) {
+      throw new Error('No authentication token. Please log in to the dashboard first.');
+    }
+
+    // 1. Check if session already exists
+    const statusResponse = await fetch(`${BACKEND_URL}/api/proxy/session/status`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    if (statusResponse.ok) {
+      const statusData = await statusResponse.json();
+      if (statusData.success && statusData.data.hasActiveSession) {
+        // Session already exists, just configure Chrome proxy
+        await configureProxySettings();
+        proxyEnabled = true;
+        requestCount = 0;
+        chrome.storage.local.set({ proxyEnabled: true, requestCount: 0 });
+
+        // Show notification
+        chrome.notifications.create({
+          type: 'basic',
+          iconUrl: 'icons/icon128.png',
+          title: 'ReqSploit Proxy',
+          message: 'Proxy enabled (using existing backend session)',
+        });
+
+        return;
+      }
+    }
+
+    // 2. Start backend proxy session
     const startResponse = await fetch(`${BACKEND_URL}/api/proxy/session/start`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': token ? `Bearer ${token}` : '',
+        'Authorization': `Bearer ${token}`,
       },
       body: JSON.stringify({ interceptMode: true }),
     });
 
     if (!startResponse.ok) {
-      throw new Error(`Failed to start backend proxy: ${startResponse.statusText}`);
+      const errorData = await startResponse.json().catch(() => null);
+      throw new Error(errorData?.error?.message || `Failed to start backend proxy: ${startResponse.statusText}`);
     }
 
-    // 2. Configure Chrome proxy settings
-    const config = {
-      mode: 'fixed_servers',
-      rules: {
-        singleProxy: {
-          scheme: 'http',
-          host: PROXY_HOST,
-          port: PROXY_PORT,
-        },
-        bypassList: ['localhost', '127.0.0.1'],
-      },
-    };
+    // 3. Configure Chrome proxy settings
+    await configureProxySettings();
+    proxyEnabled = true;
+    requestCount = 0;
+    chrome.storage.local.set({ proxyEnabled: true, requestCount: 0 });
 
-    return new Promise((resolve, reject) => {
-      chrome.proxy.settings.set(
-        { value: config, scope: 'regular' },
-        () => {
-          if (chrome.runtime.lastError) {
-            reject(chrome.runtime.lastError);
-          } else {
-            proxyEnabled = true;
-            requestCount = 0;
-            chrome.storage.local.set({ proxyEnabled: true, requestCount: 0 });
-            updateIcon();
-
-            // Show notification
-            chrome.notifications.create({
-              type: 'basic',
-              iconUrl: 'icons/icon128.png',
-              title: 'ReqSploit Proxy Enabled',
-              message: `Proxy active on localhost:${PROXY_PORT}`,
-            });
-
-            resolve();
-          }
-        }
-      );
+    // Show notification
+    chrome.notifications.create({
+      type: 'basic',
+      iconUrl: 'icons/icon128.png',
+      title: 'ReqSploit Proxy Enabled',
+      message: `Proxy active on localhost:${PROXY_PORT}`,
     });
   } catch (error) {
     console.error('Error enabling proxy:', error);
@@ -129,48 +247,33 @@ async function enableProxy() {
  */
 async function disableProxy() {
   try {
-    // 1. Stop backend proxy session
+    // 1. Stop backend proxy session (if exists)
     const token = await getAuthToken();
-    try {
-      await fetch(`${BACKEND_URL}/api/proxy/session/stop`, {
-        method: 'POST',
-        headers: {
-          'Authorization': token ? `Bearer ${token}` : '',
-        },
-      });
-    } catch (error) {
-      console.warn('Failed to stop backend proxy (may already be stopped):', error);
-      // Continue anyway to disable Chrome proxy
+    if (token) {
+      try {
+        await fetch(`${BACKEND_URL}/api/proxy/session/stop`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+      } catch (error) {
+        console.warn('Failed to stop backend proxy (may already be stopped):', error);
+        // Continue anyway to disable Chrome proxy
+      }
     }
 
     // 2. Disable Chrome proxy settings
-    const config = {
-      mode: 'direct',
-    };
+    await clearProxySettings();
+    proxyEnabled = false;
+    chrome.storage.local.set({ proxyEnabled: false });
 
-    return new Promise((resolve, reject) => {
-      chrome.proxy.settings.set(
-        { value: config, scope: 'regular' },
-        () => {
-          if (chrome.runtime.lastError) {
-            reject(chrome.runtime.lastError);
-          } else {
-            proxyEnabled = false;
-            chrome.storage.local.set({ proxyEnabled: false });
-            updateIcon();
-
-            // Show notification
-            chrome.notifications.create({
-              type: 'basic',
-              iconUrl: 'icons/icon128.png',
-              title: 'ReqSploit Proxy Disabled',
-              message: 'Traffic interception stopped',
-            });
-
-            resolve();
-          }
-        }
-      );
+    // Show notification
+    chrome.notifications.create({
+      type: 'basic',
+      iconUrl: 'icons/icon128.png',
+      title: 'ReqSploit Proxy Disabled',
+      message: 'Traffic interception stopped',
     });
   } catch (error) {
     console.error('Error disabling proxy:', error);

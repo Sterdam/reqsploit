@@ -9,6 +9,8 @@ import {
 import { verifyAccessToken } from '../../services/auth.service.js';
 import { wsLogger } from '../../utils/logger.js';
 import { UnauthorizedError } from '../../utils/errors.js';
+import { proxySessionManager } from '../proxy/session-manager.js';
+import { RequestModification } from '../../types/proxy.types.js';
 
 /**
  * WebSocket Server (Singleton)
@@ -160,17 +162,91 @@ export class WebSocketServer {
     // Request Management Events
     socket.on('request:forward', async (data) => {
       wsLogger.debug('Request forward', { userId, requestId: data.requestId });
-      // Forward the request (will be implemented with request queue)
+
+      try {
+        const session = proxySessionManager.getSessionByUserId(userId);
+        if (!session) {
+          wsLogger.error('No active proxy session for user', { userId });
+          socket.emit('error', { message: 'No active proxy session' });
+          return;
+        }
+
+        const queue = session.proxy.getRequestQueue();
+        await queue.forward(data.requestId, data.modifications);
+
+        wsLogger.info('Request forwarded successfully', { userId, requestId: data.requestId });
+      } catch (error) {
+        wsLogger.error('Failed to forward request', { userId, requestId: data.requestId, error });
+        socket.emit('error', { message: 'Failed to forward request' });
+      }
     });
 
     socket.on('request:drop', async (data) => {
       wsLogger.debug('Request drop', { userId, requestId: data.requestId });
-      // Drop the request
+
+      try {
+        const session = proxySessionManager.getSessionByUserId(userId);
+        if (!session) {
+          wsLogger.error('No active proxy session for user', { userId });
+          socket.emit('error', { message: 'No active proxy session' });
+          return;
+        }
+
+        const queue = session.proxy.getRequestQueue();
+        queue.drop(data.requestId);
+
+        wsLogger.info('Request dropped successfully', { userId, requestId: data.requestId });
+      } catch (error) {
+        wsLogger.error('Failed to drop request', { userId, requestId: data.requestId, error });
+        socket.emit('error', { message: 'Failed to drop request' });
+      }
     });
 
     socket.on('request:modify', async (data) => {
       wsLogger.debug('Request modify', { userId, requestId: data.requestId });
-      // Modify and forward the request
+
+      try {
+        const session = proxySessionManager.getSessionByUserId(userId);
+        if (!session) {
+          wsLogger.error('No active proxy session for user', { userId });
+          socket.emit('error', { message: 'No active proxy session' });
+          return;
+        }
+
+        const queue = session.proxy.getRequestQueue();
+        const modifications: RequestModification = {
+          requestId: data.requestId,
+          modifications: data.modifications,
+        };
+
+        await queue.forward(data.requestId, modifications);
+
+        wsLogger.info('Request modified and forwarded', { userId, requestId: data.requestId });
+      } catch (error) {
+        wsLogger.error('Failed to modify request', { userId, requestId: data.requestId, error });
+        socket.emit('error', { message: 'Failed to modify request' });
+      }
+    });
+
+    // Request queue query
+    socket.on('request:get-queue', async () => {
+      wsLogger.debug('Get request queue', { userId });
+
+      try {
+        const session = proxySessionManager.getSessionByUserId(userId);
+        if (!session) {
+          socket.emit('request:queue', { queue: [] });
+          return;
+        }
+
+        const queue = session.proxy.getRequestQueue();
+        const queueData = queue.getQueue();
+
+        socket.emit('request:queue', { queue: queueData });
+      } catch (error) {
+        wsLogger.error('Failed to get request queue', { userId, error });
+        socket.emit('error', { message: 'Failed to get request queue' });
+      }
     });
 
     // AI Analysis Events

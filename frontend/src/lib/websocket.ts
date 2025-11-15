@@ -48,6 +48,26 @@ export interface AIAnalysisPayload {
 // Event Handlers Type
 // ============================================
 
+export interface PendingRequest extends HTTPRequest {
+  userId: string;
+  proxySessionId: string;
+  isIntercepted: boolean;
+  queuedAt: string;
+}
+
+export interface QueueChangedPayload {
+  sessionId: string;
+  action: 'hold' | 'forward' | 'drop';
+  requestId: string;
+  queueSize: number;
+}
+
+export interface RequestHeldPayload {
+  sessionId: string;
+  userId: string;
+  request: PendingRequest;
+}
+
 export interface WebSocketEventHandlers {
   // Connection events
   onAuthenticated?: (data: { userId: string; sessionId: string }) => void;
@@ -64,6 +84,13 @@ export interface WebSocketEventHandlers {
   // Request events
   onRequestIntercepted?: (data: RequestInterceptedPayload) => void;
   onResponseReceived?: (data: ResponseReceivedPayload) => void;
+
+  // Request queue events
+  onRequestHeld?: (data: RequestHeldPayload) => void;
+  onRequestForwarded?: (data: { sessionId: string; userId: string; requestId: string; wasModified: boolean }) => void;
+  onRequestDropped?: (data: { sessionId: string; userId: string; requestId: string }) => void;
+  onQueueChanged?: (data: QueueChangedPayload) => void;
+  onRequestQueue?: (data: { queue: PendingRequest[] }) => void;
 
   // AI events
   onAIAnalysisStarted?: (data: { requestId: string }) => void;
@@ -206,6 +233,32 @@ export class WebSocketService {
       this.handlers.onResponseReceived?.(data);
     });
 
+    // Request queue events
+    this.socket.on('request:held', (data: RequestHeldPayload) => {
+      console.log('[WS] Request held in queue:', data.request.url);
+      this.handlers.onRequestHeld?.(data);
+    });
+
+    this.socket.on('request:forwarded', (data: { sessionId: string; userId: string; requestId: string; wasModified: boolean }) => {
+      console.log('[WS] Request forwarded:', data.requestId, 'wasModified:', data.wasModified);
+      this.handlers.onRequestForwarded?.(data);
+    });
+
+    this.socket.on('request:dropped', (data: { sessionId: string; userId: string; requestId: string }) => {
+      console.log('[WS] Request dropped:', data.requestId);
+      this.handlers.onRequestDropped?.(data);
+    });
+
+    this.socket.on('queue:changed', (data: QueueChangedPayload) => {
+      console.log('[WS] Queue changed:', data.action, 'queueSize:', data.queueSize);
+      this.handlers.onQueueChanged?.(data);
+    });
+
+    this.socket.on('request:queue', (data: { queue: PendingRequest[] }) => {
+      console.log('[WS] Request queue received:', data.queue.length, 'requests');
+      this.handlers.onRequestQueue?.(data);
+    });
+
     // AI events
     this.socket.on('ai:analysis-started', (data: { requestId: string }) => {
       console.log('[WS] AI analysis started:', data);
@@ -275,8 +328,20 @@ export class WebSocketService {
   /**
    * Modify and forward a request
    */
-  modifyRequest(requestId: string, modified: Partial<HTTPRequest>): void {
-    this.socket?.emit('request:modify', { requestId, modified });
+  modifyRequest(requestId: string, modifications: {
+    method?: string;
+    url?: string;
+    headers?: Record<string, string>;
+    body?: string;
+  }): void {
+    this.socket?.emit('request:modify', { requestId, modifications });
+  }
+
+  /**
+   * Get current request queue
+   */
+  getRequestQueue(): void {
+    this.socket?.emit('request:get-queue');
   }
 
   /**
