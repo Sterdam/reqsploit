@@ -8,6 +8,7 @@ import { RequestList } from '../components/RequestList';
 import { RequestViewer } from '../components/RequestViewer';
 import { AIAnalysisPanel } from '../components/AIAnalysisPanel';
 import { ProjectManager } from '../components/ProjectManager';
+import { InterceptPanel } from '../components/InterceptPanel';
 import { Header } from '../components/Header';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
@@ -22,7 +23,8 @@ export function Dashboard() {
   const [showRequests, setShowRequests] = useState(true);
   const [showAI, setShowAI] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
-  const [mobileMenu, setMobileMenu] = useState<'projects' | 'requests' | 'viewer' | 'ai'>('viewer');
+  const [mobileMenu, setMobileMenu] = useState<'projects' | 'requests' | 'viewer' | 'ai' | 'intercept'>('viewer');
+  const [centerTab, setCenterTab] = useState<'history' | 'intercept'>('history');
 
   // Detect mobile
   useEffect(() => {
@@ -92,6 +94,14 @@ export function Dashboard() {
           >
             AI
           </button>
+          <button
+            onClick={() => setMobileMenu('intercept')}
+            className={`flex-1 px-4 py-3 text-sm font-medium transition ${
+              mobileMenu === 'intercept' ? 'bg-blue-600/20 text-blue-400 border-b-2 border-blue-600' : 'text-gray-400'
+            }`}
+          >
+            Intercept
+          </button>
         </div>
 
         {/* Mobile Content */}
@@ -119,6 +129,7 @@ export function Dashboard() {
               )}
             </>
           )}
+          {mobileMenu === 'intercept' && <InterceptPanel />}
         </div>
       </div>
     );
@@ -190,7 +201,7 @@ export function Dashboard() {
             </button>
           )}
 
-          {/* Center - Request/Response Viewer */}
+          {/* Center - Tabbed View: History / Intercept */}
           <Panel defaultSize={35} minSize={25}>
             <div className="h-full flex flex-col relative">
               {showRequests && (
@@ -211,7 +222,36 @@ export function Dashboard() {
                   <ChevronRight className="w-4 h-4 text-gray-400" />
                 </button>
               )}
-              <RequestViewer />
+
+              {/* Tabs */}
+              <div className="flex border-b border-white/10 bg-[#0A1929]">
+                <button
+                  onClick={() => setCenterTab('history')}
+                  className={`px-6 py-3 text-sm font-medium transition ${
+                    centerTab === 'history'
+                      ? 'text-blue-400 border-b-2 border-blue-600 bg-[#0D1F2D]'
+                      : 'text-gray-400 hover:text-gray-300 hover:bg-white/5'
+                  }`}
+                >
+                  History
+                </button>
+                <button
+                  onClick={() => setCenterTab('intercept')}
+                  className={`px-6 py-3 text-sm font-medium transition ${
+                    centerTab === 'intercept'
+                      ? 'text-blue-400 border-b-2 border-blue-600 bg-[#0D1F2D]'
+                      : 'text-gray-400 hover:text-gray-300 hover:bg-white/5'
+                  }`}
+                >
+                  Intercept
+                </button>
+              </div>
+
+              {/* Tab Content */}
+              <div className="flex-1 overflow-hidden">
+                {centerTab === 'history' && <RequestViewer />}
+                {centerTab === 'intercept' && <InterceptPanel />}
+              </div>
             </div>
           </Panel>
 
