@@ -438,7 +438,7 @@ export function Dashboard() {
               </div>
 
               {/* Tab Content */}
-              <div className="flex-1 overflow-hidden">
+              <div className="flex-1 overflow-hidden min-h-0">
                 {centerTab === 'history' && (
                   <ErrorBoundary>
                     <RequestViewer />
