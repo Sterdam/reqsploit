@@ -17,7 +17,7 @@ router.use(authenticateToken);
 router.post(
   '/campaigns',
   asyncHandler(async (req: Request, res: Response) => {
-    const userId = (req as any).userId;
+    const userId = req.user!.id;
     const { name, requestTemplate, payloadPositions, payloadSets, attackType, concurrency, delayMs } = req.body;
 
     // Validate required fields
@@ -64,7 +64,7 @@ router.post(
 router.get(
   '/campaigns',
   asyncHandler(async (req: Request, res: Response) => {
-    const userId = (req as any).userId;
+    const userId = req.user!.id;
 
     const campaigns = await prisma.fuzzingCampaign.findMany({
       where: { userId },
@@ -85,7 +85,7 @@ router.get(
 router.get(
   '/campaigns/:id',
   asyncHandler(async (req: Request, res: Response) => {
-    const userId = (req as any).userId;
+    const userId = req.user!.id;
     const { id } = req.params;
 
     const campaign = await prisma.fuzzingCampaign.findFirst({
@@ -125,7 +125,7 @@ router.get(
 router.post(
   '/campaigns/:id/start',
   asyncHandler(async (req: Request, res: Response) => {
-    const userId = (req as any).userId;
+    const userId = req.user!.id;
     const { id } = req.params;
 
     const campaign = await prisma.fuzzingCampaign.findFirst({
@@ -258,7 +258,7 @@ router.get(
 router.get(
   '/campaigns/:id/results',
   asyncHandler(async (req: Request, res: Response) => {
-    const userId = (req as any).userId;
+    const userId = req.user!.id;
     const { id } = req.params;
     const { statusCode, minLength, maxLength, limit = 100 } = req.query;
 
@@ -317,7 +317,7 @@ router.get(
 router.delete(
   '/campaigns/:id',
   asyncHandler(async (req: Request, res: Response) => {
-    const userId = (req as any).userId;
+    const userId = req.user!.id;
     const { id } = req.params;
 
     // Verify campaign ownership
