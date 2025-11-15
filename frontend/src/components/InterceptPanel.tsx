@@ -154,9 +154,9 @@ export function InterceptPanel() {
           </div>
         </div>
       ) : (
-        <div className="flex-1 flex overflow-hidden">
+        <div className="flex-1 flex overflow-hidden min-h-0">
           {/* Queue List - Left 30% */}
-          <div className="w-[30%] border-r border-white/10 flex flex-col">
+          <div className="w-[30%] border-r border-white/10 flex flex-col min-h-0">
             <div className="px-4 py-3 border-b border-white/10 bg-[#0D1F2D]">
               <h3 className="text-sm font-semibold text-gray-300">Queue</h3>
             </div>
