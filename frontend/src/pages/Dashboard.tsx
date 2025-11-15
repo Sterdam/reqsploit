@@ -5,6 +5,7 @@ import { useProxyStore } from '../stores/proxyStore';
 import { useApiRequestsStore } from '../stores/apiRequestsStore';
 import { useRepeaterStore } from '../stores/repeaterStore';
 import { useIntruderStore } from '../stores/intruderStore';
+import { useInterceptStore } from '../stores/interceptStore';
 import { useLayoutPersistence } from '../hooks/useLayoutPersistence';
 import { toast } from '../stores/toastStore';
 import { ProxyControls } from '../components/ProxyControls';
@@ -84,8 +85,9 @@ export function Dashboard() {
 
   // Keyboard shortcuts handler
   const { toggleIntercept, session } = useProxyStore();
-  const { createTab: createRepeaterTab } = useRepeaterStore();
-  const { startDraft: startIntruderDraft } = useIntruderStore();
+  const { createTab: createRepeaterTab, tabs: repeaterTabs } = useRepeaterStore();
+  const { startDraft: startIntruderDraft, campaigns: intruderCampaigns } = useIntruderStore();
+  const { queuedRequests: interceptQueue } = useInterceptStore();
 
   const handleShortcut = useCallback((action: ShortcutAction) => {
     switch (action) {
@@ -393,6 +395,9 @@ export function Dashboard() {
                   }`}
                 >
                   Intercept
+                  {interceptQueue.length > 0 && (
+                    <span className="text-[#10B981] ml-1">({interceptQueue.length})</span>
+                  )}
                 </button>
                 <button
                   onClick={() => setCenterTab('repeater')}
@@ -403,6 +408,9 @@ export function Dashboard() {
                   }`}
                 >
                   Repeater
+                  {repeaterTabs.length > 0 && (
+                    <span className="text-[#10B981] ml-1">({repeaterTabs.length})</span>
+                  )}
                 </button>
                 <button
                   onClick={() => setCenterTab('decoder')}
@@ -423,6 +431,9 @@ export function Dashboard() {
                   }`}
                 >
                   Intruder
+                  {intruderCampaigns.length > 0 && (
+                    <span className="text-[#10B981] ml-1">({intruderCampaigns.length})</span>
+                  )}
                 </button>
               </div>
 
