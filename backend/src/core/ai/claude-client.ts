@@ -29,20 +29,21 @@ export class ClaudeClient {
     const apiKey = process.env.ANTHROPIC_API_KEY;
 
     if (!apiKey) {
-      throw new Error('ANTHROPIC_API_KEY environment variable is required');
-    }
+      aiLogger.warn('ANTHROPIC_API_KEY not set - Claude AI features will be disabled');
+      this.client = null as any; // Will throw error if actually used
+    } else {
+      this.client = new Anthropic({
+        apiKey,
+      });
 
-    this.client = new Anthropic({
-      apiKey,
-    });
+      aiLogger.info('Claude AI Client initialized', {
+        model: this.model,
+        maxTokens: this.maxTokens,
+      });
+    }
 
     this.model = process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-20250514';
     this.maxTokens = parseInt(process.env.ANTHROPIC_MAX_TOKENS || '4096', 10);
-
-    aiLogger.info('Claude AI Client initialized', {
-      model: this.model,
-      maxTokens: this.maxTokens,
-    });
   }
 
   /**
@@ -178,5 +179,16 @@ export class ClaudeClient {
   }
 }
 
-// Export singleton instance
-export const claudeClient = ClaudeClient.getInstance();
+// Export lazy getter for singleton instance
+export const claudeClient = {
+  get instance() {
+    return ClaudeClient.getInstance();
+  },
+  // Expose methods for easier access
+  sendMessage: (...args: Parameters<ClaudeClient['sendMessage']>) =>
+    ClaudeClient.getInstance().sendMessage(...args),
+  analyze: (...args: Parameters<ClaudeClient['analyze']>) =>
+    ClaudeClient.getInstance().analyze(...args),
+  getConfig: () =>
+    ClaudeClient.getInstance().getConfig(),
+};
