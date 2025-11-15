@@ -139,7 +139,7 @@ export function RepeaterPanel() {
             <div className="w-1/2 flex flex-col border-r border-white/10">
               {/* Request Header */}
               <div className="px-4 py-3 border-b border-white/10 bg-[#0D1F2D]">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 min-w-0">
                   {/* Method Selector */}
                   <select
                     value={activeTab.request.method}
@@ -161,14 +161,14 @@ export function RepeaterPanel() {
                     value={activeTab.request.url}
                     onChange={(e) => updateRequest(activeTab.id, 'url', e.target.value)}
                     placeholder="https://example.com/api/endpoint"
-                    className="flex-1 px-3 py-1.5 bg-[#0A1929] text-white border border-white/20 rounded text-sm"
+                    className="flex-1 min-w-0 px-3 py-1.5 bg-[#0A1929] text-white border border-white/20 rounded text-sm"
                   />
 
                   {/* Send Button */}
                   <button
                     onClick={handleSend}
                     disabled={activeTab.isLoading}
-                    className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium text-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex-shrink-0 px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium text-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {activeTab.isLoading ? (
                       <>
