@@ -32,6 +32,13 @@
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
+  "externally_connectable": {
+    "matches": [
+      "http://localhost:5173/*",
+      "http://localhost:3000/*",
+      "https://*.reqsploit.com/*"
+    ]
+  },
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self'"
   }
