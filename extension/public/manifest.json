@@ -9,7 +9,9 @@
     "tabs",
     "webRequest",
     "activeTab",
-    "notifications"
+    "notifications",
+    "contextMenus",
+    "downloads"
   ],
   "host_permissions": [
     "<all_urls>"
