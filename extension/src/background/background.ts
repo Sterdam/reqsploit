@@ -249,27 +249,17 @@ async function downloadCertificate(): Promise<void> {
   }
 
   try {
-    const response = await fetch(`${API_URL}/api/certificates/root/download`, {
-      headers: {
-        'Authorization': `Bearer ${userState.accessToken}`,
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-
-    const blob = await response.blob();
-    const url = URL.createObjectURL(blob);
-
-    // Trigger download
-    await chrome.downloads.download({
-      url: url,
+    // Service workers can't use URL.createObjectURL, so we download directly from the backend
+    const downloadId = await chrome.downloads.download({
+      url: `${API_URL}/api/certificates/root/download`,
       filename: 'reqsploit-ca.crt',
       saveAs: true,
+      headers: [
+        { name: 'Authorization', value: `Bearer ${userState.accessToken}` }
+      ],
     });
 
-    URL.revokeObjectURL(url);
+    console.log('[ReqSploit] Certificate download started:', downloadId);
   } catch (error) {
     console.error('[ReqSploit] Failed to download certificate:', error);
     throw error;
