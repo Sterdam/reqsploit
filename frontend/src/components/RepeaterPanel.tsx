@@ -7,6 +7,7 @@ import {
   Clock,
   Copy,
 } from 'lucide-react';
+import { ResponseViewer } from './common';
 
 export function RepeaterPanel() {
   const {
@@ -302,15 +303,19 @@ export function RepeaterPanel() {
               </div>
 
               {/* Response Content */}
-              <div className="flex-1 overflow-auto p-4">
+              <div className="flex-1 overflow-auto">
                 {!activeTab.response ? (
                   <div className="flex items-center justify-center h-full text-white/40">
                     <p>Send a request to see the response</p>
                   </div>
                 ) : (
-                  <pre className="text-sm text-white/90 font-mono whitespace-pre-wrap break-all">
-                    {activeTab.response.body}
-                  </pre>
+                  <ResponseViewer
+                    statusCode={activeTab.response.statusCode}
+                    statusMessage={activeTab.response.statusMessage}
+                    headers={activeTab.response.headers}
+                    body={activeTab.response.body}
+                    responseTime={activeTab.response.responseTime}
+                  />
                 )}
               </div>
             </div>

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useRequestsStore } from '../stores/requestsStore';
+import { ResponseViewer } from './common';
 
 export function RequestViewer() {
   const { selectedRequest } = useRequestsStore();
@@ -167,51 +168,16 @@ export function RequestViewer() {
               <div className="bg-white/5 rounded-md p-3">{renderBody(selectedRequest.body)}</div>
             </div>
           </div>
+        ) : selectedRequest.responseBody || selectedRequest.responseHeaders ? (
+          <ResponseViewer
+            statusCode={selectedRequest.statusCode}
+            headers={selectedRequest.responseHeaders}
+            body={selectedRequest.responseBody}
+            responseTime={selectedRequest.duration}
+          />
         ) : (
-          <div className="space-y-4">
-            {/* Response Headers */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="text-sm font-semibold text-white">Headers</h3>
-                {selectedRequest.responseHeaders && (
-                  <button
-                    onClick={() =>
-                      copyToClipboard(formatHeaders(selectedRequest.responseHeaders!))
-                    }
-                    className="text-xs text-gray-400 hover:text-white transition-colors"
-                  >
-                    Copy
-                  </button>
-                )}
-              </div>
-              <div className="bg-white/5 rounded-md p-3">
-                {selectedRequest.responseHeaders ? (
-                  <pre className="text-xs text-gray-300 font-mono whitespace-pre-wrap break-all">
-                    {formatHeaders(selectedRequest.responseHeaders)}
-                  </pre>
-                ) : (
-                  <p className="text-gray-400 text-sm">No response headers</p>
-                )}
-              </div>
-            </div>
-
-            {/* Response Body */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="text-sm font-semibold text-white">Body</h3>
-              </div>
-              <div className="bg-white/5 rounded-md p-3 max-h-96 overflow-auto">
-                {selectedRequest.responseBody ? (
-                  <pre className="text-gray-300 text-xs font-mono whitespace-pre-wrap">
-                    {prettyPrint && selectedRequest.responseHeaders?.['content-type']?.includes('json')
-                      ? formatJson(JSON.parse(selectedRequest.responseBody))
-                      : selectedRequest.responseBody}
-                  </pre>
-                ) : (
-                  <p className="text-gray-400 text-sm">No response body</p>
-                )}
-              </div>
-            </div>
+          <div className="flex items-center justify-center h-full text-white/50">
+            No response data available
           </div>
         )}
       </div>
