@@ -6,6 +6,9 @@
 const BACKEND_URL = 'http://localhost:3000';
 const DASHBOARD_URL = 'http://localhost:5173';
 
+// Current proxy state (cached from background)
+let proxyEnabled = false;
+
 // DOM elements
 const backendStatus = document.getElementById('backend-status');
 const backendText = document.getElementById('backend-text');
@@ -33,6 +36,9 @@ async function init() {
 async function updateStatus() {
   try {
     const response = await chrome.runtime.sendMessage({ action: 'getStatus' });
+
+    // Cache proxy state
+    proxyEnabled = response.proxyEnabled || false;
 
     // Update backend status
     if (response.backendConnected) {
@@ -88,17 +94,31 @@ function setupEventListeners() {
   toggleProxyBtn.addEventListener('click', async () => {
     try {
       toggleProxyBtn.disabled = true;
+      toggleText.textContent = proxyEnabled ? 'Disabling...' : 'Enabling...';
+
       const response = await chrome.runtime.sendMessage({ action: 'toggleProxy' });
 
       if (response.success) {
         await updateStatus();
       } else {
-        alert('Failed to toggle proxy: ' + (response.error || 'Unknown error'));
+        const errorMsg = response.error || 'Unknown error';
+        // Show user-friendly error message
+        if (errorMsg.includes('authentication token')) {
+          alert('Please log in to the ReqSploit dashboard first.\n\nClick "Open Dashboard" below to log in.');
+        } else {
+          alert('Failed to toggle proxy: ' + errorMsg);
+        }
       }
     } catch (error) {
-      alert('Failed to toggle proxy: ' + error.message);
+      const errorMsg = error.message || 'Unknown error';
+      if (errorMsg.includes('authentication token')) {
+        alert('Please log in to the ReqSploit dashboard first.\n\nClick "Open Dashboard" below to log in.');
+      } else {
+        alert('Failed to toggle proxy: ' + errorMsg);
+      }
     } finally {
       toggleProxyBtn.disabled = false;
+      await updateStatus(); // Refresh to show correct state
     }
   });
 
