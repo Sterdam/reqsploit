@@ -327,6 +327,46 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 /**
+ * External message handler (from webapp)
+ */
+chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => {
+  console.log('[ReqSploit] External message received:', message, 'from:', sender.url);
+
+  (async () => {
+    try {
+      switch (message.action) {
+        case 'ping':
+          // Extension detection ping from webapp
+          sendResponse({ success: true, installed: true });
+          break;
+
+        case 'setAuthToken':
+          // Token sync from webapp after login
+          await setAuthToken(message.token);
+          console.log('[ReqSploit] Auth token stored from webapp');
+          sendResponse({ success: true });
+          break;
+
+        case 'getStatus':
+          // Status query from webapp
+          const status = await getProxyStatus();
+          sendResponse({ success: true, ...status });
+          break;
+
+        default:
+          sendResponse({ success: false, error: 'Unknown external action' });
+      }
+    } catch (error: any) {
+      console.error('[ReqSploit] External message handler error:', error);
+      sendResponse({ success: false, error: error.message });
+    }
+  })();
+
+  // Return true to indicate async response
+  return true;
+});
+
+/**
  * Context menu handler
  */
 chrome.contextMenus.onClicked.addListener((info, tab) => {
