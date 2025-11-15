@@ -9,6 +9,7 @@ import { RequestViewer } from '../components/RequestViewer';
 import { AIAnalysisPanel } from '../components/AIAnalysisPanel';
 import { ProjectManager } from '../components/ProjectManager';
 import { InterceptPanel } from '../components/InterceptPanel';
+import { RepeaterPanel } from '../components/RepeaterPanel';
 import { Header } from '../components/Header';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
@@ -23,8 +24,8 @@ export function Dashboard() {
   const [showRequests, setShowRequests] = useState(true);
   const [showAI, setShowAI] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
-  const [mobileMenu, setMobileMenu] = useState<'projects' | 'requests' | 'viewer' | 'ai' | 'intercept'>('viewer');
-  const [centerTab, setCenterTab] = useState<'history' | 'intercept'>('history');
+  const [mobileMenu, setMobileMenu] = useState<'projects' | 'requests' | 'viewer' | 'ai' | 'intercept' | 'repeater'>('viewer');
+  const [centerTab, setCenterTab] = useState<'history' | 'intercept' | 'repeater'>('history');
 
   // Detect mobile
   useEffect(() => {
@@ -102,6 +103,14 @@ export function Dashboard() {
           >
             Intercept
           </button>
+          <button
+            onClick={() => setMobileMenu('repeater')}
+            className={`flex-1 px-4 py-3 text-sm font-medium transition ${
+              mobileMenu === 'repeater' ? 'bg-blue-600/20 text-blue-400 border-b-2 border-blue-600' : 'text-gray-400'
+            }`}
+          >
+            Repeater
+          </button>
         </div>
 
         {/* Mobile Content */}
@@ -130,6 +139,7 @@ export function Dashboard() {
             </>
           )}
           {mobileMenu === 'intercept' && <InterceptPanel />}
+          {mobileMenu === 'repeater' && <RepeaterPanel />}
         </div>
       </div>
     );
@@ -245,12 +255,23 @@ export function Dashboard() {
                 >
                   Intercept
                 </button>
+                <button
+                  onClick={() => setCenterTab('repeater')}
+                  className={`px-6 py-3 text-sm font-medium transition ${
+                    centerTab === 'repeater'
+                      ? 'text-blue-400 border-b-2 border-blue-600 bg-[#0D1F2D]'
+                      : 'text-gray-400 hover:text-gray-300 hover:bg-white/5'
+                  }`}
+                >
+                  Repeater
+                </button>
               </div>
 
               {/* Tab Content */}
               <div className="flex-1 overflow-hidden">
                 {centerTab === 'history' && <RequestViewer />}
                 {centerTab === 'intercept' && <InterceptPanel />}
+                {centerTab === 'repeater' && <RepeaterPanel />}
               </div>
             </div>
           </Panel>
