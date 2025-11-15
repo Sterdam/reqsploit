@@ -10,6 +10,7 @@ import { AIAnalysisPanel } from '../components/AIAnalysisPanel';
 import { ProjectManager } from '../components/ProjectManager';
 import { InterceptPanel } from '../components/InterceptPanel';
 import { RepeaterPanel } from '../components/RepeaterPanel';
+import { DecoderPanel } from '../components/DecoderPanel';
 import { Header } from '../components/Header';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
@@ -24,8 +25,8 @@ export function Dashboard() {
   const [showRequests, setShowRequests] = useState(true);
   const [showAI, setShowAI] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
-  const [mobileMenu, setMobileMenu] = useState<'projects' | 'requests' | 'viewer' | 'ai' | 'intercept' | 'repeater'>('viewer');
-  const [centerTab, setCenterTab] = useState<'history' | 'intercept' | 'repeater'>('history');
+  const [mobileMenu, setMobileMenu] = useState<'projects' | 'requests' | 'viewer' | 'ai' | 'intercept' | 'repeater' | 'decoder'>('viewer');
+  const [centerTab, setCenterTab] = useState<'history' | 'intercept' | 'repeater' | 'decoder'>('history');
 
   // Detect mobile
   useEffect(() => {
@@ -111,6 +112,14 @@ export function Dashboard() {
           >
             Repeater
           </button>
+          <button
+            onClick={() => setMobileMenu('decoder')}
+            className={`flex-1 px-4 py-3 text-sm font-medium transition ${
+              mobileMenu === 'decoder' ? 'bg-blue-600/20 text-blue-400 border-b-2 border-blue-600' : 'text-gray-400'
+            }`}
+          >
+            Decoder
+          </button>
         </div>
 
         {/* Mobile Content */}
@@ -140,6 +149,7 @@ export function Dashboard() {
           )}
           {mobileMenu === 'intercept' && <InterceptPanel />}
           {mobileMenu === 'repeater' && <RepeaterPanel />}
+          {mobileMenu === 'decoder' && <DecoderPanel />}
         </div>
       </div>
     );
@@ -265,6 +275,16 @@ export function Dashboard() {
                 >
                   Repeater
                 </button>
+                <button
+                  onClick={() => setCenterTab('decoder')}
+                  className={`px-6 py-3 text-sm font-medium transition ${
+                    centerTab === 'decoder'
+                      ? 'text-blue-400 border-b-2 border-blue-600 bg-[#0D1F2D]'
+                      : 'text-gray-400 hover:text-gray-300 hover:bg-white/5'
+                  }`}
+                >
+                  Decoder
+                </button>
               </div>
 
               {/* Tab Content */}
@@ -272,6 +292,7 @@ export function Dashboard() {
                 {centerTab === 'history' && <RequestViewer />}
                 {centerTab === 'intercept' && <InterceptPanel />}
                 {centerTab === 'repeater' && <RepeaterPanel />}
+                {centerTab === 'decoder' && <DecoderPanel />}
               </div>
             </div>
           </Panel>
