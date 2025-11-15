@@ -11,6 +11,7 @@ import { ProjectManager } from '../components/ProjectManager';
 import { InterceptPanel } from '../components/InterceptPanel';
 import { RepeaterPanel } from '../components/RepeaterPanel';
 import { DecoderPanel } from '../components/DecoderPanel';
+import { IntruderPanel } from '../components/IntruderPanel';
 import { Header } from '../components/Header';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
@@ -25,8 +26,8 @@ export function Dashboard() {
   const [showRequests, setShowRequests] = useState(true);
   const [showAI, setShowAI] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
-  const [mobileMenu, setMobileMenu] = useState<'projects' | 'requests' | 'viewer' | 'ai' | 'intercept' | 'repeater' | 'decoder'>('viewer');
-  const [centerTab, setCenterTab] = useState<'history' | 'intercept' | 'repeater' | 'decoder'>('history');
+  const [mobileMenu, setMobileMenu] = useState<'projects' | 'requests' | 'viewer' | 'ai' | 'intercept' | 'repeater' | 'decoder' | 'intruder'>('viewer');
+  const [centerTab, setCenterTab] = useState<'history' | 'intercept' | 'repeater' | 'decoder' | 'intruder'>('history');
 
   // Detect mobile
   useEffect(() => {
@@ -120,6 +121,14 @@ export function Dashboard() {
           >
             Decoder
           </button>
+          <button
+            onClick={() => setMobileMenu('intruder')}
+            className={`flex-1 px-4 py-3 text-sm font-medium transition ${
+              mobileMenu === 'intruder' ? 'bg-blue-600/20 text-blue-400 border-b-2 border-blue-600' : 'text-gray-400'
+            }`}
+          >
+            Intruder
+          </button>
         </div>
 
         {/* Mobile Content */}
@@ -150,6 +159,7 @@ export function Dashboard() {
           {mobileMenu === 'intercept' && <InterceptPanel />}
           {mobileMenu === 'repeater' && <RepeaterPanel />}
           {mobileMenu === 'decoder' && <DecoderPanel />}
+          {mobileMenu === 'intruder' && <IntruderPanel />}
         </div>
       </div>
     );
@@ -285,6 +295,16 @@ export function Dashboard() {
                 >
                   Decoder
                 </button>
+                <button
+                  onClick={() => setCenterTab('intruder')}
+                  className={`px-6 py-3 text-sm font-medium transition ${
+                    centerTab === 'intruder'
+                      ? 'text-blue-400 border-b-2 border-blue-600 bg-[#0D1F2D]'
+                      : 'text-gray-400 hover:text-gray-300 hover:bg-white/5'
+                  }`}
+                >
+                  Intruder
+                </button>
               </div>
 
               {/* Tab Content */}
@@ -293,6 +313,7 @@ export function Dashboard() {
                 {centerTab === 'intercept' && <InterceptPanel />}
                 {centerTab === 'repeater' && <RepeaterPanel />}
                 {centerTab === 'decoder' && <DecoderPanel />}
+                {centerTab === 'intruder' && <IntruderPanel />}
               </div>
             </div>
           </Panel>
