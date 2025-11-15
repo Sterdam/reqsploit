@@ -62,6 +62,17 @@ export function useKeyboardShortcuts(
     if (!enabled) return;
 
     const handleKeyDown = (event: KeyboardEvent) => {
+      // Ignore shortcuts when typing in input/textarea (except for specific shortcuts like Ctrl+R)
+      const target = event.target as HTMLElement;
+      const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
+
+      // Allow Ctrl/Cmd shortcuts even in inputs (like Ctrl+R, Ctrl+S)
+      const hasModifier = event.ctrlKey || event.metaKey || event.altKey;
+
+      if (isInput && !hasModifier) {
+        return;
+      }
+
       // Find matching shortcut
       const shortcut = SHORTCUTS.find((s) => {
         const keyMatch = event.key.toLowerCase() === s.key.toLowerCase();

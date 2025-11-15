@@ -102,6 +102,11 @@ export function RepeaterPanel() {
               `}
             >
               <span>{tab.name}</span>
+              {tab.history.length > 0 && (
+                <span className="px-1.5 py-0.5 bg-[#10B981]/20 text-[#10B981] text-xs rounded">
+                  {tab.history.length}
+                </span>
+              )}
               {tabs.length > 1 && (
                 <X
                   className="w-3 h-3 hover:text-red-400"
