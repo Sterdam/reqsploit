@@ -349,6 +349,35 @@ export class ProxySessionManager {
       });
     });
 
+    // Request queue events
+    proxy.on('request:held', (data) => {
+      wsServer.emitToUser(userId, 'request:held', {
+        sessionId,
+        ...data,
+      });
+    });
+
+    proxy.on('request:forwarded', (data) => {
+      wsServer.emitToUser(userId, 'request:forwarded', {
+        sessionId,
+        ...data,
+      });
+    });
+
+    proxy.on('request:dropped', (data) => {
+      wsServer.emitToUser(userId, 'request:dropped', {
+        sessionId,
+        ...data,
+      });
+    });
+
+    proxy.on('queue:changed', (data) => {
+      wsServer.emitToUser(userId, 'queue:changed', {
+        sessionId,
+        ...data,
+      });
+    });
+
     // Periodically emit stats
     setInterval(() => {
       const stats = proxy.getStats();
