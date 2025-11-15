@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import { useAuthStore } from '../stores/authStore';
 import { useProxyStore } from '../stores/proxyStore';
 import { useApiRequestsStore } from '../stores/apiRequestsStore';
+import { useInterceptStore } from '../stores/interceptStore';
 import { ProxyControls } from '../components/ProxyControls';
 import { RequestList } from '../components/RequestList';
 import { RequestViewer } from '../components/RequestViewer';
@@ -13,7 +14,9 @@ import { RepeaterPanel } from '../components/RepeaterPanel';
 import { DecoderPanel } from '../components/DecoderPanel';
 import { IntruderPanel } from '../components/IntruderPanel';
 import { Header } from '../components/Header';
+import { ToastContainer } from '../components/ToastContainer';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { useKeyboardShortcuts, type ShortcutAction } from '../hooks/useKeyboardShortcuts';
 
 export function Dashboard() {
   const { accessToken, _hasHydrated } = useAuthStore();
@@ -57,11 +60,43 @@ export function Dashboard() {
     fetchRequests(accessToken);
   }, [_hasHydrated, selectedProjectId, setFilters, fetchRequests, accessToken]);
 
+  // Keyboard shortcuts handler
+  const { interceptEnabled, toggleIntercept } = useInterceptStore();
+
+  const handleShortcut = useCallback((action: ShortcutAction) => {
+    switch (action) {
+      case 'toggle-intercept':
+        toggleIntercept();
+        break;
+      case 'send-to-repeater':
+        if (selectedRequest) {
+          setCenterTab('repeater');
+          // TODO: Send selected request to repeater
+        }
+        break;
+      case 'open-decoder':
+        setCenterTab('decoder');
+        if (isMobile) setMobileMenu('decoder');
+        break;
+      case 'send-to-intruder':
+        if (selectedRequest) {
+          setCenterTab('intruder');
+          // TODO: Send selected request to intruder
+        }
+        break;
+      default:
+        break;
+    }
+  }, [selectedRequest, isMobile, toggleIntercept]);
+
+  useKeyboardShortcuts(handleShortcut);
+
   // Mobile view
   if (isMobile) {
     return (
       <div className="min-h-screen bg-deep-navy flex flex-col">
         <Header />
+        <ToastContainer />
 
         {/* Mobile Navigation */}
         <div className="flex border-b border-white/10 bg-[#0A1929]">
@@ -169,6 +204,7 @@ export function Dashboard() {
   return (
     <div className="min-h-screen bg-deep-navy flex flex-col">
       <Header />
+      <ToastContainer />
 
       <div className="flex-1 flex overflow-hidden">
         <PanelGroup direction="horizontal">
