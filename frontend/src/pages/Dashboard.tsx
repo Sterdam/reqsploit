@@ -4,6 +4,7 @@ import { useAuthStore } from '../stores/authStore';
 import { useProxyStore } from '../stores/proxyStore';
 import { useApiRequestsStore } from '../stores/apiRequestsStore';
 import { useInterceptStore } from '../stores/interceptStore';
+import { useLayoutPersistence } from '../hooks/useLayoutPersistence';
 import { ProxyControls } from '../components/ProxyControls';
 import { RequestList } from '../components/RequestList';
 import { RequestViewer } from '../components/RequestViewer';
@@ -15,6 +16,8 @@ import { DecoderPanel } from '../components/DecoderPanel';
 import { IntruderPanel } from '../components/IntruderPanel';
 import { Header } from '../components/Header';
 import { ToastContainer } from '../components/ToastContainer';
+import { KeyboardShortcutHelp } from '../components/KeyboardShortcutHelp';
+import { ErrorBoundary } from '../components/ErrorBoundary';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useKeyboardShortcuts, type ShortcutAction } from '../hooks/useKeyboardShortcuts';
 
@@ -24,13 +27,30 @@ export function Dashboard() {
   const { fetchRequests, selectedRequest, setFilters } = useApiRequestsStore();
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
 
-  // Collapsible panels state
-  const [showProjects, setShowProjects] = useState(true);
-  const [showRequests, setShowRequests] = useState(true);
-  const [showAI, setShowAI] = useState(true);
+  // Layout persistence
+  const { layout, isLoaded, updatePanelVisibility, updateCenterTab } = useLayoutPersistence();
+
+  // Collapsible panels state (initialized from persisted layout)
+  const [showProjects, setShowProjects] = useState(layout.panelVisibility.showProjects);
+  const [showRequests, setShowRequests] = useState(layout.panelVisibility.showRequests);
+  const [showAI, setShowAI] = useState(layout.panelVisibility.showAI);
   const [isMobile, setIsMobile] = useState(false);
   const [mobileMenu, setMobileMenu] = useState<'projects' | 'requests' | 'viewer' | 'ai' | 'intercept' | 'repeater' | 'decoder' | 'intruder'>('viewer');
-  const [centerTab, setCenterTab] = useState<'history' | 'intercept' | 'repeater' | 'decoder' | 'intruder'>('history');
+  const [centerTab, setCenterTab] = useState<'history' | 'intercept' | 'repeater' | 'decoder' | 'intruder'>(layout.centerTab);
+
+  // Update persisted layout when panel visibility changes
+  useEffect(() => {
+    if (isLoaded) {
+      updatePanelVisibility({ showProjects, showRequests, showAI });
+    }
+  }, [showProjects, showRequests, showAI, isLoaded, updatePanelVisibility]);
+
+  // Update persisted layout when center tab changes
+  useEffect(() => {
+    if (isLoaded) {
+      updateCenterTab(centerTab);
+    }
+  }, [centerTab, isLoaded, updateCenterTab]);
 
   // Detect mobile
   useEffect(() => {
@@ -97,6 +117,7 @@ export function Dashboard() {
       <div className="min-h-screen bg-deep-navy flex flex-col">
         <Header />
         <ToastContainer />
+        <KeyboardShortcutHelp />
 
         {/* Mobile Navigation */}
         <div className="flex border-b border-white/10 bg-[#0A1929]">
@@ -205,6 +226,7 @@ export function Dashboard() {
     <div className="min-h-screen bg-deep-navy flex flex-col">
       <Header />
       <ToastContainer />
+      <KeyboardShortcutHelp />
 
       <div className="flex-1 flex overflow-hidden">
         <PanelGroup direction="horizontal">
