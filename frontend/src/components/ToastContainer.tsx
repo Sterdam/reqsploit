@@ -1,4 +1,4 @@
-import { Toast, type ToastProps } from './Toast';
+import { Toast } from './Toast';
 import { useToastStore } from '../stores/toastStore';
 
 export function ToastContainer() {

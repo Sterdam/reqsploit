@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useIntruderStore, type Campaign, type AttackType, type PayloadSet } from '../stores/intruderStore';
+import { useIntruderStore, type AttackType, type PayloadSet } from '../stores/intruderStore';
 import { exportToCSV, exportToJSON, generateExportFilename } from '../utils/exportUtils';
 import { toast } from '../stores/toastStore';
 import {
@@ -8,11 +8,7 @@ import {
   Square,
   Trash2,
   Plus,
-  Settings,
-  Download,
-  AlertCircle,
   CheckCircle,
-  Clock,
   Zap,
   FileDown,
 } from 'lucide-react';
@@ -52,7 +48,6 @@ export function IntruderPanel() {
   const [selectedPosition, setSelectedPosition] = useState<number>(0);
   const [customPayloads, setCustomPayloads] = useState('');
   const [numberRange, setNumberRange] = useState({ from: 1, to: 100, step: 1 });
-  const [resultsFilter, setResultsFilter] = useState({ statusCode: '', minLength: '', maxLength: '' });
 
   // Load campaigns and builtin payloads on mount
   useEffect(() => {

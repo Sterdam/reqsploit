@@ -200,10 +200,16 @@ export function RequestViewer() {
               <div className="flex items-center justify-between mb-2">
                 <h3 className="text-sm font-semibold text-white">Body</h3>
               </div>
-              <div className="bg-white/5 rounded-md p-3">
-                <p className="text-gray-400 text-sm">
-                  Response body capture coming soon
-                </p>
+              <div className="bg-white/5 rounded-md p-3 max-h-96 overflow-auto">
+                {selectedRequest.responseBody ? (
+                  <pre className="text-gray-300 text-xs font-mono whitespace-pre-wrap">
+                    {prettyPrint && selectedRequest.responseHeaders?.['content-type']?.includes('json')
+                      ? formatJson(JSON.parse(selectedRequest.responseBody))
+                      : selectedRequest.responseBody}
+                  </pre>
+                ) : (
+                  <p className="text-gray-400 text-sm">No response body</p>
+                )}
               </div>
             </div>
           </div>

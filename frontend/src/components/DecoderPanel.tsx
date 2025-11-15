@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useDecoderStore, type EncodingType, type HashType } from '../stores/decoderStore';
-import { ArrowDown, ArrowUp, Copy, RotateCw, Trash2, Sparkles } from 'lucide-react';
+import { ArrowDown, ArrowUp, Copy, RotateCw, Sparkles } from 'lucide-react';
 
 export function DecoderPanel() {
   const {

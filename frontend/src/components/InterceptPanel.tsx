@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useProxyStore } from '../stores/proxyStore';
-import { useInterceptStore, type EditableRequest } from '../stores/interceptStore';
+import { useInterceptStore } from '../stores/interceptStore';
 import { wsService } from '../lib/websocket';
 import {
   Play,

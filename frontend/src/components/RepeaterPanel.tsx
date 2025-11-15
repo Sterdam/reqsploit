@@ -4,12 +4,8 @@ import {
   Play,
   X,
   Plus,
-  Save,
   Clock,
-  ChevronRight,
   Copy,
-  Download,
-  Trash2,
 } from 'lucide-react';
 
 export function RepeaterPanel() {

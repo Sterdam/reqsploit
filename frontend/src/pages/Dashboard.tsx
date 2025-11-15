@@ -3,8 +3,10 @@ import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import { useAuthStore } from '../stores/authStore';
 import { useProxyStore } from '../stores/proxyStore';
 import { useApiRequestsStore } from '../stores/apiRequestsStore';
-import { useInterceptStore } from '../stores/interceptStore';
+import { useRepeaterStore } from '../stores/repeaterStore';
+import { useIntruderStore } from '../stores/intruderStore';
 import { useLayoutPersistence } from '../hooks/useLayoutPersistence';
+import { toast } from '../stores/toastStore';
 import { ProxyControls } from '../components/ProxyControls';
 import { RequestList } from '../components/RequestList';
 import { RequestViewer } from '../components/RequestViewer';
@@ -81,17 +83,30 @@ export function Dashboard() {
   }, [_hasHydrated, selectedProjectId, setFilters, fetchRequests, accessToken]);
 
   // Keyboard shortcuts handler
-  const { interceptEnabled, toggleIntercept } = useInterceptStore();
+  const { toggleIntercept, session } = useProxyStore();
+  const { createTab: createRepeaterTab } = useRepeaterStore();
+  const { startDraft: startIntruderDraft } = useIntruderStore();
 
   const handleShortcut = useCallback((action: ShortcutAction) => {
     switch (action) {
       case 'toggle-intercept':
-        toggleIntercept();
+        const currentInterceptMode = session?.interceptMode || false;
+        toggleIntercept(!currentInterceptMode);
         break;
       case 'send-to-repeater':
         if (selectedRequest) {
           setCenterTab('repeater');
-          // TODO: Send selected request to repeater
+          if (isMobile) setMobileMenu('repeater');
+
+          // Create new repeater tab with selected request
+          createRepeaterTab(`${selectedRequest.method} ${new URL(selectedRequest.url).pathname}`, {
+            method: selectedRequest.method,
+            url: selectedRequest.url,
+            headers: selectedRequest.headers as Record<string, string>,
+            body: selectedRequest.body || undefined,
+          });
+
+          toast.success('Sent to Repeater', `${selectedRequest.method} ${selectedRequest.url}`);
         }
         break;
       case 'open-decoder':
@@ -101,13 +116,23 @@ export function Dashboard() {
       case 'send-to-intruder':
         if (selectedRequest) {
           setCenterTab('intruder');
-          // TODO: Send selected request to intruder
+          if (isMobile) setMobileMenu('intruder');
+
+          // Start new intruder draft with selected request
+          startIntruderDraft({
+            method: selectedRequest.method,
+            url: selectedRequest.url,
+            headers: selectedRequest.headers as Record<string, string>,
+            body: selectedRequest.body || undefined,
+          });
+
+          toast.success('Sent to Intruder', `${selectedRequest.method} ${selectedRequest.url}`);
         }
         break;
       default:
         break;
     }
-  }, [selectedRequest, isMobile, toggleIntercept]);
+  }, [selectedRequest, isMobile, toggleIntercept, createRepeaterTab, startIntruderDraft, setCenterTab, setMobileMenu]);
 
   useKeyboardShortcuts(handleShortcut);
 
@@ -190,21 +215,35 @@ export function Dashboard() {
         {/* Mobile Content */}
         <div className="flex-1 overflow-hidden">
           {mobileMenu === 'projects' && (
-            <ProjectManager
-              onSelectProject={setSelectedProjectId}
-              selectedProjectId={selectedProjectId}
-            />
+            <ErrorBoundary>
+              <ProjectManager
+                onSelectProject={setSelectedProjectId}
+                selectedProjectId={selectedProjectId}
+              />
+            </ErrorBoundary>
           )}
           {mobileMenu === 'requests' && (
             <div className="flex flex-col h-full">
-              <ProxyControls />
-              <RequestList />
+              <ErrorBoundary>
+                <ProxyControls />
+              </ErrorBoundary>
+              <ErrorBoundary>
+                <RequestList />
+              </ErrorBoundary>
             </div>
           )}
-          {mobileMenu === 'viewer' && <RequestViewer />}
+          {mobileMenu === 'viewer' && (
+            <ErrorBoundary>
+              <RequestViewer />
+            </ErrorBoundary>
+          )}
           {mobileMenu === 'ai' && (
             <>
-              {selectedRequest && <AIAnalysisPanel requestId={selectedRequest.id} />}
+              {selectedRequest && (
+                <ErrorBoundary>
+                  <AIAnalysisPanel requestId={selectedRequest.id} />
+                </ErrorBoundary>
+              )}
               {!selectedRequest && (
                 <div className="flex items-center justify-center h-full text-gray-400 text-sm p-4 text-center">
                   Select a request to run AI analysis
@@ -212,10 +251,26 @@ export function Dashboard() {
               )}
             </>
           )}
-          {mobileMenu === 'intercept' && <InterceptPanel />}
-          {mobileMenu === 'repeater' && <RepeaterPanel />}
-          {mobileMenu === 'decoder' && <DecoderPanel />}
-          {mobileMenu === 'intruder' && <IntruderPanel />}
+          {mobileMenu === 'intercept' && (
+            <ErrorBoundary>
+              <InterceptPanel />
+            </ErrorBoundary>
+          )}
+          {mobileMenu === 'repeater' && (
+            <ErrorBoundary>
+              <RepeaterPanel />
+            </ErrorBoundary>
+          )}
+          {mobileMenu === 'decoder' && (
+            <ErrorBoundary>
+              <DecoderPanel />
+            </ErrorBoundary>
+          )}
+          {mobileMenu === 'intruder' && (
+            <ErrorBoundary>
+              <IntruderPanel />
+            </ErrorBoundary>
+          )}
         </div>
       </div>
     );
@@ -235,10 +290,12 @@ export function Dashboard() {
             <>
               <Panel defaultSize={20} minSize={15} maxSize={35}>
                 <div className="h-full border-r border-white/10 flex flex-col">
-                  <ProjectManager
-                    onSelectProject={setSelectedProjectId}
-                    selectedProjectId={selectedProjectId}
-                  />
+                  <ErrorBoundary>
+                    <ProjectManager
+                      onSelectProject={setSelectedProjectId}
+                      selectedProjectId={selectedProjectId}
+                    />
+                  </ErrorBoundary>
                 </div>
               </Panel>
               <PanelResizeHandle className="w-1 bg-white/5 hover:bg-blue-500/30 transition cursor-col-resize" />
@@ -270,8 +327,12 @@ export function Dashboard() {
                       <ChevronLeft className="w-4 h-4 text-gray-400" />
                     </button>
                   )}
-                  <ProxyControls />
-                  <RequestList />
+                  <ErrorBoundary>
+                    <ProxyControls />
+                  </ErrorBoundary>
+                  <ErrorBoundary>
+                    <RequestList />
+                  </ErrorBoundary>
                 </div>
               </Panel>
               <PanelResizeHandle className="w-1 bg-white/5 hover:bg-blue-500/30 transition cursor-col-resize" />
@@ -367,11 +428,31 @@ export function Dashboard() {
 
               {/* Tab Content */}
               <div className="flex-1 overflow-hidden">
-                {centerTab === 'history' && <RequestViewer />}
-                {centerTab === 'intercept' && <InterceptPanel />}
-                {centerTab === 'repeater' && <RepeaterPanel />}
-                {centerTab === 'decoder' && <DecoderPanel />}
-                {centerTab === 'intruder' && <IntruderPanel />}
+                {centerTab === 'history' && (
+                  <ErrorBoundary>
+                    <RequestViewer />
+                  </ErrorBoundary>
+                )}
+                {centerTab === 'intercept' && (
+                  <ErrorBoundary>
+                    <InterceptPanel />
+                  </ErrorBoundary>
+                )}
+                {centerTab === 'repeater' && (
+                  <ErrorBoundary>
+                    <RepeaterPanel />
+                  </ErrorBoundary>
+                )}
+                {centerTab === 'decoder' && (
+                  <ErrorBoundary>
+                    <DecoderPanel />
+                  </ErrorBoundary>
+                )}
+                {centerTab === 'intruder' && (
+                  <ErrorBoundary>
+                    <IntruderPanel />
+                  </ErrorBoundary>
+                )}
               </div>
             </div>
           </Panel>
@@ -382,7 +463,11 @@ export function Dashboard() {
               <PanelResizeHandle className="w-1 bg-white/5 hover:bg-blue-500/30 transition cursor-col-resize" />
               <Panel defaultSize={20} minSize={15} maxSize={35}>
                 <div className="h-full border-l border-white/10 flex flex-col">
-                  {selectedRequest && <AIAnalysisPanel requestId={selectedRequest.id} />}
+                  {selectedRequest && (
+                    <ErrorBoundary>
+                      <AIAnalysisPanel requestId={selectedRequest.id} />
+                    </ErrorBoundary>
+                  )}
                   {!selectedRequest && (
                     <div className="flex items-center justify-center h-full text-gray-400 text-sm">
                       Select a request to run AI analysis

@@ -97,9 +97,14 @@ export function useLayoutPersistence() {
   // Update panel visibility
   const updatePanelVisibility = useCallback(
     (visibility: Partial<LayoutConfig['panelVisibility']>) => {
-      saveLayout({ panelVisibility: visibility });
+      saveLayout({
+        panelVisibility: {
+          ...layout.panelVisibility,
+          ...visibility,
+        },
+      });
     },
-    [saveLayout]
+    [saveLayout, layout.panelVisibility]
   );
 
   // Update center tab

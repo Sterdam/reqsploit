@@ -320,6 +320,7 @@ export interface HTTPRequest {
   timestamp: string;
   statusCode?: number;
   responseHeaders?: Record<string, string>;
+  responseBody?: string;
   duration?: number;
   isIntercepted: boolean;
 }

@@ -144,6 +144,7 @@ interface IntruderState {
   resumeCampaign: (campaignId: string) => Promise<void>;
   stopCampaign: (campaignId: string) => Promise<void>;
   fetchProgress: (campaignId: string) => Promise<void>;
+  pollProgress: (campaignId: string) => Promise<void>;
 
   // Actions - Results
   fetchResults: (campaignId: string, filters?: { statusCode?: number; minLength?: number; maxLength?: number }) => Promise<void>;

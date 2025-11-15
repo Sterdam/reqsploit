@@ -6,9 +6,9 @@
 export interface ExportableResult {
   id: string;
   payloadSet: string[];
-  statusCode: number | null;
-  responseLength: number | null;
-  responseTime: number | null;
+  statusCode?: number | null;
+  responseLength?: number | null;
+  responseTime?: number | null;
   timestamp: Date | string;
   error?: string;
 }
