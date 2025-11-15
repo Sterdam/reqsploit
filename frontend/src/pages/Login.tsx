@@ -36,9 +36,9 @@ export function Login() {
         {/* Logo */}
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-white mb-2">
-            Interceptor<span className="text-cyber-green">AI</span>
+            Req<span className="text-cyber-green">Sploit</span>
           </h1>
-          <p className="text-gray-400">Intelligent Web Security Testing</p>
+          <p className="text-gray-400">Modern MITM Proxy & Security Testing</p>
         </div>
 
         {/* Login Card */}

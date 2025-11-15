@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useIntruderStore, type Campaign, type AttackType, type PayloadSet } from '../stores/intruderStore';
+import { exportToCSV, exportToJSON, generateExportFilename } from '../utils/exportUtils';
+import { toast } from '../stores/toastStore';
 import {
   Play,
   Pause,
@@ -12,6 +14,7 @@ import {
   CheckCircle,
   Clock,
   Zap,
+  FileDown,
 } from 'lucide-react';
 
 export function IntruderPanel() {
@@ -71,6 +74,40 @@ export function IntruderPanel() {
   const activeCampaign = getActiveCampaign();
   const results = activeCampaignId ? getCampaignResults(activeCampaignId) : [];
   const progress = activeCampaignId ? getCampaignProgress(activeCampaignId) : null;
+
+  // Handle export to CSV
+  const handleExportCSV = () => {
+    if (!activeCampaign || results.length === 0) {
+      toast.error('No results to export', 'Run the campaign first to generate results');
+      return;
+    }
+
+    try {
+      const filename = generateExportFilename(activeCampaign.name, 'csv');
+      exportToCSV(results, filename);
+      toast.success('Exported to CSV', `${results.length} results exported to ${filename}`);
+    } catch (error) {
+      toast.error('Export failed', 'Failed to export results to CSV');
+      console.error('CSV export error:', error);
+    }
+  };
+
+  // Handle export to JSON
+  const handleExportJSON = () => {
+    if (!activeCampaign || results.length === 0) {
+      toast.error('No results to export', 'Run the campaign first to generate results');
+      return;
+    }
+
+    try {
+      const filename = generateExportFilename(activeCampaign.name, 'json');
+      exportToJSON(results, filename);
+      toast.success('Exported to JSON', `${results.length} results exported to ${filename}`);
+    } catch (error) {
+      toast.error('Export failed', 'Failed to export results to JSON');
+      console.error('JSON export error:', error);
+    }
+  };
 
   // Handle create campaign
   const handleCreateCampaign = () => {
@@ -580,12 +617,35 @@ export function IntruderPanel() {
                 {activeCampaign.requestTemplate.method} {activeCampaign.requestTemplate.url}
               </p>
             </div>
-            <button
-              onClick={() => setView('list')}
-              className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded text-sm"
-            >
-              Back to List
-            </button>
+            <div className="flex items-center gap-2">
+              {/* Export Buttons */}
+              {results.length > 0 && (
+                <div className="flex items-center gap-2 mr-2">
+                  <button
+                    onClick={handleExportCSV}
+                    className="px-3 py-2 bg-green-600/20 hover:bg-green-600/30 text-green-400 rounded text-sm font-medium flex items-center gap-2 border border-green-600/30"
+                    title="Export to CSV"
+                  >
+                    <FileDown className="w-4 h-4" />
+                    CSV
+                  </button>
+                  <button
+                    onClick={handleExportJSON}
+                    className="px-3 py-2 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 rounded text-sm font-medium flex items-center gap-2 border border-blue-600/30"
+                    title="Export to JSON"
+                  >
+                    <FileDown className="w-4 h-4" />
+                    JSON
+                  </button>
+                </div>
+              )}
+              <button
+                onClick={() => setView('list')}
+                className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded text-sm"
+              >
+                Back to List
+              </button>
+            </div>
           </div>
 
           {/* Progress */}

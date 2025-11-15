@@ -41,10 +41,10 @@ export function Header() {
         {/* Logo */}
         <div className="flex items-center gap-2 sm:gap-4">
           <h1 className="text-lg sm:text-2xl font-bold text-white">
-            Interceptor<span className="text-cyber-green">AI</span>
+            Req<span className="text-cyber-green">Sploit</span>
           </h1>
           <div className="hidden md:block h-6 w-px bg-white/20" />
-          <p className="hidden md:block text-sm text-gray-400">Security Testing Platform</p>
+          <p className="hidden md:block text-sm text-gray-400">Modern MITM Proxy</p>
         </div>
 
         {/* Desktop User Info */}
