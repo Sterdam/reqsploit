@@ -161,7 +161,7 @@ export function InterceptPanel() {
               <h3 className="text-sm font-semibold text-gray-300">Queue</h3>
             </div>
 
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto min-h-0">
               {queuedRequests.map((request) => (
                 <button
                   key={request.id}
