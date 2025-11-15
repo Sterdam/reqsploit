@@ -1,0 +1,99 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: reqsploit-postgres-dev
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-reqsploit}
+      POSTGRES_USER: ${POSTGRES_USER:-interceptor}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-interceptor_pass}
+      POSTGRES_INITDB_ARGS: "-E UTF8 --locale=C"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - reqsploit-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-interceptor}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: reqsploit-redis-dev
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - reqsploit-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: docker/Dockerfile
+    container_name: reqsploit-backend-dev
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://${POSTGRES_USER:-interceptor}:${POSTGRES_PASSWORD:-interceptor_pass}@postgres:5432/${POSTGRES_DB:-reqsploit}
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-me}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-dev-refresh-secret-change-me}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-4-5-20250929}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173}
+      PROXY_PORT_START: ${PROXY_PORT_START:-8000}
+      SSL_CERT_DIR: /data/certs
+    volumes:
+      - ./backend/src:/app/src
+      - ./data/certs:/data/certs
+      - ./data/logs:/data/logs
+      - /app/node_modules
+    ports:
+      - "3000:3000"
+      - "8000-8100:8000-8100"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - reqsploit-net
+    command: npm run dev
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: docker/Dockerfile
+    container_name: reqsploit-frontend-dev
+    environment:
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:3000}
+      VITE_WS_URL: ${VITE_WS_URL:-ws://localhost:3000}
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
+      - /app/node_modules
+    ports:
+      - "5173:5173"
+    networks:
+      - reqsploit-net
+    command: npm run dev
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  reqsploit-net:
+    driver: bridge

@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>ReqSploit Icon Generator</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      background: #0A1929;
+      color: white;
+    }
+    canvas {
+      border: 2px solid #444;
+      margin: 10px;
+      background: white;
+    }
+    .instructions {
+      margin: 20px 0;
+      padding: 15px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 8px;
+    }
+  </style>
+</head>
+<body>
+  <h1>ReqSploit Icon Generator</h1>
+
+  <div class="instructions">
+    <h3>Instructions:</h3>
+    <ol>
+      <li>Right-click on each canvas below</li>
+      <li>Select "Save image as..."</li>
+      <li>Save to <code>/extension/icons/</code> with the corresponding filename</li>
+    </ol>
+  </div>
+
+  <div>
+    <h3>16x16 Icon</h3>
+    <canvas id="icon16" width="16" height="16"></canvas>
+  </div>
+
+  <div>
+    <h3>48x48 Icon</h3>
+    <canvas id="icon48" width="48" height="48"></canvas>
+  </div>
+
+  <div>
+    <h3>128x128 Icon</h3>
+    <canvas id="icon128" width="128" height="128"></canvas>
+  </div>
+
+  <script>
+    function drawIcon(canvas, size) {
+      const ctx = canvas.getContext('2d');
+
+      // Background gradient
+      const gradient = ctx.createLinearGradient(0, 0, size, size);
+      gradient.addColorStop(0, '#3B82F6');
+      gradient.addColorStop(1, '#8B5CF6');
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, size, size);
+
+      // Draw "R" letter
+      ctx.fillStyle = 'white';
+      ctx.font = `bold ${size * 0.6}px Arial`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('R', size / 2, size / 2);
+
+      // Add small "S" overlay
+      ctx.fillStyle = '#10B981';
+      ctx.font = `bold ${size * 0.3}px Arial`;
+      ctx.fillText('S', size * 0.7, size * 0.3);
+    }
+
+    // Generate all icons
+    drawIcon(document.getElementById('icon16'), 16);
+    drawIcon(document.getElementById('icon48'), 48);
+    drawIcon(document.getElementById('icon128'), 128);
+  </script>
+</body>
+</html>

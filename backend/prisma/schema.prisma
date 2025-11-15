@@ -1,0 +1,334 @@
+// ReqSploit - Database Schema
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Enums
+enum Plan {
+  FREE
+  PRO
+  ENTERPRISE
+}
+
+enum CertificateType {
+  ROOT_CA
+  DOMAIN
+}
+
+enum AIMode {
+  EDUCATIONAL  // Débutants - Explications détaillées
+  DEFAULT      // Standard - Actionnable et rapide
+  ADVANCED     // Experts - Analyse technique poussée
+}
+
+enum VulnerabilityType {
+  SQLi
+  XSS_REFLECTED
+  XSS_STORED
+  XSS_DOM
+  IDOR
+  SSRF
+  XXE
+  RCE
+  LFI
+  RFI
+  SSTI
+  CSRF
+  CORS_MISCONFIGURATION
+  JWT_WEAK
+  AUTH_BYPASS
+  SESSION_FIXATION
+  PRIVILEGE_ESCALATION
+  INFO_DISCLOSURE
+  COMMAND_INJECTION
+  LDAP_INJECTION
+  XPATH_INJECTION
+  PATH_TRAVERSAL
+  DESERIALIZATION
+  RACE_CONDITION
+  BUSINESS_LOGIC
+  CUSTOM
+}
+
+enum Severity {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+  INFO
+}
+
+enum FindingStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  FALSE_POSITIVE
+  WONT_FIX
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELED
+  PAST_DUE
+  TRIALING
+}
+
+// User Model
+model User {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  passwordHash  String
+  name          String
+  plan          Plan     @default(FREE)
+  isActive      Boolean  @default(true)
+  emailVerified Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  sessions        Session[]
+  proxySessions   ProxySession[]
+  certificates    Certificate[]
+  requestLogs     RequestLog[]
+  aiAnalyses      AIAnalysis[]
+  tokenUsage      TokenUsage[]
+  subscription    Subscription?
+  projects        Project[]
+
+  @@index([email])
+  @@index([plan])
+  @@map("users")
+}
+
+// Authentication Session
+model Session {
+  id           String   @id @default(uuid())
+  userId       String
+  refreshToken String   @unique
+  expiresAt    DateTime
+  ipAddress    String?
+  userAgent    String?
+  createdAt    DateTime @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([refreshToken])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+// Proxy Session
+model ProxySession {
+  id            String   @id @default(uuid())
+  userId        String
+  sessionId     String   @unique
+  proxyPort     Int
+  isActive      Boolean  @default(true)
+  interceptMode Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  requestLogs RequestLog[]
+
+  @@index([userId])
+  @@index([sessionId])
+  @@index([isActive])
+  @@map("proxy_sessions")
+}
+
+// SSL Certificates
+model Certificate {
+  id        String          @id @default(uuid())
+  userId    String
+  certPem   String          @db.Text
+  keyPem    String          @db.Text // Encrypted
+  type      CertificateType
+  domain    String?
+  expiresAt DateTime
+  createdAt DateTime        @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([type])
+  @@index([domain])
+  @@map("certificates")
+}
+
+// HTTP Request Logs
+model RequestLog {
+  id               String    @id @default(uuid())
+  userId           String
+  proxySessionId   String
+  projectId        String?
+  method           String
+  url              String    @db.Text
+  headers          Json
+  body             String?   @db.Text
+  statusCode       Int?
+  responseHeaders  Json?
+  responseBody     String?   @db.Text
+  duration         Int? // milliseconds
+  timestamp        DateTime  @default(now())
+  isIntercepted    Boolean   @default(false)
+  tags             String[]  @default([])
+  starred          Boolean   @default(false)
+
+  // Relations
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  proxySession ProxySession  @relation(fields: [proxySessionId], references: [id], onDelete: Cascade)
+  project      Project?      @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  aiAnalyses   AIAnalysis[]
+
+  @@index([userId])
+  @@index([proxySessionId])
+  @@index([projectId])
+  @@index([timestamp])
+  @@index([isIntercepted])
+  @@index([starred])
+  @@map("request_logs")
+}
+
+// AI Analysis Results
+model AIAnalysis {
+  id               String             @id @default(uuid())
+  requestLogId     String
+  mode             AIMode             @default(DEFAULT)
+  userContext      String?            @db.Text
+  aiResponse       String             @db.Text
+  suggestions      Json
+  tokensUsed       Int
+  confidence       Int // 0-100
+  createdAt        DateTime           @default(now())
+  userId           String
+
+  // Relations
+  requestLog      RequestLog         @relation(fields: [requestLogId], references: [id], onDelete: Cascade)
+  user            User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vulnerabilities Vulnerability[]
+
+  @@index([requestLogId])
+  @@index([userId])
+  @@index([mode])
+  @@index([createdAt])
+  @@map("ai_analyses")
+}
+
+// Vulnerability Details
+model Vulnerability {
+  id            String            @id @default(uuid())
+  analysisId    String
+  type          VulnerabilityType
+  severity      Severity
+  title         String
+  description   String            @db.Text
+  evidence      Json
+  remediation   String            @db.Text
+  cwe           String?
+  cvss          Float?
+  createdAt     DateTime          @default(now())
+
+  // Relations
+  analysis AIAnalysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+
+  @@index([analysisId])
+  @@index([type])
+  @@index([severity])
+  @@map("vulnerabilities")
+}
+
+// Project/Target Organization
+model Project {
+  id          String      @id @default(uuid())
+  userId      String
+  name        String
+  description String?     @db.Text
+  target      String // Base URL
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  // Relations
+  user     User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  requests RequestLog[]
+  findings Finding[]
+
+  @@index([userId])
+  @@index([target])
+  @@map("projects")
+}
+
+// Findings/Discoveries
+model Finding {
+  id          String        @id @default(uuid())
+  projectId   String
+  title       String
+  description String        @db.Text
+  severity    Severity
+  status      FindingStatus @default(OPEN)
+  proof       Json // Screenshots, requests, etc.
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  // Relations
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([severity])
+  @@index([status])
+  @@map("findings")
+}
+
+// Token Usage Tracking
+model TokenUsage {
+  id          String   @id @default(uuid())
+  userId      String
+  monthYear   String // Format: YYYY-MM
+  tokensUsed  Int      @default(0)
+  tokensLimit Int
+  resetDate   DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, monthYear])
+  @@index([userId])
+  @@index([monthYear])
+  @@map("token_usage")
+}
+
+// Subscription Management
+model Subscription {
+  id                    String             @id @default(uuid())
+  userId                String             @unique
+  plan                  Plan
+  stripeCustomerId      String?            @unique
+  stripeSubscriptionId  String?            @unique
+  status                SubscriptionStatus @default(ACTIVE)
+  currentPeriodStart    DateTime
+  currentPeriodEnd      DateTime
+  cancelAtPeriodEnd     Boolean            @default(false)
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@index([stripeCustomerId])
+  @@map("subscriptions")
+}
