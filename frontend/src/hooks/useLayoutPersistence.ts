@@ -97,14 +97,23 @@ export function useLayoutPersistence() {
   // Update panel visibility
   const updatePanelVisibility = useCallback(
     (visibility: Partial<LayoutConfig['panelVisibility']>) => {
-      saveLayout({
-        panelVisibility: {
-          ...layout.panelVisibility,
-          ...visibility,
-        },
+      setLayout((prev) => {
+        const updated = {
+          ...prev,
+          panelVisibility: {
+            ...prev.panelVisibility,
+            ...visibility,
+          },
+        };
+        try {
+          localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(updated));
+        } catch (error) {
+          console.error('Failed to save layout config:', error);
+        }
+        return updated;
       });
     },
-    [saveLayout, layout.panelVisibility]
+    []
   );
 
   // Update center tab
