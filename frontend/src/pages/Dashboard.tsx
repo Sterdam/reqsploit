@@ -373,10 +373,10 @@ export function Dashboard() {
               )}
 
               {/* Tabs */}
-              <div className="flex border-b border-white/10 bg-[#0A1929]">
+              <div className="flex border-b border-white/10 bg-[#0A1929] overflow-x-auto scrollbar-thin">
                 <button
                   onClick={() => setCenterTab('history')}
-                  className={`px-6 py-3 text-sm font-medium transition ${
+                  className={`px-4 py-2.5 text-xs font-medium transition whitespace-nowrap flex-shrink-0 ${
                     centerTab === 'history'
                       ? 'text-blue-400 border-b-2 border-blue-600 bg-[#0D1F2D]'
                       : 'text-gray-400 hover:text-gray-300 hover:bg-white/5'
@@ -386,7 +386,7 @@ export function Dashboard() {
                 </button>
                 <button
                   onClick={() => setCenterTab('intercept')}
-                  className={`px-6 py-3 text-sm font-medium transition ${
+                  className={`px-4 py-2.5 text-xs font-medium transition whitespace-nowrap flex-shrink-0 ${
                     centerTab === 'intercept'
                       ? 'text-blue-400 border-b-2 border-blue-600 bg-[#0D1F2D]'
                       : 'text-gray-400 hover:text-gray-300 hover:bg-white/5'
@@ -396,7 +396,7 @@ export function Dashboard() {
                 </button>
                 <button
                   onClick={() => setCenterTab('repeater')}
-                  className={`px-6 py-3 text-sm font-medium transition ${
+                  className={`px-4 py-2.5 text-xs font-medium transition whitespace-nowrap flex-shrink-0 ${
                     centerTab === 'repeater'
                       ? 'text-blue-400 border-b-2 border-blue-600 bg-[#0D1F2D]'
                       : 'text-gray-400 hover:text-gray-300 hover:bg-white/5'
@@ -406,7 +406,7 @@ export function Dashboard() {
                 </button>
                 <button
                   onClick={() => setCenterTab('decoder')}
-                  className={`px-6 py-3 text-sm font-medium transition ${
+                  className={`px-4 py-2.5 text-xs font-medium transition whitespace-nowrap flex-shrink-0 ${
                     centerTab === 'decoder'
                       ? 'text-blue-400 border-b-2 border-blue-600 bg-[#0D1F2D]'
                       : 'text-gray-400 hover:text-gray-300 hover:bg-white/5'
@@ -416,7 +416,7 @@ export function Dashboard() {
                 </button>
                 <button
                   onClick={() => setCenterTab('intruder')}
-                  className={`px-6 py-3 text-sm font-medium transition ${
+                  className={`px-4 py-2.5 text-xs font-medium transition whitespace-nowrap flex-shrink-0 ${
                     centerTab === 'intruder'
                       ? 'text-blue-400 border-b-2 border-blue-600 bg-[#0D1F2D]'
                       : 'text-gray-400 hover:text-gray-300 hover:bg-white/5'

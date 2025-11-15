@@ -1,12 +1,17 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRequestsStore } from '../stores/requestsStore';
+import { useRepeaterStore } from '../stores/repeaterStore';
+import { ContextMenu, type ContextMenuItem } from './common';
+import { Copy, Send, Trash2 } from 'lucide-react';
 
 export function RequestList() {
-  const { selectedRequest, selectRequest, setFilter, getFilteredRequests, clearRequests } =
+  const { selectedRequest, selectRequest, setFilter, getFilteredRequests, clearRequests, requests } =
     useRequestsStore();
+  const { createTab } = useRepeaterStore();
   const [search, setSearch] = useState('');
   const [methodFilter, setMethodFilter] = useState<string>('');
   const listRef = useRef<HTMLDivElement>(null);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; requestId: string } | null>(null);
 
   const filteredRequests = getFilteredRequests();
 
@@ -104,7 +109,7 @@ export function RequestList() {
       </div>
 
       {/* Request List */}
-      <div ref={listRef} className="flex-1 overflow-y-auto">
+      <div ref={listRef} className="flex-1 overflow-y-auto min-h-0">
         {filteredRequests.length === 0 ? (
           <div className="flex items-center justify-center h-full">
             <div className="text-center text-gray-400">
@@ -113,12 +118,16 @@ export function RequestList() {
             </div>
           </div>
         ) : (
-          <div className="space-y-1 p-2">
+          <div className="p-2">
             {filteredRequests.map((request) => (
               <button
                 key={request.id}
                 onClick={() => selectRequest(request.id)}
-                className={`w-full text-left p-3 rounded-md transition-colors ${
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  setContextMenu({ x: e.clientX, y: e.clientY, requestId: request.id });
+                }}
+                className={`w-full text-left p-3 rounded-md transition-colors mb-1 ${
                   selectedRequest?.id === request.id
                     ? 'bg-electric-blue/20 border border-electric-blue/50'
                     : 'bg-white/5 hover:bg-white/10 border border-transparent'
@@ -159,6 +168,66 @@ export function RequestList() {
           </div>
         )}
       </div>
+
+      {/* Context Menu */}
+      {contextMenu && (() => {
+        const request = requests.find(r => r.id === contextMenu.requestId);
+        if (!request) return null;
+
+        const menuItems: ContextMenuItem[] = [
+          {
+            label: 'Send to Repeater',
+            icon: <Send size={14} />,
+            onClick: () => {
+              createTab(undefined, {
+                method: request.method,
+                url: request.url,
+                headers: request.headers,
+                body: request.body || '',
+              });
+            },
+            shortcut: 'Ctrl+R',
+          },
+          {
+            label: 'Copy URL',
+            icon: <Copy size={14} />,
+            onClick: () => {
+              navigator.clipboard.writeText(request.url);
+            },
+          },
+          {
+            label: 'Copy as cURL',
+            icon: <Copy size={14} />,
+            onClick: () => {
+              const headers = Object.entries(request.headers)
+                .map(([k, v]) => `-H "${k}: ${v}"`)
+                .join(' ');
+              const curl = `curl -X ${request.method} "${request.url}" ${headers}${
+                request.body ? ` -d '${request.body}'` : ''
+              }`;
+              navigator.clipboard.writeText(curl);
+            },
+          },
+          { divider: true },
+          {
+            label: 'Delete',
+            icon: <Trash2 size={14} />,
+            onClick: () => {
+              // TODO: Implement delete single request
+              console.log('Delete request:', request.id);
+            },
+          },
+        ];
+
+        return (
+          <ContextMenu
+            x={contextMenu.x}
+            y={contextMenu.y}
+            items={menuItems}
+            onClose={() => setContextMenu(null)}
+          />
+        );
+      })()}
     </div>
   );
 }
