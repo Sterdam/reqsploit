@@ -131,18 +131,24 @@ export class RepeaterService {
     request: RepeaterRequest
   ): Promise<{ id: string; name: string }> {
     try {
-      // Store in database as a saved template
-      // For now, we'll use a simple approach - you can extend the schema later
-      const template = await prisma.$executeRaw`
-        INSERT INTO repeater_templates (id, user_id, name, method, url, headers, body, created_at)
-        VALUES (gen_random_uuid(), ${userId}, ${name}, ${request.method}, ${request.url},
-                ${JSON.stringify(request.headers)}::jsonb, ${request.body || null}, NOW())
-        RETURNING id, name
-      `;
+      const template = await prisma.repeaterTemplate.create({
+        data: {
+          userId,
+          name,
+          method: request.method,
+          url: request.url,
+          headers: request.headers,
+          body: request.body || null,
+        },
+        select: {
+          id: true,
+          name: true,
+        },
+      });
 
-      repeaterLogger.info('Template saved', { userId, name });
+      repeaterLogger.info('Template saved', { userId, name, templateId: template.id });
 
-      return { id: 'generated-id', name }; // Placeholder
+      return template;
     } catch (error) {
       repeaterLogger.error('Failed to save template', { userId, name, error });
       throw error;
@@ -154,10 +160,22 @@ export class RepeaterService {
    */
   async getTemplates(userId: string): Promise<RepeaterRequest[]> {
     try {
-      // Fetch templates from database
-      // Placeholder implementation - extend schema as needed
-      repeaterLogger.info('Fetching templates', { userId });
-      return [];
+      const templates = await prisma.repeaterTemplate.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      repeaterLogger.info('Fetching templates', { userId, count: templates.length });
+
+      return templates.map((t) => ({
+        id: t.id,
+        userId: t.userId,
+        name: t.name,
+        method: t.method,
+        url: t.url,
+        headers: t.headers as Record<string, string>,
+        body: t.body || undefined,
+      }));
     } catch (error) {
       repeaterLogger.error('Failed to fetch templates', { userId, error });
       throw error;
@@ -169,7 +187,13 @@ export class RepeaterService {
    */
   async deleteTemplate(userId: string, templateId: string): Promise<void> {
     try {
-      // Delete from database
+      await prisma.repeaterTemplate.deleteMany({
+        where: {
+          id: templateId,
+          userId, // Ensure user owns the template
+        },
+      });
+
       repeaterLogger.info('Template deleted', { userId, templateId });
     } catch (error) {
       repeaterLogger.error('Failed to delete template', {
