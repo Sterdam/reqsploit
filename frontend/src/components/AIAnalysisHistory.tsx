@@ -22,7 +22,6 @@ import {
   Clock,
   Filter,
   ChevronRight,
-  Trash2,
 } from 'lucide-react';
 import { aiAPI, type AIAnalysis } from '../lib/api';
 import { useAIStore } from '../stores/aiStore';
@@ -116,19 +115,17 @@ export function AIAnalysisHistory({ isOpen, onClose }: AIAnalysisHistoryProps) {
     return date.toLocaleDateString();
   };
 
-  const getRetentionInfo = () => {
+  const getRetentionInfo = (): { days: number; label: string } => {
     // This would come from user's plan in production
-    const plan = 'FREE'; // TODO: Get from auth store
-    switch (plan) {
-      case 'FREE':
-        return { days: 7, label: '7 days' };
-      case 'PRO':
-        return { days: 30, label: '30 days' };
-      case 'ENTERPRISE':
-        return { days: Infinity, label: 'Unlimited' };
-      default:
-        return { days: 7, label: '7 days' };
+    const plan = 'FREE' as 'FREE' | 'PRO' | 'ENTERPRISE'; // TODO: Get from auth store
+
+    if (plan === 'PRO') {
+      return { days: 30, label: '30 days' };
     }
+    if (plan === 'ENTERPRISE') {
+      return { days: Infinity, label: 'Unlimited' };
+    }
+    return { days: 7, label: '7 days' };
   };
 
   // Filter and sort analyses

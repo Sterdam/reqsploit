@@ -49,6 +49,7 @@ interface AIState {
   analyses: Map<string, AIAnalysis>; // requestId → analysis
   activeAnalysis: AIAnalysis | null;
   currentAnalysis: AIAnalysis | null; // For InterceptPanel
+  interceptAnalysis: AIAnalysis | null; // For InterceptPanel inline display
   shouldShowAIPanel: boolean; // Trigger to auto-open AI panel
   tokenUsage: TokenUsage | null;
   isAnalyzing: boolean;
@@ -65,9 +66,11 @@ interface AIState {
   analyzeRequest: (requestId: string, type?: 'request' | 'response' | 'full') => Promise<void>;
   setActiveAnalysis: (analysis: AIAnalysis | null, openPanel?: boolean) => void;
   setCurrentAnalysis: (analysis: AIAnalysis | null) => void;
+  setInterceptAnalysis: (analysis: AIAnalysis | null) => void;
   setIsAnalyzing: (analyzing: boolean) => void;
   setShouldShowAIPanel: (show: boolean) => void;
   clearCurrentAnalysis: () => void;
+  clearInterceptAnalysis: () => void;
   updateTokenUsage: (usage: TokenUsage) => void;
   loadTokenUsage: () => Promise<void>;
   clearError: () => void;
@@ -92,6 +95,7 @@ export const useAIStore = create<AIState>()(
       analyses: new Map(),
       activeAnalysis: null,
       currentAnalysis: null,
+      interceptAnalysis: null,
       shouldShowAIPanel: false,
       tokenUsage: null,
       isAnalyzing: false,
@@ -160,6 +164,11 @@ export const useAIStore = create<AIState>()(
     set({ currentAnalysis: analysis });
   },
 
+  // Set intercept analysis (for InterceptPanel inline display)
+  setInterceptAnalysis: (analysis: AIAnalysis | null) => {
+    set({ interceptAnalysis: analysis });
+  },
+
   // Set analyzing state
   setIsAnalyzing: (analyzing: boolean) => {
     set({ isAnalyzing: analyzing });
@@ -173,6 +182,11 @@ export const useAIStore = create<AIState>()(
   // Clear current analysis
   clearCurrentAnalysis: () => {
     set({ currentAnalysis: null });
+  },
+
+  // Clear intercept analysis
+  clearInterceptAnalysis: () => {
+    set({ interceptAnalysis: null });
   },
 
   // Update token usage (from WebSocket)
