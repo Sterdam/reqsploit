@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useRequestsStore } from '../stores/requestsStore';
 import { useRepeaterStore } from '../stores/repeaterStore';
 import { useAIStore } from '../stores/aiStore';
+import { useUnifiedAIStore } from '../stores/unifiedAIStore';
 import { ContextMenu, type ContextMenuItem } from './common';
 import { FilterDomainsModal } from './FilterDomainsModal';
 import { Copy, Send, Trash2, ArrowUpDown, Clock, AlertCircle, Filter, FilterX, Shield, Zap, AlertTriangle, CheckCircle, Info, XOctagon } from 'lucide-react';
@@ -155,6 +156,9 @@ export function RequestList() {
       // Set active analysis and trigger AI panel to open
       setActiveAnalysis(analysis, true);
 
+      // Add to unified AI store
+      useUnifiedAIStore.getState().addAnalysis(analysis, 'request-list');
+
       // Calculate severity based on vulnerabilities and suggestions
       const vulnerabilityCount = analysis.vulnerabilities?.length || 0;
       const suggestionCount = analysis.suggestions?.length || 0;
@@ -204,6 +208,9 @@ export function RequestList() {
 
       // Set active analysis and trigger AI panel to open
       setActiveAnalysis(analysis, true);
+
+      // Add to unified AI store
+      useUnifiedAIStore.getState().addAnalysis(analysis, 'request-list');
 
       // Calculate severity based on vulnerabilities and suggestions
       const vulnerabilityCount = analysis.vulnerabilities?.length || 0;

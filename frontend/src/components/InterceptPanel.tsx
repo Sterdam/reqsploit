@@ -8,6 +8,7 @@ import { FilterDomainsModal } from './FilterDomainsModal';
 import { AIActionButton } from './AIActionButton';
 import { wsService } from '../lib/websocket';
 import { aiAPI } from '../lib/api';
+import { useUnifiedAIStore } from '../stores/unifiedAIStore';
 import {
   Play,
   X,
@@ -229,6 +230,9 @@ export function InterceptPanel() {
 
       // Set active analysis and open AI sidebar panel
       setActiveAnalysis(analysis, true);
+
+      // Add to unified AI store
+      useUnifiedAIStore.getState().addAnalysis(analysis, 'intercept');
     } catch (error) {
       console.error('AI Analysis failed:', error);
       alert(error instanceof Error ? error.message : 'AI analysis failed');
