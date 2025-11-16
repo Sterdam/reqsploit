@@ -6,12 +6,13 @@ import { useApiRequestsStore } from '../stores/apiRequestsStore';
 import { useRepeaterStore } from '../stores/repeaterStore';
 import { useIntruderStore } from '../stores/intruderStore';
 import { useInterceptStore } from '../stores/interceptStore';
+import { useAIStore } from '../stores/aiStore';
 import { useLayoutPersistence } from '../hooks/useLayoutPersistence';
 import { toast } from '../stores/toastStore';
 import { ProxyControls } from '../components/ProxyControls';
 import { RequestList } from '../components/RequestList';
 import { RequestViewer } from '../components/RequestViewer';
-import { AIAnalysisPanel } from '../components/AIAnalysisPanel';
+import { AIResultsViewer } from '../components/AIResultsViewer';
 import { ProjectManager } from '../components/ProjectManager';
 import { InterceptPanel } from '../components/InterceptPanel';
 import { RepeaterPanel } from '../components/RepeaterPanel';
@@ -21,13 +22,15 @@ import { Header } from '../components/Header';
 import { ToastContainer } from '../components/ToastContainer';
 import { KeyboardShortcutHelp } from '../components/KeyboardShortcutHelp';
 import { ErrorBoundary } from '../components/ErrorBoundary';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { DorkGeneratorModal } from '../components/DorkGeneratorModal';
+import { ChevronLeft, ChevronRight, Search } from 'lucide-react';
 import { useKeyboardShortcuts, type ShortcutAction } from '../hooks/useKeyboardShortcuts';
 
 export function Dashboard() {
   const { accessToken, _hasHydrated } = useAuthStore();
   const { loadStatus } = useProxyStore();
   const { fetchRequests, selectedRequest, setFilters } = useApiRequestsStore();
+  const { loadTokenUsage, fetchActionCosts, shouldShowAIPanel, setShouldShowAIPanel } = useAIStore();
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
 
   // Layout persistence
@@ -40,6 +43,7 @@ export function Dashboard() {
   const [isMobile, setIsMobile] = useState(false);
   const [mobileMenu, setMobileMenu] = useState<'projects' | 'requests' | 'viewer' | 'ai' | 'intercept' | 'repeater' | 'decoder' | 'intruder'>('viewer');
   const [centerTab, setCenterTab] = useState<'history' | 'intercept' | 'repeater' | 'decoder' | 'intruder'>(layout.centerTab);
+  const [showDorkGenerator, setShowDorkGenerator] = useState(false);
 
   // Update persisted layout when panel visibility changes
   useEffect(() => {
@@ -54,6 +58,14 @@ export function Dashboard() {
       updateCenterTab(centerTab);
     }
   }, [centerTab, isLoaded, updateCenterTab]);
+
+  // Auto-open AI panel when shouldShowAIPanel is true
+  useEffect(() => {
+    if (shouldShowAIPanel && !isMobile) {
+      setShowAI(true);
+      setShouldShowAIPanel(false); // Reset flag
+    }
+  }, [shouldShowAIPanel, isMobile, setShouldShowAIPanel]);
 
   // Detect mobile
   useEffect(() => {
@@ -72,8 +84,11 @@ export function Dashboard() {
     loadStatus();
     if (accessToken) {
       fetchRequests(accessToken);
+      // Load AI token usage and pricing
+      loadTokenUsage();
+      fetchActionCosts();
     }
-  }, [_hasHydrated, loadStatus, fetchRequests, accessToken]);
+  }, [_hasHydrated, loadStatus, fetchRequests, accessToken, loadTokenUsage, fetchActionCosts]);
 
   // Filter requests when project changes
   useEffect(() => {
@@ -240,18 +255,9 @@ export function Dashboard() {
             </ErrorBoundary>
           )}
           {mobileMenu === 'ai' && (
-            <>
-              {selectedRequest && (
-                <ErrorBoundary>
-                  <AIAnalysisPanel requestId={selectedRequest.id} />
-                </ErrorBoundary>
-              )}
-              {!selectedRequest && (
-                <div className="flex items-center justify-center h-full text-gray-400 text-sm p-4 text-center">
-                  Select a request to run AI analysis
-                </div>
-              )}
-            </>
+            <ErrorBoundary>
+              <AIResultsViewer />
+            </ErrorBoundary>
           )}
           {mobileMenu === 'intercept' && (
             <ErrorBoundary>
@@ -474,16 +480,9 @@ export function Dashboard() {
               <PanelResizeHandle className="w-1 bg-white/5 hover:bg-blue-500/30 transition cursor-col-resize" />
               <Panel defaultSize={20} minSize={15} maxSize={35}>
                 <div className="h-full border-l border-white/10 flex flex-col">
-                  {selectedRequest && (
-                    <ErrorBoundary>
-                      <AIAnalysisPanel requestId={selectedRequest.id} />
-                    </ErrorBoundary>
-                  )}
-                  {!selectedRequest && (
-                    <div className="flex items-center justify-center h-full text-gray-400 text-sm">
-                      Select a request to run AI analysis
-                    </div>
-                  )}
+                  <ErrorBoundary>
+                    <AIResultsViewer />
+                  </ErrorBoundary>
                 </div>
               </Panel>
             </>
@@ -501,6 +500,19 @@ export function Dashboard() {
           )}
         </PanelGroup>
       </div>
+
+      {/* Floating AI Tools Button */}
+      <button
+        onClick={() => setShowDorkGenerator(true)}
+        className="fixed bottom-6 right-6 p-4 bg-electric-blue hover:bg-electric-blue/80 text-white rounded-full shadow-lg transition flex items-center gap-2 z-40"
+        title="Open AI Tools"
+      >
+        <Search className="w-5 h-5" />
+        <span className="hidden sm:inline font-medium">AI Tools</span>
+      </button>
+
+      {/* Dork Generator Modal */}
+      <DorkGeneratorModal isOpen={showDorkGenerator} onClose={() => setShowDorkGenerator(false)} />
     </div>
   );
 }

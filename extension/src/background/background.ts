@@ -28,8 +28,40 @@ let userState: UserState = {
 /**
  * Initialize extension
  */
-chrome.runtime.onInstalled.addListener(async () => {
+chrome.runtime.onInstalled.addListener(async (details) => {
   console.log('[ReqSploit] Extension installed');
+
+  // Load saved state from storage
+  const stored = await chrome.storage.local.get(['accessToken', 'proxyPort', 'proxyEnabled', 'certificateInstalled']);
+
+  if (stored.accessToken) {
+    userState.isAuthenticated = true;
+    userState.accessToken = stored.accessToken;
+    userState.proxyPort = stored.proxyPort || null;
+    userState.proxyEnabled = stored.proxyEnabled || false;
+
+    // Sync with backend to get real state
+    await syncWithBackend();
+  }
+
+  // Create context menu items
+  chrome.contextMenus.create({
+    id: 'reqsploit-analyze',
+    title: 'Analyze with ReqSploit',
+    contexts: ['page', 'link'],
+  });
+
+  // On first install, prompt for certificate installation
+  if (details.reason === 'install' && !stored.certificateInstalled) {
+    await promptCertificateInstallation();
+  }
+});
+
+/**
+ * On extension startup (browser restart)
+ */
+chrome.runtime.onStartup.addListener(async () => {
+  console.log('[ReqSploit] Extension started');
 
   // Load saved state from storage
   const stored = await chrome.storage.local.get(['accessToken', 'proxyPort', 'proxyEnabled']);
@@ -40,19 +72,19 @@ chrome.runtime.onInstalled.addListener(async () => {
     userState.proxyPort = stored.proxyPort || null;
     userState.proxyEnabled = stored.proxyEnabled || false;
 
-    // Restore proxy if it was enabled
-    if (userState.proxyEnabled && userState.proxyPort) {
-      await configureProxy(userState.proxyPort);
-    }
+    // Sync with backend to get real state
+    await syncWithBackend();
   }
-
-  // Create context menu items
-  chrome.contextMenus.create({
-    id: 'reqsploit-analyze',
-    title: 'Analyze with ReqSploit',
-    contexts: ['page', 'link'],
-  });
 });
+
+/**
+ * Periodic sync with backend (every 10 seconds)
+ */
+setInterval(async () => {
+  if (userState.isAuthenticated && userState.accessToken) {
+    await syncWithBackend();
+  }
+}, 10000);
 
 /**
  * Configure Chrome proxy settings
@@ -197,6 +229,49 @@ async function stopProxySession(): Promise<void> {
 }
 
 /**
+ * Sync state with backend
+ */
+async function syncWithBackend(): Promise<void> {
+  if (!userState.accessToken) {
+    return;
+  }
+
+  try {
+    const response = await fetch(`${API_URL}/api/proxy/session/status`, {
+      headers: {
+        'Authorization': `Bearer ${userState.accessToken}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const data = await response.json();
+    const backendState = data.data;
+
+    // Sync state with backend
+    if (backendState.hasActiveSession && backendState.session) {
+      const backendPort = backendState.session.proxyPort;
+
+      // Backend has active session but extension doesn't
+      if (!userState.proxyEnabled || userState.proxyPort !== backendPort) {
+        console.log('[ReqSploit] Syncing with backend - configuring proxy');
+        await configureProxy(backendPort);
+      }
+    } else {
+      // Backend has no active session but extension thinks it does
+      if (userState.proxyEnabled) {
+        console.log('[ReqSploit] Syncing with backend - clearing proxy');
+        await clearProxy();
+      }
+    }
+  } catch (error) {
+    console.error('[ReqSploit] Failed to sync with backend:', error);
+  }
+}
+
+/**
  * Get proxy status
  */
 async function getProxyStatus(): Promise<{
@@ -204,6 +279,9 @@ async function getProxyStatus(): Promise<{
   proxyEnabled: boolean;
   proxyPort: number | null;
 }> {
+  // Sync with backend first
+  await syncWithBackend();
+
   return {
     isAuthenticated: userState.isAuthenticated,
     proxyEnabled: userState.proxyEnabled,
@@ -241,7 +319,28 @@ async function clearAuth(): Promise<void> {
 }
 
 /**
- * Download certificate
+ * Download default certificate (no auth required)
+ */
+async function downloadDefaultCertificate(): Promise<void> {
+  try {
+    const downloadId = await chrome.downloads.download({
+      url: `${API_URL}/api/certificates/default/download`,
+      filename: 'reqsploit-ca.crt',
+      saveAs: true,
+    });
+
+    console.log('[ReqSploit] Default certificate download started:', downloadId);
+
+    // Mark certificate as installed after download
+    await chrome.storage.local.set({ certificateInstalled: true });
+  } catch (error) {
+    console.error('[ReqSploit] Failed to download default certificate:', error);
+    throw error;
+  }
+}
+
+/**
+ * Download authenticated user certificate
  */
 async function downloadCertificate(): Promise<void> {
   if (!userState.accessToken) {
@@ -265,6 +364,50 @@ async function downloadCertificate(): Promise<void> {
     throw error;
   }
 }
+
+/**
+ * Prompt user to install certificate
+ */
+async function promptCertificateInstallation(): Promise<void> {
+  try {
+    // Show notification with instructions
+    await chrome.notifications.create('cert-install', {
+      type: 'basic',
+      iconUrl: 'icons/icon48.png',
+      title: 'ReqSploit - Certificate Installation Required',
+      message: 'Click to download and install the Root CA certificate to use HTTPS interception.',
+      priority: 2,
+      requireInteraction: true,
+    });
+
+    console.log('[ReqSploit] Certificate installation prompt shown');
+  } catch (error) {
+    console.error('[ReqSploit] Failed to show certificate prompt:', error);
+  }
+}
+
+/**
+ * Handle notification clicks
+ */
+chrome.notifications.onClicked.addListener(async (notificationId) => {
+  if (notificationId === 'cert-install') {
+    // Download certificate
+    await downloadDefaultCertificate();
+
+    // Clear notification
+    await chrome.notifications.clear('cert-install');
+
+    // Show installation instructions
+    await chrome.notifications.create('cert-instructions', {
+      type: 'basic',
+      iconUrl: 'icons/icon48.png',
+      title: 'ReqSploit - Install Certificate',
+      message: 'Open Chrome Settings → Privacy & Security → Manage certificates → Authorities → Import the downloaded file.',
+      priority: 1,
+      requireInteraction: false,
+    });
+  }
+});
 
 /**
  * Message handler from popup
@@ -300,6 +443,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
         case 'downloadCertificate':
           await downloadCertificate();
+          sendResponse({ success: true });
+          break;
+
+        case 'downloadDefaultCertificate':
+          await downloadDefaultCertificate();
+          sendResponse({ success: true });
+          break;
+
+        case 'promptCertificateInstallation':
+          await promptCertificateInstallation();
           sendResponse({ success: true });
           break;
 

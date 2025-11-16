@@ -26,6 +26,7 @@ import { apiLimiter } from './api/middlewares/rate-limit.middleware.js';
 
 // Core Services
 import { wsServer } from './core/websocket/ws-server.js';
+import { certificateManager } from './core/proxy/certificate-manager.js';
 
 // Utils
 import logger from './utils/logger.js';
@@ -147,6 +148,42 @@ async function connectDatabase(): Promise<void> {
 }
 
 /**
+ * Initialize Default Root CA Certificate
+ * Generates a default certificate for the extension to use
+ */
+async function initializeDefaultCertificate(): Promise<void> {
+  try {
+    const defaultUserId = process.env.DEFAULT_CERT_USER_ID || 'default';
+
+    // Check if default user exists, create if not
+    let defaultUser = await prisma.user.findUnique({
+      where: { email: 'extension@reqsploit.local' },
+    });
+
+    if (!defaultUser) {
+      logger.info('Creating default certificate user for extension');
+      defaultUser = await prisma.user.create({
+        data: {
+          email: 'extension@reqsploit.local',
+          name: 'Extension Default User',
+          passwordHash: 'N/A', // No password needed for this account
+          plan: 'FREE',
+          isActive: true,
+          emailVerified: true,
+        },
+      });
+    }
+
+    // Generate Root CA if it doesn't exist
+    await certificateManager.generateRootCA(defaultUser.id);
+    logger.info('✓ Default Root CA certificate ready for extension');
+  } catch (error) {
+    logger.warn('Failed to initialize default certificate (will be generated on first use)', { error });
+    // Don't crash the server if cert generation fails
+  }
+}
+
+/**
  * Graceful Shutdown
  */
 async function gracefulShutdown(signal: string): Promise<void> {
@@ -186,6 +223,9 @@ async function startServer(): Promise<void> {
     // Connect to database
     await connectDatabase();
 
+    // Initialize default certificate for extension
+    await initializeDefaultCertificate();
+
     // Initialize WebSocket server
     wsServer.initialize(server);
     logger.info('WebSocket server initialized');
@@ -215,4 +255,4 @@ async function startServer(): Promise<void> {
 // Start the server
 startServer();
 
-export { app, server };
+export { app, server, prisma };

@@ -2,9 +2,11 @@
  * Custom Error Classes for ReqSploit
  */
 
+import { Request, Response, NextFunction } from 'express';
+
 export class AppError extends Error {
   constructor(
-    public message: string,
+    public override message: string,
     public statusCode: number = 500,
     public code?: string,
     public isOperational: boolean = true
@@ -70,8 +72,8 @@ export class CertificateError extends AppError {
 }
 
 export class AIServiceError extends AppError {
-  constructor(message: string, public originalError?: unknown) {
-    super(message, 503, 'AI_SERVICE_ERROR');
+  constructor(message: string, statusCode: number = 503, public originalError?: unknown) {
+    super(message, statusCode, 'AI_SERVICE_ERROR');
   }
 }
 
@@ -90,40 +92,46 @@ export interface ErrorResponse {
 }
 
 export function formatErrorResponse(error: Error | AppError): ErrorResponse {
-  const isDevelopment = process.env.NODE_ENV === 'development';
+  const isDevelopment = process.env['NODE_ENV'] === 'development';
 
   if (error instanceof AppError) {
-    return {
+    const response: ErrorResponse = {
       success: false,
       error: {
         message: error.message,
-        code: error.code,
         statusCode: error.statusCode,
-        errors: error instanceof ValidationError ? error.errors : undefined,
-        stack: isDevelopment ? error.stack : undefined,
       },
     };
+
+    if (error.code) response.error.code = error.code;
+    if (error instanceof ValidationError && error.errors) response.error.errors = error.errors;
+    if (isDevelopment && error.stack) response.error.stack = error.stack;
+
+    return response;
   }
 
   // Unknown errors (don't expose details in production)
-  return {
+  const response: ErrorResponse = {
     success: false,
     error: {
       message: isDevelopment ? error.message : 'Internal server error',
       code: 'INTERNAL_ERROR',
       statusCode: 500,
-      stack: isDevelopment ? error.stack : undefined,
     },
   };
+
+  if (isDevelopment && error.stack) response.error.stack = error.stack;
+
+  return response;
 }
 
 /**
  * Async error wrapper for Express routes
  */
-export function asyncHandler<T>(
-  fn: (req: T, res: unknown, next: unknown) => Promise<unknown>
+export function asyncHandler(
+  fn: (req: Request, res: Response, next: NextFunction) => Promise<unknown>
 ) {
-  return (req: T, res: unknown, next: unknown): void => {
+  return (req: Request, res: Response, next: NextFunction): void => {
     Promise.resolve(fn(req, res, next)).catch(next);
   };
 }

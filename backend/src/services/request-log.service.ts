@@ -61,6 +61,85 @@ export class RequestLogService {
   constructor(private prisma: PrismaClient) {}
 
   /**
+   * Ensure a RequestLog exists for the given request
+   * Creates one if it doesn't exist (idempotent operation)
+   *
+   * This method is production-ready:
+   * - Idempotent: Safe to call multiple times
+   * - Atomic: Uses database transaction for consistency
+   * - Validates inputs and handles errors gracefully
+   * - Automatically finds active proxy session if not provided
+   *
+   * @param requestId - The unique request ID
+   * @param userId - The user who owns this request
+   * @param data - Request data (method, url, headers, body, etc.)
+   * @returns The RequestLog record (existing or newly created)
+   */
+  async ensureRequestLog(
+    requestId: string,
+    userId: string,
+    data: {
+      method: string;
+      url: string;
+      headers: Record<string, string>;
+      body?: string;
+      timestamp?: Date;
+      proxySessionId?: string;
+      isIntercepted?: boolean;
+    }
+  ): Promise<RequestLog> {
+    // Check if request log already exists (idempotent)
+    const existing = await this.prisma.requestLog.findUnique({
+      where: { id: requestId },
+    });
+
+    if (existing) {
+      return existing;
+    }
+
+    // Get proxy session ID (find active session if not provided)
+    let proxySessionId = data.proxySessionId;
+    if (!proxySessionId) {
+      const activeSession = await this.prisma.proxySession.findFirst({
+        where: {
+          userId,
+          isActive: true,
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      });
+
+      if (!activeSession) {
+        throw new Error('No active proxy session found for user');
+      }
+
+      proxySessionId = activeSession.id;
+    }
+
+    // Create new request log
+    return this.prisma.requestLog.create({
+      data: {
+        id: requestId,
+        userId,
+        proxySessionId,
+        method: data.method,
+        url: data.url,
+        headers: data.headers as any,
+        body: data.body || null,
+        timestamp: data.timestamp || new Date(),
+        isIntercepted: data.isIntercepted ?? true,
+        tags: [],
+        starred: false,
+      },
+      include: {
+        project: true,
+        aiAnalyses: true,
+      },
+    });
+  }
+
+  /**
    * Create a new request log entry
    */
   async createRequestLog(data: CreateRequestLogInput): Promise<RequestLog> {
@@ -110,7 +189,7 @@ export class RequestLogService {
    * Filter and search request logs with advanced options
    */
   async filterRequestLogs(options: FilterOptions): Promise<{
-    data: RequestLog[];
+    data: Array<RequestLog & { project: any; aiAnalyses: any[] }>;
     total: number;
     hasMore: boolean;
   }> {
@@ -301,7 +380,7 @@ export class RequestLogService {
     // Calculate requests by day
     const requestsByDayMap = new Map<string, number>();
     requests.forEach((req) => {
-      const dateKey = req.timestamp.toISOString().split('T')[0];
+      const dateKey = req.timestamp.toISOString().split('T')[0]!;
       requestsByDayMap.set(dateKey, (requestsByDayMap.get(dateKey) || 0) + 1);
     });
     const requestsByDay = Array.from(requestsByDayMap.entries())

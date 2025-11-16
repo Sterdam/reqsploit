@@ -21,7 +21,7 @@ interface ExtensionResponse {
  * Check if Chrome runtime API is available
  */
 function isChromeExtensionAPIAvailable(): boolean {
-  return typeof chrome !== 'undefined' && !!chrome.runtime;
+  return typeof window !== 'undefined' && typeof (window as any).chrome !== 'undefined' && !!(window as any).chrome.runtime;
 }
 
 /**
@@ -41,12 +41,13 @@ async function sendMessageToExtension(
 
   return new Promise((resolve, reject) => {
     try {
-      chrome.runtime.sendMessage(
+      const chromeAPI = (window as any).chrome;
+      chromeAPI.runtime.sendMessage(
         EXTENSION_ID,
         message,
         (response: ExtensionResponse) => {
-          if (chrome.runtime.lastError) {
-            reject(new Error(chrome.runtime.lastError.message));
+          if (chromeAPI.runtime.lastError) {
+            reject(new Error(chromeAPI.runtime.lastError.message));
           } else if (response) {
             resolve(response);
           } else {

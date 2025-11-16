@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, AnalysisType } from '@prisma/client';
 import { claudeClient } from './claude-client.js';
 import {
   REQUEST_ANALYZER_PROMPT,
@@ -35,6 +35,13 @@ export class AIAnalyzer {
   }
 
   /**
+   * Calculate total tokens from Claude response
+   */
+  private getTotalTokens(response: any): number {
+    return response.inputTokens + response.outputTokens;
+  }
+
+  /**
    * Get singleton instance
    */
   static getInstance(): AIAnalyzer {
@@ -51,15 +58,23 @@ export class AIAnalyzer {
     userId: string,
     estimatedTokens: number
   ): Promise<void> {
+    const now = new Date();
+    const monthYear = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
     const usage = await prisma.tokenUsage.findUnique({
-      where: { userId },
+      where: {
+        userId_monthYear: {
+          userId,
+          monthYear,
+        },
+      },
     });
 
     if (!usage) {
       throw new AIServiceError('Token usage record not found');
     }
 
-    const remaining = usage.monthlyLimit - usage.tokensUsed;
+    const remaining = usage.tokensLimit - usage.tokensUsed;
 
     if (remaining < estimatedTokens) {
       throw new InsufficientTokensError(
@@ -78,8 +93,16 @@ export class AIAnalyzer {
    * Update token usage
    */
   private async updateTokenUsage(userId: string, tokensUsed: number): Promise<void> {
+    const now = new Date();
+    const monthYear = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
     await prisma.tokenUsage.update({
-      where: { userId },
+      where: {
+        userId_monthYear: {
+          userId,
+          monthYear,
+        },
+      },
       data: {
         tokensUsed: {
           increment: tokensUsed,
@@ -89,19 +112,24 @@ export class AIAnalyzer {
 
     // Get updated usage and emit to WebSocket
     const updated = await prisma.tokenUsage.findUnique({
-      where: { userId },
+      where: {
+        userId_monthYear: {
+          userId,
+          monthYear,
+        },
+      },
     });
 
     if (updated) {
       wsServer.emitToUser(userId, 'tokens:updated', {
         used: updated.tokensUsed,
-        limit: updated.monthlyLimit,
-        remaining: updated.monthlyLimit - updated.tokensUsed,
+        limit: updated.tokensLimit,
+        remaining: updated.tokensLimit - updated.tokensUsed,
         resetDate: updated.resetDate,
       });
 
       // Check if limit reached
-      if (updated.tokensUsed >= updated.monthlyLimit) {
+      if (updated.tokensUsed >= updated.tokensLimit) {
         wsServer.emitToUser(userId, 'tokens:limit-reached', {
           message: 'Monthly token limit reached',
         });
@@ -136,11 +164,19 @@ export class AIAnalyzer {
         vulnerabilities: [],
         suggestions: [
           {
+            id: `info-${Date.now()}`,
             type: 'info',
             severity: 'info',
             title: 'AI Analysis',
             description: content.substring(0, 500),
+            context: {
+              request: undefined,
+              response: undefined,
+              relatedRequests: [],
+            },
             actions: [],
+            confidence: 0,
+            tokensUsed: 0,
           },
         ],
       };
@@ -152,17 +188,17 @@ export class AIAnalyzer {
    */
   async analyzeRequest(
     userId: string,
-    requestId: string,
+    requestLogId: string,
     request: HTTPRequest
   ): Promise<AIAnalysisResult> {
-    aiLogger.info('Analyzing request', { userId, requestId });
+    aiLogger.info('Analyzing request', { userId, requestLogId });
 
     try {
       // Check token availability (estimate ~2000 tokens for request analysis)
       await this.checkTokenAvailability(userId, 2000);
 
       // Emit analysis started event
-      wsServer.emitToUser(userId, 'ai:analysis-started', { requestId });
+      wsServer.emitToUser(userId, 'ai:analysis-started', { requestId: requestLogId });
 
       // Build context and analyze
       const context = buildRequestAnalysisContext(request);
@@ -175,52 +211,58 @@ export class AIAnalyzer {
       const analysis = await prisma.aIAnalysis.create({
         data: {
           userId,
-          requestId,
-          analysisType: 'request',
-          vulnerabilities: vulnerabilities as unknown as Record<string, unknown>[],
-          suggestions: suggestions as unknown as Record<string, unknown>[],
-          tokensUsed: response.tokensUsed,
+          requestLogId: requestLogId,
+          analysisType: AnalysisType.REQUEST,
+          mode: 'DEFAULT',
+          aiResponse: response.content,
+          suggestions: suggestions as any,
+          tokensUsed: this.getTotalTokens(response),
           model: response.model,
+          confidence: 80,
         },
       });
 
+      const totalTokens = this.getTotalTokens(response);
+
       // Update token usage
-      await this.updateTokenUsage(userId, response.tokensUsed);
+      await this.updateTokenUsage(userId, totalTokens);
 
       const result: AIAnalysisResult = {
-        analysisId: analysis.id,
-        requestId,
+        id: analysis.id,
+        requestLogId,
         analysisType: 'request',
+        aiResponse: response.content,
+        confidence: 80,
         vulnerabilities,
         suggestions,
-        tokensUsed: response.tokensUsed,
+        tokensUsed: totalTokens,
         timestamp: analysis.createdAt,
       };
 
       // Emit completion event
       wsServer.emitToUser(userId, 'ai:analysis-complete', {
-        requestId,
+        requestId: requestLogId,
         analysisId: analysis.id,
         suggestions,
-        tokensUsed: response.tokensUsed,
+        tokensUsed: this.getTotalTokens(response),
         analysisType: 'request',
         timestamp: new Date(),
       });
 
       aiLogger.info('Request analysis complete', {
         userId,
-        requestId,
+        requestLogId,
         vulnerabilitiesFound: vulnerabilities.length,
-        tokensUsed: response.tokensUsed,
+        tokensUsed: this.getTotalTokens(response),
       });
 
       return result;
     } catch (error) {
-      aiLogger.error('Request analysis failed', { userId, requestId, error });
+      aiLogger.error('Request analysis failed', { userId, requestLogId, error });
 
       // Emit error event
       wsServer.emitToUser(userId, 'ai:analysis-error', {
-        requestId,
+        requestId: requestLogId,
         message: error instanceof Error ? error.message : 'Analysis failed',
       });
 
@@ -233,18 +275,18 @@ export class AIAnalyzer {
    */
   async analyzeResponse(
     userId: string,
-    requestId: string,
+    requestLogId: string,
     request: HTTPRequest,
     response: HTTPResponse
   ): Promise<AIAnalysisResult> {
-    aiLogger.info('Analyzing response', { userId, requestId });
+    aiLogger.info('Analyzing response', { userId, requestLogId });
 
     try {
       // Check token availability (estimate ~2500 tokens for response analysis)
       await this.checkTokenAvailability(userId, 2500);
 
       // Emit analysis started event
-      wsServer.emitToUser(userId, 'ai:analysis-started', { requestId });
+      wsServer.emitToUser(userId, 'ai:analysis-started', { requestId: requestLogId });
 
       // Build context and analyze
       const context = buildResponseAnalysisContext(request, response);
@@ -257,52 +299,56 @@ export class AIAnalyzer {
       const analysis = await prisma.aIAnalysis.create({
         data: {
           userId,
-          requestId,
-          analysisType: 'response',
-          vulnerabilities: vulnerabilities as unknown as Record<string, unknown>[],
-          suggestions: suggestions as unknown as Record<string, unknown>[],
-          tokensUsed: aiResponse.tokensUsed,
+          requestLogId: requestLogId,
+          analysisType: AnalysisType.RESPONSE,
+          mode: 'DEFAULT',
+          aiResponse: aiResponse.content,
+          suggestions: suggestions as any,
+          tokensUsed: this.getTotalTokens(aiResponse),
           model: aiResponse.model,
+          confidence: 80,
         },
       });
 
       // Update token usage
-      await this.updateTokenUsage(userId, aiResponse.tokensUsed);
+      await this.updateTokenUsage(userId, this.getTotalTokens(aiResponse));
 
       const result: AIAnalysisResult = {
-        analysisId: analysis.id,
-        requestId,
+        id: analysis.id,
+        requestLogId,
         analysisType: 'response',
+        aiResponse: aiResponse.content,
+        confidence: 80,
         vulnerabilities,
         suggestions,
-        tokensUsed: aiResponse.tokensUsed,
+        tokensUsed: this.getTotalTokens(aiResponse),
         timestamp: analysis.createdAt,
       };
 
       // Emit completion event
       wsServer.emitToUser(userId, 'ai:analysis-complete', {
-        requestId,
+        requestId: requestLogId,
         analysisId: analysis.id,
         suggestions,
-        tokensUsed: aiResponse.tokensUsed,
+        tokensUsed: this.getTotalTokens(aiResponse),
         analysisType: 'response',
         timestamp: new Date(),
       });
 
       aiLogger.info('Response analysis complete', {
         userId,
-        requestId,
+        requestLogId,
         vulnerabilitiesFound: vulnerabilities.length,
-        tokensUsed: aiResponse.tokensUsed,
+        tokensUsed: this.getTotalTokens(aiResponse),
       });
 
       return result;
     } catch (error) {
-      aiLogger.error('Response analysis failed', { userId, requestId, error });
+      aiLogger.error('Response analysis failed', { userId, requestLogId, error });
 
       // Emit error event
       wsServer.emitToUser(userId, 'ai:analysis-error', {
-        requestId,
+        requestId: requestLogId,
         message: error instanceof Error ? error.message : 'Analysis failed',
       });
 
@@ -315,18 +361,18 @@ export class AIAnalyzer {
    */
   async analyzeTransaction(
     userId: string,
-    requestId: string,
+    requestLogId: string,
     request: HTTPRequest,
     response: HTTPResponse
   ): Promise<AIAnalysisResult> {
-    aiLogger.info('Analyzing transaction', { userId, requestId });
+    aiLogger.info('Analyzing transaction', { userId, requestLogId });
 
     try {
       // Check token availability (estimate ~4000 tokens for full analysis)
       await this.checkTokenAvailability(userId, 4000);
 
       // Emit analysis started event
-      wsServer.emitToUser(userId, 'ai:analysis-started', { requestId });
+      wsServer.emitToUser(userId, 'ai:analysis-started', { requestId: requestLogId });
 
       // Build context and analyze
       const context = buildFullAnalysisContext(request, response);
@@ -339,52 +385,56 @@ export class AIAnalyzer {
       const analysis = await prisma.aIAnalysis.create({
         data: {
           userId,
-          requestId,
-          analysisType: 'full',
-          vulnerabilities: vulnerabilities as unknown as Record<string, unknown>[],
-          suggestions: suggestions as unknown as Record<string, unknown>[],
-          tokensUsed: aiResponse.tokensUsed,
+          requestLogId: requestLogId,
+          analysisType: AnalysisType.FULL,
+          mode: 'ADVANCED',
+          aiResponse: aiResponse.content,
+          suggestions: suggestions as any,
+          tokensUsed: this.getTotalTokens(aiResponse),
           model: aiResponse.model,
+          confidence: 85,
         },
       });
 
       // Update token usage
-      await this.updateTokenUsage(userId, aiResponse.tokensUsed);
+      await this.updateTokenUsage(userId, this.getTotalTokens(aiResponse));
 
       const result: AIAnalysisResult = {
-        analysisId: analysis.id,
-        requestId,
+        id: analysis.id,
+        requestLogId,
         analysisType: 'full',
+        aiResponse: aiResponse.content,
+        confidence: 85,
         vulnerabilities,
         suggestions,
-        tokensUsed: aiResponse.tokensUsed,
+        tokensUsed: this.getTotalTokens(aiResponse),
         timestamp: analysis.createdAt,
       };
 
       // Emit completion event
       wsServer.emitToUser(userId, 'ai:analysis-complete', {
-        requestId,
+        requestId: requestLogId,
         analysisId: analysis.id,
         suggestions,
-        tokensUsed: aiResponse.tokensUsed,
+        tokensUsed: this.getTotalTokens(aiResponse),
         analysisType: 'full',
         timestamp: new Date(),
       });
 
       aiLogger.info('Transaction analysis complete', {
         userId,
-        requestId,
+        requestLogId,
         vulnerabilitiesFound: vulnerabilities.length,
-        tokensUsed: aiResponse.tokensUsed,
+        tokensUsed: this.getTotalTokens(aiResponse),
       });
 
       return result;
     } catch (error) {
-      aiLogger.error('Transaction analysis failed', { userId, requestId, error });
+      aiLogger.error('Transaction analysis failed', { userId, requestLogId, error });
 
       // Emit error event
       wsServer.emitToUser(userId, 'ai:analysis-error', {
-        requestId,
+        requestId: requestLogId,
         message: error instanceof Error ? error.message : 'Analysis failed',
       });
 
@@ -418,7 +468,7 @@ Provide practical, working exploit payloads.`;
       const response = await claudeClient.analyze(context, EXPLOIT_GENERATOR_PROMPT);
 
       // Update token usage
-      await this.updateTokenUsage(userId, response.tokensUsed);
+      await this.updateTokenUsage(userId, this.getTotalTokens(response));
 
       // Parse exploits
       try {
@@ -445,17 +495,43 @@ Provide practical, working exploit payloads.`;
       where: { userId },
       orderBy: { createdAt: 'desc' },
       take: limit,
+      include: {
+        requestLog: {
+          select: {
+            url: true,
+            method: true,
+          },
+        },
+      },
     });
 
-    return analyses.map((analysis) => ({
-      analysisId: analysis.id,
-      requestId: analysis.requestId,
-      analysisType: analysis.analysisType as 'request' | 'response' | 'full',
-      vulnerabilities: analysis.vulnerabilities as unknown as VulnerabilityInfo[],
-      suggestions: analysis.suggestions as unknown as AISuggestion[],
-      tokensUsed: analysis.tokensUsed,
-      timestamp: analysis.createdAt,
-    }));
+    return analyses.map((analysis) => {
+      // Parse vulnerabilities from aiResponse JSON
+      let vulnerabilities: VulnerabilityInfo[] = [];
+      try {
+        if (analysis.aiResponse) {
+          const parsed = JSON.parse(analysis.aiResponse);
+          vulnerabilities = parsed.vulnerabilities || [];
+        }
+      } catch (e) {
+        // If parsing fails, leave vulnerabilities empty
+      }
+
+      return {
+        id: analysis.id,
+        requestLogId: analysis.requestLogId,
+        analysisType: (analysis.mode === 'DEFAULT' ? 'request' : analysis.mode === 'ADVANCED' ? 'full' : 'request') as 'request' | 'response' | 'full',
+        aiResponse: analysis.aiResponse,
+        confidence: analysis.confidence,
+        vulnerabilities,
+        suggestions: analysis.suggestions as unknown as AISuggestion[],
+        tokensUsed: analysis.tokensUsed,
+        timestamp: analysis.createdAt.toISOString(),
+        // Add URL and method for better UX
+        requestUrl: analysis.requestLog?.url,
+        requestMethod: analysis.requestLog?.method,
+      };
+    });
   }
 
   /**

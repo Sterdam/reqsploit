@@ -6,8 +6,10 @@ import {
   Plus,
   Clock,
   Copy,
+  Sparkles,
 } from 'lucide-react';
 import { ResponseViewer } from './common';
+import { RepeaterAIPanel } from './RepeaterAIPanel';
 
 export function RepeaterPanel() {
   const {
@@ -29,6 +31,8 @@ export function RepeaterPanel() {
   const [activeEditorTab, setActiveEditorTab] = useState<'headers' | 'body'>('headers');
   const [newHeaderKey, setNewHeaderKey] = useState('');
   const [newHeaderValue, setNewHeaderValue] = useState('');
+  const [showAIPanel, setShowAIPanel] = useState(false);
+  const [autoExecuteAI, setAutoExecuteAI] = useState(false);
 
   const activeTab = getActiveTab();
 
@@ -82,6 +86,33 @@ export function RepeaterPanel() {
     navigator.clipboard.writeText(activeTab.response.body);
   };
 
+  const handleExecuteAITest = async (test: any, variationIndex: number) => {
+    if (!activeTab) return;
+
+    const variation = test.variations[variationIndex];
+
+    // Apply the variation to create a new request
+    updateRequest(activeTab.id, 'method', variation.method || activeTab.request.method);
+    if (variation.url) {
+      updateRequest(activeTab.id, 'url', variation.url);
+    }
+    if (variation.body) {
+      updateRequest(activeTab.id, 'body', variation.body);
+    }
+    if (variation.headers) {
+      // Merge headers
+      const newHeaders = { ...activeTab.request.headers, ...variation.headers };
+      Object.entries(newHeaders).forEach(([key, value]) => {
+        updateHeader(activeTab.id, key, value as string);
+      });
+    }
+
+    // Execute the test if auto-execute is enabled
+    if (autoExecuteAI) {
+      await sendRequest(activeTab.id);
+    }
+  };
+
   return (
     <div className="flex flex-col h-full bg-[#0A1929]">
       {/* Tabs Bar */}
@@ -120,6 +151,17 @@ export function RepeaterPanel() {
           ))}
         </div>
         <button
+          onClick={() => setShowAIPanel(!showAIPanel)}
+          className={`px-4 py-3 transition-colors ${
+            showAIPanel
+              ? 'text-electric-blue bg-[#0A1929]'
+              : 'text-white/60 hover:text-white hover:bg-[#0A1929]/50'
+          }`}
+          title="Toggle AI Assistant"
+        >
+          <Sparkles className="w-4 h-4" />
+        </button>
+        <button
           onClick={() => createTab()}
           className="px-4 py-3 text-white/60 hover:text-white hover:bg-[#0A1929]/50 transition-colors"
         >
@@ -133,10 +175,10 @@ export function RepeaterPanel() {
         </div>
       ) : (
         <div className="flex-1 flex flex-col overflow-hidden">
-          {/* Main Content: Request + Response Split */}
+          {/* Main Content: Request + Response Split + AI Panel */}
           <div className="flex-1 flex overflow-hidden">
-            {/* Request Editor (Left 50%) */}
-            <div className="w-1/2 flex flex-col border-r border-white/10">
+            {/* Request Editor (Left side - flexible width) */}
+            <div className={`${showAIPanel ? 'flex-1' : 'w-1/2'} flex flex-col border-r border-white/10`}>
               {/* Request Header */}
               <div className="px-4 py-3 border-b border-white/10 bg-[#0D1F2D]">
                 <div className="flex items-center gap-2 min-w-0">
@@ -279,8 +321,8 @@ export function RepeaterPanel() {
               </div>
             </div>
 
-            {/* Response Viewer (Right 50%) */}
-            <div className="w-1/2 flex flex-col bg-[#0D1F2D]">
+            {/* Response Viewer (Right side - flexible width) */}
+            <div className={`${showAIPanel ? 'flex-1' : 'w-1/2'} flex flex-col bg-[#0D1F2D]`}>
               {/* Response Header */}
               <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
                 <div className="flex items-center gap-4">
@@ -324,6 +366,17 @@ export function RepeaterPanel() {
                 )}
               </div>
             </div>
+
+            {/* AI Assistant Panel (Right side - 320px when shown) */}
+            {showAIPanel && activeTab && (
+              <RepeaterAIPanel
+                tabId={activeTab.id}
+                request={activeTab.request}
+                onExecuteTest={handleExecuteAITest}
+                autoExecute={autoExecuteAI}
+                onToggleAutoExecute={setAutoExecuteAI}
+              />
+            )}
           </div>
 
           {/* History Bottom Panel (20% height) */}

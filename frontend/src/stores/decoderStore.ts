@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { useAuthStore } from './authStore';
 
 export type EncodingType = 'url' | 'base64' | 'html' | 'hex' | 'unicode';
 export type HashType = 'md5' | 'sha1' | 'sha256' | 'sha512';
@@ -114,7 +115,7 @@ export const useDecoderStore = create<DecoderState>()(
         set({ isLoading: true, error: null });
 
         try {
-          const token = localStorage.getItem('token');
+          const token = useAuthStore.getState().accessToken;
           const response = await fetch(`${BACKEND_URL}/api/decoder/encode`, {
             method: 'POST',
             headers: {
@@ -166,7 +167,7 @@ export const useDecoderStore = create<DecoderState>()(
         set({ isLoading: true, error: null, detectedEncoding: null });
 
         try {
-          const token = localStorage.getItem('token');
+          const token = useAuthStore.getState().accessToken;
           const response = await fetch(`${BACKEND_URL}/api/decoder/decode`, {
             method: 'POST',
             headers: {
@@ -218,7 +219,7 @@ export const useDecoderStore = create<DecoderState>()(
         set({ isLoading: true, error: null, detectedEncoding: null });
 
         try {
-          const token = localStorage.getItem('token');
+          const token = useAuthStore.getState().accessToken;
           const response = await fetch(`${BACKEND_URL}/api/decoder/decode`, {
             method: 'POST',
             headers: {
@@ -276,7 +277,7 @@ export const useDecoderStore = create<DecoderState>()(
         set({ isLoading: true, error: null });
 
         try {
-          const token = localStorage.getItem('token');
+          const token = useAuthStore.getState().accessToken;
           const response = await fetch(`${BACKEND_URL}/api/decoder/hash`, {
             method: 'POST',
             headers: {

@@ -1,11 +1,16 @@
 import { Router, Request, Response } from 'express';
 import { aiAnalyzer } from '../../core/ai/analyzer.js';
+import { claudeClient } from '../../core/ai/claude-client.js';
 import { authenticateToken } from '../middlewares/auth.middleware.js';
 import { asyncHandler } from '../../utils/errors.js';
 import { prisma } from '../../server.js';
 import { NotFoundError } from '../../utils/errors.js';
+import { aiPricingService } from '../../services/ai-pricing.service.js';
+import { proxySessionManager } from '../../core/proxy/session-manager.js';
+import { RequestLogService } from '../../services/request-log.service.js';
 
 const router = Router();
+const requestLogService = new RequestLogService(prisma);
 
 // All routes require authentication
 router.use(authenticateToken);
@@ -151,6 +156,100 @@ router.post(
 );
 
 /**
+ * POST /ai/analyze/intercepted/:requestId
+ * Analyze an intercepted request with optional modifications
+ */
+router.post(
+  '/analyze/intercepted/:requestId',
+  asyncHandler(async (req: Request, res: Response) => {
+    const userId = req.user!.id;
+    const { requestId } = req.params;
+    const { action, modifications } = req.body;
+
+    // Try to get request from intercept queue first
+    const session = proxySessionManager.getSessionByUserId(userId);
+    let httpRequest;
+
+    if (session) {
+      const queue = session.proxy.getRequestQueue();
+      const queuedRequest = queue.get(requestId);
+
+      if (queuedRequest) {
+        // Request found in queue - use it
+        httpRequest = {
+          id: queuedRequest.id,
+          method: modifications?.method || queuedRequest.method,
+          url: modifications?.url || queuedRequest.url,
+          headers: modifications?.headers || queuedRequest.headers,
+          body: modifications?.body !== undefined ? modifications.body : queuedRequest.body || undefined,
+          timestamp: queuedRequest.timestamp,
+        };
+      }
+    }
+
+    // Fallback to database if not in queue
+    if (!httpRequest) {
+      const requestLog = await prisma.requestLog.findFirst({
+        where: {
+          id: requestId,
+          userId,
+        },
+      });
+
+      if (!requestLog) {
+        throw new NotFoundError('Intercepted request not found');
+      }
+
+      httpRequest = {
+        id: requestLog.id,
+        method: modifications?.method || requestLog.method,
+        url: modifications?.url || requestLog.url,
+        headers: modifications?.headers || (requestLog.headers as Record<string, string>),
+        body: modifications?.body !== undefined ? modifications.body : requestLog.body || undefined,
+        timestamp: requestLog.timestamp,
+      };
+    }
+
+    // Ensure RequestLog exists in database (required for AI analysis foreign key)
+    // This is a production-ready, idempotent operation
+    if (httpRequest) {
+      await requestLogService.ensureRequestLog(requestId, userId, {
+        method: httpRequest.method,
+        url: httpRequest.url,
+        headers: httpRequest.headers,
+        body: httpRequest.body,
+        timestamp: httpRequest.timestamp,
+        isIntercepted: true,
+      });
+    }
+
+    // Perform analysis based on action type
+    let analysis;
+    switch (action) {
+      case 'analyzeRequest':
+        analysis = await aiAnalyzer.analyzeRequest(userId, requestId, httpRequest);
+        break;
+      case 'explain':
+        // Use analyzeRequest with EDUCATIONAL mode for explanations
+        analysis = await aiAnalyzer.analyzeRequest(userId, requestId, httpRequest);
+        break;
+      case 'securityCheck':
+        // Use analyzeRequest focused on security
+        analysis = await aiAnalyzer.analyzeRequest(userId, requestId, httpRequest);
+        break;
+      default:
+        analysis = await aiAnalyzer.analyzeRequest(userId, requestId, httpRequest);
+    }
+
+    res.json({
+      success: true,
+      data: analysis,
+      message: `${action} analysis completed`,
+    });
+  })
+);
+
+/**
  * GET /ai/analysis/:analysisId
  * Get a specific AI analysis by ID
  */
@@ -175,12 +274,12 @@ router.get(
       success: true,
       data: {
         analysisId: analysis.id,
-        requestId: analysis.requestId,
-        analysisType: analysis.analysisType,
-        vulnerabilities: analysis.vulnerabilities,
+        requestId: analysis.requestLogId,
+        analysisType: analysis.mode,
+        vulnerabilities: [], // TODO: Fetch from relation
         suggestions: analysis.suggestions,
         tokensUsed: analysis.tokensUsed,
-        model: analysis.model,
+        model: 'unknown', // TODO: Store model in schema
         timestamp: analysis.createdAt,
       },
     });
@@ -250,6 +349,901 @@ router.post(
         count: exploits.length,
       },
       message: 'Exploit payloads generated',
+    });
+  })
+);
+
+/**
+ * GET /ai/credits
+ * Get user's AI token balance
+ */
+router.get(
+  '/credits',
+  asyncHandler(async (req: Request, res: Response) => {
+    const userId = req.user!.id;
+
+    const balance = await aiPricingService.getTokenBalance(userId);
+
+    res.json(balance);
+  })
+);
+
+/**
+ * GET /ai/pricing
+ * Get pricing information (plans and action costs)
+ */
+router.get(
+  '/pricing',
+  asyncHandler(async (req: Request, res: Response) => {
+    const pricingInfo = aiPricingService.getPricingInfo();
+
+    res.json(pricingInfo);
+  })
+);
+
+/**
+ * POST /ai/quick-scan/:requestId
+ * Quick security scan with Haiku (~3,600 tokens)
+ */
+router.post(
+  '/quick-scan/:requestId',
+  asyncHandler(async (req: Request, res: Response) => {
+    const userId = req.user!.id;
+    const { requestId } = req.params;
+
+    // Try to get request from intercept queue first (like analyzeIntercepted)
+    const session = proxySessionManager.getSessionByUserId(userId);
+    let httpRequest;
+
+    if (session) {
+      const queue = session.proxy.getRequestQueue();
+      const queuedRequest = queue.get(requestId);
+
+      if (queuedRequest) {
+        httpRequest = {
+          id: queuedRequest.id,
+          method: queuedRequest.method,
+          url: queuedRequest.url,
+          headers: queuedRequest.headers,
+          body: queuedRequest.body || undefined,
+          timestamp: queuedRequest.timestamp,
+        };
+      }
+    }
+
+    // Fallback to database if not in queue
+    if (!httpRequest) {
+      const requestLog = await prisma.requestLog.findFirst({
+        where: {
+          id: requestId,
+          userId,
+        },
+      });
+
+      if (!requestLog) {
+        throw new NotFoundError('Request not found');
+      }
+
+      httpRequest = {
+        id: requestLog.id,
+        method: requestLog.method,
+        url: requestLog.url,
+        headers: requestLog.headers as Record<string, string>,
+        body: requestLog.body || undefined,
+        timestamp: requestLog.timestamp,
+      };
+    }
+
+    // Ensure RequestLog exists in database (required for AI analysis foreign key)
+    if (httpRequest) {
+      await requestLogService.ensureRequestLog(requestId, userId, {
+        method: httpRequest.method,
+        url: httpRequest.url,
+        headers: httpRequest.headers,
+        body: httpRequest.body,
+        timestamp: httpRequest.timestamp,
+        isIntercepted: false,
+      });
+    }
+
+    // Analyze with Haiku only (quick scan)
+    const analysis = await aiAnalyzer.analyzeRequest(userId, requestId, httpRequest);
+
+    res.json({
+      success: true,
+      data: analysis,
+      message: 'Quick scan completed',
+    });
+  })
+);
+
+/**
+ * POST /ai/deep-scan/:requestId
+ * Deep security scan with Sonnet (~14,000 tokens)
+ */
+router.post(
+  '/deep-scan/:requestId',
+  asyncHandler(async (req: Request, res: Response) => {
+    const userId = req.user!.id;
+    const { requestId } = req.params;
+
+    // Try to get request from intercept queue first (like analyzeIntercepted)
+    const session = proxySessionManager.getSessionByUserId(userId);
+    let httpRequest;
+    let httpResponse;
+
+    if (session) {
+      const queue = session.proxy.getRequestQueue();
+      const queuedRequest = queue.get(requestId);
+
+      if (queuedRequest) {
+        httpRequest = {
+          id: queuedRequest.id,
+          method: queuedRequest.method,
+          url: queuedRequest.url,
+          headers: queuedRequest.headers,
+          body: queuedRequest.body || undefined,
+          timestamp: queuedRequest.timestamp,
+        };
+      }
+    }
+
+    // Fallback to database if not in queue
+    if (!httpRequest) {
+      const requestLog = await prisma.requestLog.findFirst({
+        where: {
+          id: requestId,
+          userId,
+        },
+      });
+
+      if (!requestLog) {
+        throw new NotFoundError('Request not found');
+      }
+
+      httpRequest = {
+        id: requestLog.id,
+        method: requestLog.method,
+        url: requestLog.url,
+        headers: requestLog.headers as Record<string, string>,
+        body: requestLog.body || undefined,
+        timestamp: requestLog.timestamp,
+      };
+
+      // If we have response data, include it for deep scan
+      if (requestLog.statusCode) {
+        httpResponse = {
+          statusCode: requestLog.statusCode,
+          statusMessage: 'OK',
+          headers: (requestLog.responseHeaders as Record<string, string>) || {},
+          duration: requestLog.duration || 0,
+        };
+      }
+    }
+
+    // Ensure RequestLog exists in database (required for AI analysis foreign key)
+    if (httpRequest) {
+      await requestLogService.ensureRequestLog(requestId, userId, {
+        method: httpRequest.method,
+        url: httpRequest.url,
+        headers: httpRequest.headers,
+        body: httpRequest.body,
+        timestamp: httpRequest.timestamp,
+        isIntercepted: false,
+      });
+    }
+
+    // Deep analysis with Sonnet (with or without response)
+    let analysis;
+    if (httpResponse) {
+      analysis = await aiAnalyzer.analyzeTransaction(userId, requestId, httpRequest, httpResponse);
+    } else {
+      // If no response yet, just analyze the request
+      analysis = await aiAnalyzer.analyzeRequest(userId, requestId, httpRequest);
+    }
+
+    res.json({
+      success: true,
+      data: analysis,
+      message: 'Deep scan completed',
+    });
+  })
+);
+
+/**
+ * POST /ai/batch-analyze
+ * Batch analyze multiple requests
+ */
+router.post(
+  '/batch-analyze',
+  asyncHandler(async (req: Request, res: Response) => {
+    const userId = req.user!.id;
+    const { requestIds } = req.body;
+
+    if (!Array.isArray(requestIds) || requestIds.length === 0) {
+      throw new NotFoundError('Request IDs array required');
+    }
+
+    const results = [];
+    const errors = [];
+
+    for (const requestId of requestIds) {
+      try {
+        const requestLog = await prisma.requestLog.findFirst({
+          where: {
+            id: requestId,
+            userId,
+          },
+        });
+
+        if (!requestLog) {
+          errors.push({ requestId, error: 'Request not found' });
+          continue;
+        }
+
+        const analysis = await aiAnalyzer.analyzeRequest(userId, requestId, {
+          id: requestLog.id,
+          method: requestLog.method,
+          url: requestLog.url,
+          headers: requestLog.headers as Record<string, string>,
+          body: requestLog.body || undefined,
+          timestamp: requestLog.timestamp,
+        });
+
+        results.push({
+          requestId,
+          analysis,
+        });
+      } catch (error: any) {
+        errors.push({
+          requestId,
+          error: error.message || 'Analysis failed',
+        });
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        results,
+        errors,
+        summary: {
+          total: requestIds.length,
+          successful: results.length,
+          failed: errors.length,
+        },
+      },
+      message: `Batch analysis completed: ${results.length}/${requestIds.length} successful`,
+    });
+  })
+);
+
+/**
+ * POST /ai/suggest-tests/:tabId
+ * Suggest security tests for a Repeater request
+ */
+router.post(
+  '/suggest-tests/:tabId',
+  asyncHandler(async (req: Request, res: Response) => {
+    const userId = req.user!.id;
+    const { tabId } = req.params;
+    const { method, url, headers, body } = req.body;
+
+    if (!method || !url) {
+      throw new NotFoundError('Method and URL required');
+    }
+
+    // Build analysis context for test suggestions
+    const analysisContext = `
+Analyze this HTTP request and suggest security tests to perform:
+
+Method: ${method}
+URL: ${url}
+Headers: ${JSON.stringify(headers, null, 2)}
+Body: ${body || '(empty)'}
+
+Provide specific test suggestions including:
+1. Parameter manipulation tests (SQL injection, XSS, command injection, etc.)
+2. Authentication bypass attempts
+3. Authorization tests
+4. Input validation tests
+5. Rate limiting tests
+
+For each test, provide:
+- Test name and description
+- Modified request variations (method, headers, body changes)
+- Expected indicators of vulnerability
+- Severity if vulnerability found
+`;
+
+    const prompt = `You are a penetration testing expert. Analyze the HTTP request and suggest practical security tests.
+
+Return a JSON object with this structure:
+{
+  "tests": [
+    {
+      "id": "unique-test-id",
+      "name": "Test name",
+      "description": "What this test checks for",
+      "category": "sqli|xss|auth|authz|injection|validation|ratelimit|other",
+      "severity": "critical|high|medium|low",
+      "variations": [
+        {
+          "description": "Variation description",
+          "method": "GET|POST|PUT|DELETE|PATCH",
+          "url": "modified URL if needed",
+          "headers": { "modified": "headers" },
+          "body": "modified body"
+        }
+      ],
+      "indicators": ["What to look for in response to indicate vulnerability"]
+    }
+  ],
+  "summary": "Brief summary of recommended tests"
+}
+
+Provide 5-10 most relevant tests based on the request type and parameters.`;
+
+    const response = await claudeClient.analyze(analysisContext, prompt);
+
+    // Parse response
+    let suggestions;
+    try {
+      suggestions = JSON.parse(response.content);
+    } catch {
+      // Fallback if parsing fails
+      suggestions = {
+        tests: [],
+        summary: response.content.substring(0, 500),
+      };
+    }
+
+    res.json({
+      success: true,
+      data: {
+        tabId,
+        suggestions,
+        tokensUsed: response.inputTokens + response.outputTokens,
+        model: response.model,
+      },
+      message: 'Test suggestions generated',
+    });
+  })
+);
+
+/**
+ * POST /ai/generate-payloads
+ * Generate AI-powered context-aware payloads for fuzzing
+ */
+router.post(
+  '/generate-payloads',
+  asyncHandler(async (req: Request, res: Response) => {
+    const userId = req.user!.id;
+    const { category, context, count = 50 } = req.body;
+
+    if (!category) {
+      throw new NotFoundError('Payload category required');
+    }
+
+    // Build analysis context for payload generation
+    const analysisContext = `
+Generate context-aware fuzzing payloads for penetration testing.
+
+Category: ${category}
+Target Context: ${context || '(generic)'}
+Count: ${count} payloads
+
+Consider:
+- Modern security controls and WAF bypass techniques
+- Encoding variations (URL, HTML, Unicode, etc.)
+- Case sensitivity and special characters
+- Context-specific injection points
+- Real-world exploitation scenarios
+`;
+
+    const prompt = `You are a penetration testing expert specializing in payload generation.
+
+Generate ${count} effective fuzzing payloads for the "${category}" category.
+
+Return a JSON object with this structure:
+{
+  "payloads": [
+    {
+      "value": "payload string",
+      "description": "What this payload tests for",
+      "encodingType": "none|url|html|unicode|base64",
+      "severity": "critical|high|medium|low"
+    }
+  ],
+  "category": "${category}",
+  "totalCount": ${count},
+  "summary": "Brief description of payload strategy"
+}
+
+Payload categories and their focus:
+- sqli: SQL injection (UNION, boolean-based, time-based, error-based)
+- xss: Cross-site scripting (reflected, stored, DOM-based, filter bypass)
+- command_injection: OS command injection (bash, powershell, cmd)
+- path_traversal: Directory traversal and file inclusion
+- xxe: XML External Entity attacks
+- ssti: Server-side template injection
+- nosql: NoSQL injection (MongoDB, etc.)
+- ldap: LDAP injection
+- auth_bypass: Authentication bypass techniques
+- idor: Insecure Direct Object Reference patterns
+
+Provide diverse, effective payloads with modern bypass techniques.`;
+
+    const response = await claudeClient.analyze(analysisContext, prompt);
+
+    // Parse response
+    let payloadData;
+    try {
+      payloadData = JSON.parse(response.content);
+    } catch {
+      // Fallback if parsing fails
+      payloadData = {
+        payloads: [],
+        category,
+        totalCount: 0,
+        summary: response.content.substring(0, 500),
+      };
+    }
+
+    res.json({
+      success: true,
+      data: {
+        payloads: payloadData.payloads || [],
+        category: payloadData.category || category,
+        totalCount: payloadData.totalCount || payloadData.payloads?.length || 0,
+        summary: payloadData.summary,
+        tokensUsed: response.inputTokens + response.outputTokens,
+        model: response.model,
+      },
+      message: 'Payloads generated successfully',
+    });
+  })
+);
+
+/**
+ * POST /ai/generate-dorks
+ * Generate search dorks (Google, Shodan, GitHub) for reconnaissance
+ */
+router.post(
+  '/generate-dorks',
+  asyncHandler(async (req: Request, res: Response) => {
+    const userId = req.user!.id;
+    const { target, objective, platforms = ['google', 'shodan', 'github'] } = req.body;
+
+    if (!target || !objective) {
+      throw new NotFoundError('Target and objective required');
+    }
+
+    // Build analysis context for dork generation
+    const analysisContext = `
+Generate reconnaissance search dorks for penetration testing and OSINT.
+
+Target: ${target}
+Objective: ${objective}
+Platforms: ${platforms.join(', ')}
+
+Consider:
+- Information disclosure (credentials, API keys, configs)
+- Exposed services and endpoints
+- Vulnerable components and versions
+- Development/staging environments
+- Backup files and archives
+- Source code leaks
+- Employee information
+- Subdomains and related infrastructure
+`;
+
+    const prompt = `You are an OSINT and reconnaissance expert specializing in search dork generation.
+
+Generate effective search dorks for the target "${target}" with objective "${objective}".
+
+Return a JSON object with this structure:
+{
+  "dorks": {
+    "google": [
+      {
+        "query": "dork query string",
+        "description": "What this dork searches for",
+        "category": "credentials|configs|endpoints|files|subdomains|employees|other",
+        "severity": "critical|high|medium|low"
+      }
+    ],
+    "shodan": [
+      {
+        "query": "shodan query string",
+        "description": "What this dork searches for",
+        "category": "services|vulnerabilities|devices|certificates|other",
+        "severity": "critical|high|medium|low"
+      }
+    ],
+    "github": [
+      {
+        "query": "github query string",
+        "description": "What this dork searches for",
+        "category": "credentials|keys|configs|code|other",
+        "severity": "critical|high|medium|low"
+      }
+    ]
+  },
+  "target": "${target}",
+  "totalDorks": 0,
+  "summary": "Brief overview of reconnaissance strategy"
+}
+
+Dork categories and focus:
+- Google: site:, inurl:, intitle:, filetype:, intext:, cache:
+- Shodan: hostname:, port:, product:, version:, vuln:, org:
+- GitHub: org:, repo:, user:, filename:, extension:, path:
+
+Generate 5-10 dorks per requested platform. Focus on high-impact reconnaissance.`;
+
+    const response = await claudeClient.analyze(analysisContext, prompt);
+
+    // Parse response
+    let dorkData;
+    try {
+      dorkData = JSON.parse(response.content);
+      // Calculate total dorks
+      const totalDorks =
+        (dorkData.dorks?.google?.length || 0) +
+        (dorkData.dorks?.shodan?.length || 0) +
+        (dorkData.dorks?.github?.length || 0);
+      dorkData.totalDorks = totalDorks;
+    } catch {
+      // Fallback if parsing fails
+      dorkData = {
+        dorks: { google: [], shodan: [], github: [] },
+        target,
+        totalDorks: 0,
+        summary: response.content.substring(0, 500),
+      };
+    }
+
+    res.json({
+      success: true,
+      data: {
+        dorks: dorkData.dorks || { google: [], shodan: [], github: [] },
+        target: dorkData.target || target,
+        totalDorks: dorkData.totalDorks || 0,
+        summary: dorkData.summary,
+        tokensUsed: response.inputTokens + response.outputTokens,
+        model: response.model,
+      },
+      message: 'Dorks generated successfully',
+    });
+  })
+);
+
+/**
+ * POST /ai/generate-attack-chain/:projectId
+ * Generate multi-step attack chain based on project requests
+ */
+router.post(
+  '/generate-attack-chain/:projectId',
+  asyncHandler(async (req: Request, res: Response) => {
+    const userId = req.user!.id;
+    const { projectId } = req.params;
+    const { objective } = req.body;
+
+    if (!objective) {
+      throw new NotFoundError('Attack objective required');
+    }
+
+    // Fetch all requests from the project
+    const requests = await prisma.requestLog.findMany({
+      where: {
+        projectId,
+        userId,
+      },
+      orderBy: {
+        timestamp: 'asc',
+      },
+      take: 50, // Limit to prevent token overflow
+    });
+
+    if (requests.length === 0) {
+      throw new NotFoundError('No requests found in project');
+    }
+
+    // Build summary of requests for analysis
+    const requestsSummary = requests
+      .map((req, index) => {
+        return `
+Request ${index + 1}:
+- Method: ${req.method}
+- URL: ${req.url}
+- Status: ${req.statusCode || 'N/A'}
+- Timestamp: ${req.timestamp}
+${req.headers ? `- Headers: ${JSON.stringify(req.headers).substring(0, 200)}...` : ''}
+${req.body ? `- Body: ${req.body.substring(0, 200)}...` : ''}
+`;
+      })
+      .join('\n');
+
+    // Build analysis context for attack chain generation
+    const analysisContext = `
+Analyze HTTP request logs to identify potential multi-step attack chain.
+
+Objective: ${objective}
+Total Requests: ${requests.length}
+
+Request Logs:
+${requestsSummary}
+
+Consider:
+- Authentication and authorization flows
+- Session management and token handling
+- API endpoint relationships and dependencies
+- Data flow between requests
+- Potential vulnerabilities that can be chained
+- Privilege escalation opportunities
+- Business logic flaws
+`;
+
+    const prompt = `You are a penetration testing expert specializing in attack chain analysis.
+
+Analyze the HTTP request logs and generate a multi-step attack chain for objective: "${objective}".
+
+Return a JSON object with this structure:
+{
+  "attackChain": [
+    {
+      "step": 1,
+      "title": "Step title",
+      "description": "Detailed description of this step",
+      "requestReference": "Request 1, Request 3",
+      "technique": "IDOR|SQLi|XSS|CSRF|Authentication Bypass|Privilege Escalation|Other",
+      "payload": "Example payload or modification",
+      "expectedResult": "What should happen",
+      "dependencies": ["step 0"],
+      "severity": "critical|high|medium|low"
+    }
+  ],
+  "summary": "Executive summary of the attack chain",
+  "totalSteps": 0,
+  "estimatedImpact": "critical|high|medium|low",
+  "prerequisites": ["What is needed before starting"],
+  "detectionRisk": "high|medium|low",
+  "recommendations": ["How to prevent this attack chain"]
+}
+
+Focus on:
+1. Logical step progression
+2. Realistic exploitation scenarios
+3. Leveraging identified vulnerabilities
+4. Achieving the stated objective
+
+Provide a complete, executable attack chain with 3-8 steps.`;
+
+    const response = await claudeClient.analyze(analysisContext, prompt);
+
+    // Parse response
+    let attackChainData;
+    try {
+      attackChainData = JSON.parse(response.content);
+      attackChainData.totalSteps = attackChainData.attackChain?.length || 0;
+    } catch {
+      // Fallback if parsing fails
+      attackChainData = {
+        attackChain: [],
+        summary: response.content.substring(0, 500),
+        totalSteps: 0,
+        estimatedImpact: 'medium',
+        prerequisites: [],
+        detectionRisk: 'medium',
+        recommendations: [],
+      };
+    }
+
+    res.json({
+      success: true,
+      data: {
+        attackChain: attackChainData.attackChain || [],
+        summary: attackChainData.summary,
+        totalSteps: attackChainData.totalSteps || 0,
+        estimatedImpact: attackChainData.estimatedImpact,
+        prerequisites: attackChainData.prerequisites || [],
+        detectionRisk: attackChainData.detectionRisk,
+        recommendations: attackChainData.recommendations || [],
+        tokensUsed: response.inputTokens + response.outputTokens,
+        model: response.model,
+      },
+      message: 'Attack chain generated successfully',
+    });
+  })
+);
+
+/**
+ * POST /ai/generate-report/:projectId
+ * Generate comprehensive security report for a project
+ */
+router.post(
+  '/generate-report/:projectId',
+  asyncHandler(async (req: Request, res: Response) => {
+    const userId = req.user!.id;
+    const { projectId } = req.params;
+    const { includeRemediation = true, format = 'json' } = req.body;
+
+    // Fetch project info
+    const project = await prisma.project.findFirst({
+      where: {
+        id: projectId,
+        userId,
+      },
+    });
+
+    if (!project) {
+      throw new NotFoundError('Project not found');
+    }
+
+    // Fetch all requests from the project
+    const requests = await prisma.requestLog.findMany({
+      where: {
+        projectId,
+        userId,
+      },
+      orderBy: {
+        timestamp: 'desc',
+      },
+      take: 100, // Limit to prevent token overflow
+    });
+
+    // Fetch all AI analyses for this project
+    const analyses = await prisma.aIAnalysis.findMany({
+      where: {
+        requestLog: {
+          projectId,
+          userId,
+        },
+      },
+      include: {
+        requestLog: true,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    // Build comprehensive context
+    const analysisContext = `
+Generate a comprehensive security assessment report for project: ${project.name}
+
+Project Details:
+- Name: ${project.name}
+- Description: ${project.description || 'N/A'}
+- Total Requests Captured: ${requests.length}
+- AI Analyses Performed: ${analyses.length}
+- Scope: ${project.scope ? JSON.stringify(project.scope) : 'Not defined'}
+
+Request Summary:
+${requests.slice(0, 50).map((req, i) => `${i + 1}. ${req.method} ${req.url} - Status: ${req.statusCode || 'N/A'}`).join('\n')}
+
+AI Analysis Findings:
+${analyses.slice(0, 20).map((analysis, i) => {
+  const result = analysis.result as any;
+  return `
+Analysis ${i + 1}:
+- Request: ${analysis.requestLog.method} ${analysis.requestLog.url}
+- Mode: ${analysis.mode}
+- Findings: ${result?.vulnerabilities?.length || 0} vulnerabilities
+- Severity: ${result?.vulnerabilities?.[0]?.severity || 'N/A'}
+`;
+}).join('\n')}
+
+Instructions:
+${includeRemediation ? '- Include detailed remediation steps for each finding' : '- Focus on vulnerability descriptions only'}
+- Provide actionable security recommendations
+- Prioritize findings by risk/impact
+- Include executive summary suitable for management
+- Categorize findings by OWASP Top 10 or similar framework
+`;
+
+    const prompt = `You are a senior security consultant preparing a professional security assessment report.
+
+Generate a comprehensive security report with the following structure:
+
+{
+  "executiveSummary": {
+    "overview": "High-level summary of security posture",
+    "criticalFindings": number,
+    "highFindings": number,
+    "mediumFindings": number,
+    "lowFindings": number,
+    "riskLevel": "critical|high|medium|low",
+    "keyRecommendations": ["Top 3-5 recommendations"]
+  },
+  "projectOverview": {
+    "name": "Project name",
+    "scope": "Scope description",
+    "testingPeriod": "Date range",
+    "requestsAnalyzed": number,
+    "aiAnalysesPerformed": number
+  },
+  "findings": [
+    {
+      "id": "finding-1",
+      "title": "Vulnerability title",
+      "severity": "critical|high|medium|low",
+      "category": "OWASP category or type",
+      "description": "Detailed description",
+      "affectedEndpoints": ["List of URLs"],
+      "evidence": "Technical evidence",
+      "impact": "Business/technical impact",
+      "likelihood": "Exploitation likelihood",
+      "cvss": "CVSS score if applicable",
+      ${includeRemediation ? '"remediation": "Step-by-step fix instructions",' : ''}
+      "references": ["Links to documentation"]
+    }
+  ],
+  "statistics": {
+    "totalRequests": number,
+    "uniqueEndpoints": number,
+    "methodsDistribution": {"GET": x, "POST": y},
+    "statusCodesDistribution": {"2xx": x, "4xx": y, "5xx": z},
+    "vulnerabilityTypes": {"SQLi": x, "XSS": y}
+  },
+  "recommendations": {
+    "immediate": ["Critical actions needed now"],
+    "shortTerm": ["Actions for next 1-3 months"],
+    "longTerm": ["Strategic security improvements"]
+  },
+  "conclusion": "Final assessment and overall recommendations"
+}
+
+Provide a professional, actionable security report.`;
+
+    const response = await claudeClient.analyze(analysisContext, prompt);
+
+    // Parse response
+    let reportData;
+    try {
+      reportData = JSON.parse(response.content);
+    } catch {
+      // Fallback if parsing fails
+      reportData = {
+        executiveSummary: {
+          overview: response.content.substring(0, 500),
+          criticalFindings: 0,
+          highFindings: 0,
+          mediumFindings: 0,
+          lowFindings: 0,
+          riskLevel: 'medium',
+          keyRecommendations: [],
+        },
+        projectOverview: {
+          name: project.name,
+          scope: project.scope || '',
+          testingPeriod: 'N/A',
+          requestsAnalyzed: requests.length,
+          aiAnalysesPerformed: analyses.length,
+        },
+        findings: [],
+        statistics: {},
+        recommendations: {
+          immediate: [],
+          shortTerm: [],
+          longTerm: [],
+        },
+        conclusion: '',
+      };
+    }
+
+    res.json({
+      success: true,
+      data: {
+        projectId,
+        projectName: project.name,
+        report: reportData,
+        tokensUsed: response.inputTokens + response.outputTokens,
+        model: response.model,
+        generatedAt: new Date().toISOString(),
+      },
+      message: 'Security report generated successfully',
     });
   })
 );

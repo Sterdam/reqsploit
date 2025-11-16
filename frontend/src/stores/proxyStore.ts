@@ -84,7 +84,6 @@ export const useProxyStore = create<ProxyState>((set, get) => ({
 
   // Load proxy status
   loadStatus: async () => {
-    set({ isLoading: true });
     try {
       const status = await proxyAPI.getStatus();
 
@@ -93,6 +92,7 @@ export const useProxyStore = create<ProxyState>((set, get) => ({
         stats: status.stats || null,
         isActive: status.hasActiveSession,
         isLoading: false,
+        error: null,
       });
     } catch (error: any) {
       console.error('Failed to load proxy status:', error);
@@ -101,7 +101,8 @@ export const useProxyStore = create<ProxyState>((set, get) => ({
         session: null,
         stats: null,
         isActive: false,
-        isLoading: false
+        isLoading: false,
+        error: null,
       });
     }
   },

@@ -18,44 +18,66 @@ Key responsibilities:
 
 Analysis guidelines:
 - Provide severity ratings: CRITICAL, HIGH, MEDIUM, LOW, INFO
-- Explain the vulnerability clearly and concisely
-- Suggest specific exploitation techniques when appropriate
-- Recommend remediation steps
-- Consider the context of the application
-- Flag false positives and explain your reasoning
+- Be concise but comprehensive - prioritize actionable findings
+- Include specific exploitation techniques and payloads
+- Provide clear remediation steps
+- Focus on real vulnerabilities, minimize speculation
+- Include CWE/CVSS references where applicable
+
+IMPORTANT OUTPUT REQUIREMENTS:
+- ALWAYS complete your analysis within the token limit
+- Prioritize: 1) Critical/High vulnerabilities, 2) Exploitation steps, 3) Remediation
+- If approaching token limit: summarize remaining items rather than truncating mid-sentence
+- Use structured, compact JSON format
+- Avoid verbose explanations - be precise and technical
 
 Output format:
-Your analysis should be structured JSON with the following format:
+Your analysis MUST be a complete, valid JSON object with this exact structure:
 {
   "vulnerabilities": [
     {
       "type": "vulnerability_type",
       "severity": "CRITICAL|HIGH|MEDIUM|LOW|INFO",
-      "title": "Brief title",
-      "description": "Detailed description",
-      "location": "Where the vulnerability was found",
-      "evidence": "Specific evidence from the request/response",
-      "exploitation": "How this could be exploited",
-      "remediation": "How to fix this issue",
+      "title": "Brief, specific title",
+      "description": "Concise technical description (2-3 sentences max)",
+      "location": "Exact location (URL path, parameter, header)",
+      "evidence": "Specific evidence snippet (keep under 200 chars)",
+      "exploitation": "Step-by-step exploitation (numbered list, be concise)",
+      "remediation": "Actionable fix steps (numbered list, prioritized)",
+      "cwe": "CWE-XXX",
+      "cvss": 7.5,
       "references": ["CWE-XXX", "OWASP A01:2021"]
     }
   ],
   "suggestions": [
     {
       "type": "exploit|modification|info",
-      "title": "Brief title",
-      "description": "What this suggestion does",
-      "payload": "Actual payload or modification to try",
-      "expectedOutcome": "What result to expect"
+      "title": "Concise title",
+      "description": "Brief description (1 sentence)",
+      "payload": "Actual payload (raw, copy-pasteable)",
+      "expectedOutcome": "Expected result (brief)"
     }
   ],
   "summary": {
     "totalVulnerabilities": 0,
     "criticalCount": 0,
     "highCount": 0,
-    "riskScore": 0.0
+    "mediumCount": 0,
+    "lowCount": 0,
+    "riskScore": 7.5,
+    "riskLevel": "CRITICAL|HIGH|MEDIUM|LOW",
+    "keyFindings": ["Finding 1", "Finding 2", "Finding 3"],
+    "immediateActions": ["Action 1", "Action 2", "Action 3"]
   }
-}`;
+}
+
+CRITICAL INSTRUCTIONS:
+- Limit each vulnerability description to 2-3 sentences maximum
+- Keep evidence snippets under 200 characters
+- Use numbered lists for exploitation and remediation
+- Prioritize HIGH/CRITICAL findings - limit LOW/INFO if running out of space
+- ALWAYS close the JSON properly - never leave it incomplete
+- If approaching 8000 tokens, summarize remaining findings in keyFindings array`;
 
 export const REQUEST_ANALYZER_PROMPT = `You are analyzing an HTTP request for security vulnerabilities and attack opportunities.
 

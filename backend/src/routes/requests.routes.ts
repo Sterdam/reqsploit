@@ -3,12 +3,11 @@
  */
 
 import { Router, Request, Response } from 'express';
-
 import { RequestLogService } from '../services/request-log.service';
 import { authenticateToken } from '../middleware/auth.middleware';
+import { prisma } from '../lib/prisma';
 
 const router = Router();
-import { prisma } from '../lib/prisma.js';
 
 const requestLogService = new RequestLogService(prisma);
 

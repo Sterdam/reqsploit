@@ -63,7 +63,7 @@ export const requestModificationSchema = z.object({
  * Validation Middleware Factory
  */
 export function validate(schema: z.ZodSchema) {
-  return (req: Request, res: Response, next: NextFunction): void => {
+  return (req: Request, _res: Response, next: NextFunction): void => {
     try {
       const validated = schema.parse(req.body);
       req.body = validated;
@@ -86,7 +86,7 @@ export function validate(schema: z.ZodSchema) {
  * Query Parameter Validator
  */
 export function validateQuery(schema: z.ZodSchema) {
-  return (req: Request, res: Response, next: NextFunction): void => {
+  return (req: Request, _res: Response, next: NextFunction): void => {
     try {
       const validated = schema.parse(req.query);
       req.query = validated as typeof req.query;
@@ -109,7 +109,7 @@ export function validateQuery(schema: z.ZodSchema) {
  * Params Validator
  */
 export function validateParams(schema: z.ZodSchema) {
-  return (req: Request, res: Response, next: NextFunction): void => {
+  return (req: Request, _res: Response, next: NextFunction): void => {
     try {
       const validated = schema.parse(req.params);
       req.params = validated as typeof req.params;

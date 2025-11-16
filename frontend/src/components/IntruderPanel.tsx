@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useIntruderStore, type AttackType, type PayloadSet } from '../stores/intruderStore';
+import { useAIStore } from '../stores/aiStore';
 import { exportToCSV, exportToJSON, generateExportFilename } from '../utils/exportUtils';
 import { toast } from '../stores/toastStore';
+import { aiAPI } from '../lib/api';
 import {
   Play,
   Pause,
@@ -11,6 +13,8 @@ import {
   CheckCircle,
   Zap,
   FileDown,
+  Sparkles,
+  Loader2,
 } from 'lucide-react';
 
 export function IntruderPanel() {
@@ -48,6 +52,12 @@ export function IntruderPanel() {
   const [selectedPosition, setSelectedPosition] = useState<number>(0);
   const [customPayloads, setCustomPayloads] = useState('');
   const [numberRange, setNumberRange] = useState({ from: 1, to: 100, step: 1 });
+  const [aiCategory, setAiCategory] = useState<string>('sqli');
+  const [aiContext, setAiContext] = useState<string>('');
+  const [aiCount, setAiCount] = useState<number>(50);
+  const [isGeneratingAI, setIsGeneratingAI] = useState(false);
+
+  const { canAfford } = useAIStore();
 
   // Load campaigns and builtin payloads on mount
   useEffect(() => {
@@ -170,6 +180,48 @@ export function IntruderPanel() {
     }
 
     updatePayloadSet(position.id, payloadSet);
+  };
+
+  // Handle AI payload generation
+  const handleGenerateAIPayloads = async () => {
+    if (!draftCampaign || selectedPosition >= draftCampaign.payloadPositions.length) return;
+
+    if (!canAfford('generatePayloads')) {
+      toast.error('Insufficient tokens', 'You need more tokens to generate AI payloads');
+      return;
+    }
+
+    const position = draftCampaign.payloadPositions[selectedPosition];
+    setIsGeneratingAI(true);
+
+    try {
+      const result = await aiAPI.generatePayloads(
+        { category: aiCategory, context: aiContext || undefined },
+        { count: aiCount }
+      );
+      const payloads = result.payloads.map((p: any) => p.value);
+
+      const payloadSet: PayloadSet = {
+        id: `payload-${Date.now()}`,
+        name: `AI ${result.category} (${result.totalCount})`,
+        type: 'simple_list',
+        payloads,
+      };
+
+      updatePayloadSet(position.id, payloadSet);
+      toast.success(
+        'AI Payloads Generated',
+        `${result.data.totalCount} payloads generated for ${result.data.category}`
+      );
+    } catch (error) {
+      console.error('AI payload generation failed:', error);
+      toast.error(
+        'Generation Failed',
+        error instanceof Error ? error.message : 'Failed to generate AI payloads'
+      );
+    } finally {
+      setIsGeneratingAI(false);
+    }
   };
 
   // Render campaign list
@@ -541,6 +593,80 @@ export function IntruderPanel() {
                         >
                           Generate
                         </button>
+                      </div>
+                    </div>
+
+                    {/* AI Payload Generator */}
+                    <div>
+                      <label className="text-xs text-white/60 block mb-2 flex items-center gap-2">
+                        <Sparkles className="w-3 h-3 text-electric-blue" />
+                        AI Payload Generator (16K tokens)
+                      </label>
+                      <div className="space-y-2">
+                        <select
+                          value={aiCategory}
+                          onChange={(e) => setAiCategory(e.target.value)}
+                          className="w-full px-3 py-2 bg-[#0D1F2D] text-white border border-white/20 rounded text-xs"
+                          disabled={isGeneratingAI}
+                        >
+                          <option value="sqli">SQL Injection</option>
+                          <option value="xss">Cross-Site Scripting (XSS)</option>
+                          <option value="command_injection">Command Injection</option>
+                          <option value="path_traversal">Path Traversal</option>
+                          <option value="xxe">XML External Entity (XXE)</option>
+                          <option value="ssti">Server-Side Template Injection</option>
+                          <option value="nosql">NoSQL Injection</option>
+                          <option value="ldap">LDAP Injection</option>
+                          <option value="auth_bypass">Authentication Bypass</option>
+                          <option value="idor">IDOR / Access Control</option>
+                        </select>
+
+                        <input
+                          type="text"
+                          value={aiContext}
+                          onChange={(e) => setAiContext(e.target.value)}
+                          placeholder="Context (optional): e.g., 'login form', 'JSON API'"
+                          className="w-full px-3 py-2 bg-[#0D1F2D] text-white border border-white/20 rounded text-xs"
+                          disabled={isGeneratingAI}
+                        />
+
+                        <div className="flex gap-2 items-center">
+                          <input
+                            type="number"
+                            value={aiCount}
+                            onChange={(e) => setAiCount(parseInt(e.target.value))}
+                            min="10"
+                            max="200"
+                            className="w-20 px-2 py-1.5 bg-[#0D1F2D] text-white border border-white/20 rounded text-xs"
+                            placeholder="Count"
+                            disabled={isGeneratingAI}
+                          />
+                          <button
+                            onClick={handleGenerateAIPayloads}
+                            disabled={isGeneratingAI || !canAfford('generatePayloads')}
+                            className="flex-1 px-3 py-1.5 bg-electric-blue hover:bg-electric-blue/80 text-white text-xs rounded font-medium flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {isGeneratingAI ? (
+                              <>
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                                Generating...
+                              </>
+                            ) : (
+                              <>
+                                <Sparkles className="w-3 h-3" />
+                                Generate AI Payloads
+                              </>
+                            )}
+                          </button>
+                        </div>
+
+                        {!canAfford('generatePayloads') && (
+                          <p className="text-xs text-red-400">Insufficient tokens</p>
+                        )}
+
+                        <p className="text-xs text-white/40">
+                          AI will generate context-aware payloads with modern bypass techniques
+                        </p>
                       </div>
                     </div>
                   </div>

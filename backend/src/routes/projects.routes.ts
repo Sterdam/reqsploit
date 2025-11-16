@@ -5,7 +5,7 @@
 import { Router, Request, Response } from 'express';
 import { ProjectService } from '../services/project.service';
 import { authenticateToken } from '../middleware/auth.middleware';
-import { prisma } from '../lib/prisma.js';
+import { prisma } from '../lib/prisma';
 
 const router = Router();
 const projectService = new ProjectService(prisma);

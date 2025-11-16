@@ -28,6 +28,12 @@ enum AIMode {
   ADVANCED     // Experts - Analyse technique poussée
 }
 
+enum AnalysisType {
+  REQUEST      // Analyse de la requête uniquement
+  RESPONSE     // Analyse de la réponse uniquement
+  FULL         // Analyse complète (requête + réponse)
+}
+
 enum VulnerabilityType {
   SQLi
   XSS_REFLECTED
@@ -207,12 +213,14 @@ model RequestLog {
 model AIAnalysis {
   id               String             @id @default(uuid())
   requestLogId     String
+  analysisType     AnalysisType       // Type d'analyse: REQUEST, RESPONSE, FULL
   mode             AIMode             @default(DEFAULT)
   userContext      String?            @db.Text
   aiResponse       String             @db.Text
   suggestions      Json
   tokensUsed       Int
-  confidence       Int // 0-100
+  confidence       Int                @default(0) // 0-100
+  model            String?            // Model used (haiku-4.5 or sonnet-4.5)
   createdAt        DateTime           @default(now())
   userId           String
 

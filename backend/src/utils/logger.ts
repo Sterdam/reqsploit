@@ -1,8 +1,8 @@
 import winston from 'winston';
 import path from 'path';
 
-const logLevel = process.env.LOG_LEVEL || 'info';
-const isProduction = process.env.NODE_ENV === 'production';
+const logLevel = process.env['LOG_LEVEL'] || 'info';
+const isProduction = process.env['NODE_ENV'] === 'production';
 
 // Custom format for console output
 const consoleFormat = winston.format.combine(
@@ -37,7 +37,7 @@ const logger = winston.createLogger({
 
 // Add file transports in production
 if (isProduction) {
-  const logDir = process.env.LOG_DIR || '/data/logs';
+  const logDir = process.env['LOG_DIR'] || '/data/logs';
 
   logger.add(
     new winston.transports.File({

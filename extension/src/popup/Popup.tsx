@@ -7,18 +7,29 @@ interface ProxyStatus {
   proxyPort: number | null;
 }
 
+interface CertificateStatus {
+  installed: boolean;
+  checking: boolean;
+}
+
 export function Popup() {
   const [status, setStatus] = useState<ProxyStatus>({
     isAuthenticated: false,
     proxyEnabled: false,
     proxyPort: null,
   });
+  const [certStatus, setCertStatus] = useState<CertificateStatus>({
+    installed: false,
+    checking: true,
+  });
+  const [showCertGuide, setShowCertGuide] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Load status on mount
   useEffect(() => {
     loadStatus();
+    checkCertificateStatus();
   }, []);
 
   const loadStatus = async () => {
@@ -74,14 +85,41 @@ export function Popup() {
     }
   };
 
+  const checkCertificateStatus = async () => {
+    setCertStatus({ installed: false, checking: true });
+
+    try {
+      // Try to fetch from a test HTTPS endpoint through the proxy
+      // If certificate is not installed, this will fail with certificate error
+      const stored = await chrome.storage.local.get(['certificateInstalled']);
+
+      // Simple check: has user marked it as installed?
+      setCertStatus({
+        installed: stored.certificateInstalled || false,
+        checking: false,
+      });
+    } catch (err) {
+      setCertStatus({ installed: false, checking: false });
+    }
+  };
+
   const handleDownloadCertificate = async () => {
     setIsLoading(true);
     setError(null);
 
     try {
-      const response = await chrome.runtime.sendMessage({ action: 'downloadCertificate' });
+      // Use the default certificate endpoint (no auth required)
+      const response = await chrome.runtime.sendMessage({
+        action: status.isAuthenticated ? 'downloadCertificate' : 'downloadDefaultCertificate'
+      });
 
-      if (!response.success) {
+      if (response.success) {
+        // Show the installation guide
+        setShowCertGuide(true);
+
+        // Open Chrome certificate settings
+        chrome.tabs.create({ url: 'chrome://settings/certificates' });
+      } else {
         setError(response.error || 'Failed to download certificate');
       }
     } catch (err: any) {
@@ -89,6 +127,12 @@ export function Popup() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleMarkCertificateInstalled = async () => {
+    await chrome.storage.local.set({ certificateInstalled: true });
+    setCertStatus({ installed: true, checking: false });
+    setShowCertGuide(false);
   };
 
   const openDashboard = () => {
@@ -122,6 +166,44 @@ export function Popup() {
         ) : (
           // Authenticated
           <>
+            {/* Certificate Info */}
+            {!certStatus.installed && !certStatus.checking && (
+              <div className="popup-info">
+                <p className="popup-info-title">🔐 Certificate Setup</p>
+                <p className="popup-info-text">
+                  Install the Root CA certificate to intercept HTTPS traffic
+                </p>
+                <button
+                  onClick={handleDownloadCertificate}
+                  className="popup-button popup-button-secondary"
+                  disabled={isLoading}
+                >
+                  Download & Install Certificate
+                </button>
+              </div>
+            )}
+
+            {/* Certificate Installation Guide */}
+            {showCertGuide && (
+              <div className="popup-guide">
+                <p className="popup-guide-title">📝 Certificate Installation Steps</p>
+                <ol className="popup-guide-list">
+                  <li>The certificate settings page has been opened</li>
+                  <li>Click on the <strong>Authorities</strong> tab</li>
+                  <li>Click <strong>Import</strong> button</li>
+                  <li>Select the downloaded <code>reqsploit-ca.crt</code> file</li>
+                  <li>Check <strong>"Trust this certificate for identifying websites"</strong></li>
+                  <li>Click <strong>OK</strong></li>
+                </ol>
+                <button
+                  onClick={handleMarkCertificateInstalled}
+                  className="popup-button popup-button-success"
+                >
+                  ✓ I've installed the certificate
+                </button>
+              </div>
+            )}
+
             {/* Status */}
             <div className="popup-section">
               <div className="popup-status">
@@ -145,6 +227,25 @@ export function Popup() {
                   </p>
                 </div>
               </div>
+
+              {/* Certificate Status Indicator */}
+              {!certStatus.checking && (
+                <div className="popup-status" style={{ marginTop: '8px' }}>
+                  <div className="popup-status-dot-container">
+                    <div
+                      className={`popup-status-dot ${
+                        certStatus.installed ? 'popup-status-dot-active' : ''
+                      }`}
+                    />
+                  </div>
+                  <div>
+                    <p className="popup-status-label">Certificate</p>
+                    <p className="popup-status-value">
+                      {certStatus.installed ? 'Installed' : 'Not installed'}
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Error */}

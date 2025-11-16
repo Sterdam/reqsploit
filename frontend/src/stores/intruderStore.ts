@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { useAuthStore } from './authStore';
 
 /**
  * Attack Types
@@ -195,7 +196,7 @@ export const useIntruderStore = create<IntruderState>()(
         set({ isLoading: true, error: null });
 
         try {
-          const token = localStorage.getItem('token');
+          const token = useAuthStore.getState().accessToken;
           const response = await fetch(`${BACKEND_URL}/api/intruder/campaigns`, {
             headers: {
               Authorization: token ? `Bearer ${token}` : '',
@@ -220,7 +221,7 @@ export const useIntruderStore = create<IntruderState>()(
       // Fetch single campaign
       fetchCampaign: async (campaignId: string) => {
         try {
-          const token = localStorage.getItem('token');
+          const token = useAuthStore.getState().accessToken;
           const response = await fetch(`${BACKEND_URL}/api/intruder/campaigns/${campaignId}`, {
             headers: {
               Authorization: token ? `Bearer ${token}` : '',
@@ -250,7 +251,7 @@ export const useIntruderStore = create<IntruderState>()(
         set({ isLoading: true, error: null });
 
         try {
-          const token = localStorage.getItem('token');
+          const token = useAuthStore.getState().accessToken;
           const response = await fetch(`${BACKEND_URL}/api/intruder/campaigns`, {
             method: 'POST',
             headers: {
@@ -284,7 +285,7 @@ export const useIntruderStore = create<IntruderState>()(
       // Delete campaign
       deleteCampaign: async (campaignId: string) => {
         try {
-          const token = localStorage.getItem('token');
+          const token = useAuthStore.getState().accessToken;
           await fetch(`${BACKEND_URL}/api/intruder/campaigns/${campaignId}`, {
             method: 'DELETE',
             headers: {
@@ -312,7 +313,7 @@ export const useIntruderStore = create<IntruderState>()(
       // Start campaign
       startCampaign: async (campaignId: string) => {
         try {
-          const token = localStorage.getItem('token');
+          const token = useAuthStore.getState().accessToken;
           await fetch(`${BACKEND_URL}/api/intruder/campaigns/${campaignId}/start`, {
             method: 'POST',
             headers: {
@@ -337,7 +338,7 @@ export const useIntruderStore = create<IntruderState>()(
       // Pause campaign
       pauseCampaign: async (campaignId: string) => {
         try {
-          const token = localStorage.getItem('token');
+          const token = useAuthStore.getState().accessToken;
           await fetch(`${BACKEND_URL}/api/intruder/campaigns/${campaignId}/pause`, {
             method: 'POST',
             headers: {
@@ -358,7 +359,7 @@ export const useIntruderStore = create<IntruderState>()(
       // Resume campaign
       resumeCampaign: async (campaignId: string) => {
         try {
-          const token = localStorage.getItem('token');
+          const token = useAuthStore.getState().accessToken;
           await fetch(`${BACKEND_URL}/api/intruder/campaigns/${campaignId}/resume`, {
             method: 'POST',
             headers: {
@@ -382,7 +383,7 @@ export const useIntruderStore = create<IntruderState>()(
       // Stop campaign
       stopCampaign: async (campaignId: string) => {
         try {
-          const token = localStorage.getItem('token');
+          const token = useAuthStore.getState().accessToken;
           await fetch(`${BACKEND_URL}/api/intruder/campaigns/${campaignId}/stop`, {
             method: 'POST',
             headers: {
@@ -403,7 +404,7 @@ export const useIntruderStore = create<IntruderState>()(
       // Fetch progress
       fetchProgress: async (campaignId: string) => {
         try {
-          const token = localStorage.getItem('token');
+          const token = useAuthStore.getState().accessToken;
           const response = await fetch(`${BACKEND_URL}/api/intruder/campaigns/${campaignId}/progress`, {
             headers: {
               Authorization: token ? `Bearer ${token}` : '',
@@ -440,7 +441,7 @@ export const useIntruderStore = create<IntruderState>()(
       // Fetch results
       fetchResults: async (campaignId: string, filters = {}) => {
         try {
-          const token = localStorage.getItem('token');
+          const token = useAuthStore.getState().accessToken;
           const params = new URLSearchParams(filters as any);
           const response = await fetch(
             `${BACKEND_URL}/api/intruder/campaigns/${campaignId}/results?${params}`,
@@ -608,7 +609,7 @@ export const useIntruderStore = create<IntruderState>()(
       // Fetch builtin payloads
       fetchBuiltinPayloads: async () => {
         try {
-          const token = localStorage.getItem('token');
+          const token = useAuthStore.getState().accessToken;
           const response = await fetch(`${BACKEND_URL}/api/intruder/payloads/builtin`, {
             headers: {
               Authorization: token ? `Bearer ${token}` : '',
@@ -628,7 +629,7 @@ export const useIntruderStore = create<IntruderState>()(
       // Generate number payloads
       generateNumberPayloads: async (from: number, to: number, step: number) => {
         try {
-          const token = localStorage.getItem('token');
+          const token = useAuthStore.getState().accessToken;
           const response = await fetch(`${BACKEND_URL}/api/intruder/payloads/generate`, {
             method: 'POST',
             headers: {

@@ -211,7 +211,7 @@ export class ProjectService {
       LOW: 0,
       INFO: 0,
     };
-    project.findings.forEach((finding) => {
+    project.findings?.forEach((finding) => {
       findingsBySeverity[finding.severity]++;
     });
 
@@ -223,7 +223,7 @@ export class ProjectService {
       FALSE_POSITIVE: 0,
       WONT_FIX: 0,
     };
-    project.findings.forEach((finding) => {
+    project.findings?.forEach((finding) => {
       findingsByStatus[finding.status]++;
     });
 
@@ -241,15 +241,15 @@ export class ProjectService {
 
     // Get last activity
     const lastActivity =
-      project.requests.length > 0
+      project.requests && project.requests.length > 0 && project.requests[0]
         ? project.requests.reduce((latest, req) => {
             return req.timestamp > latest ? req.timestamp : latest;
           }, project.requests[0].timestamp)
         : null;
 
     return {
-      totalRequests: project.requests.length,
-      totalFindings: project.findings.length,
+      totalRequests: project.requests?.length || 0,
+      totalFindings: project.findings?.length || 0,
       findingsBySeverity,
       findingsByStatus,
       totalAnalyses,

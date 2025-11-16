@@ -2,10 +2,46 @@ import { Router, Request, Response } from 'express';
 import { certificateManager } from '../../core/proxy/certificate-manager.js';
 import { authenticateToken } from '../middlewares/auth.middleware.js';
 import { asyncHandler } from '../../utils/errors.js';
+import { prisma } from '../../lib/prisma.js';
 
 const router = Router();
 
-// All routes require authentication
+/**
+ * GET /certificates/default/download
+ * Download default Root CA certificate (NO AUTH REQUIRED for extension)
+ * This is the certificate used by the extension when not logged in
+ */
+router.get(
+  '/default/download',
+  asyncHandler(async (req: Request, res: Response) => {
+    // Get the default extension user
+    const defaultUser = await prisma.user.findUnique({
+      where: { email: 'extension@reqsploit.local' },
+    });
+
+    if (!defaultUser) {
+      return res.status(404).json({
+        success: false,
+        error: 'Default certificate not available. Please restart the backend.',
+      });
+    }
+
+    // Get or generate Root CA for default user
+    let rootCA = await certificateManager.getRootCAForUser(defaultUser.id);
+    if (!rootCA) {
+      await certificateManager.generateRootCA(defaultUser.id);
+    }
+
+    // Export certificate for download
+    const certBuffer = await certificateManager.exportRootCAForDownload(defaultUser.id);
+
+    res.setHeader('Content-Type', 'application/x-x509-ca-cert');
+    res.setHeader('Content-Disposition', 'attachment; filename="reqsploit-ca.crt"');
+    res.send(certBuffer);
+  })
+);
+
+// All routes below require authentication
 router.use(authenticateToken);
 
 /**
@@ -61,6 +97,41 @@ router.get(
 );
 
 /**
+ * GET /certificates/default/status
+ * Check if default Root CA exists (NO AUTH REQUIRED)
+ */
+router.get(
+  '/default/status',
+  asyncHandler(async (req: Request, res: Response) => {
+    const defaultUser = await prisma.user.findUnique({
+      where: { email: 'extension@reqsploit.local' },
+    });
+
+    if (!defaultUser) {
+      return res.json({
+        success: true,
+        data: {
+          hasRootCA: false,
+          message: 'Default certificate not available. Please restart the backend.',
+        },
+      });
+    }
+
+    const rootCA = await certificateManager.getRootCAForUser(defaultUser.id);
+
+    res.json({
+      success: true,
+      data: {
+        hasRootCA: !!rootCA,
+        message: rootCA
+          ? 'Default Root CA certificate exists'
+          : 'Default Root CA not generated yet.',
+      },
+    });
+  })
+);
+
+/**
  * POST /certificates/root/regenerate
  * Regenerate Root CA certificate (WARNING: will invalidate all existing domain certs)
  */
@@ -76,6 +147,21 @@ router.post(
     res.json({
       success: true,
       message: 'Root CA regenerated successfully. Please re-download and reinstall.',
+    });
+  })
+);
+
+/**
+ * POST /certificates/mark-installed
+ * Mark certificate as installed for the user (NO AUTH REQUIRED for extension)
+ */
+router.post(
+  '/mark-installed',
+  asyncHandler(async (req: Request, res: Response) => {
+    // This is just a client-side flag, no server state needed
+    res.json({
+      success: true,
+      message: 'Certificate marked as installed',
     });
   })
 );

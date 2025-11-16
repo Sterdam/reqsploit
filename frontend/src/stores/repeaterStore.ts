@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { useAuthStore } from './authStore';
 
 /**
  * Repeater Request Structure
@@ -275,7 +276,8 @@ export const useRepeaterStore = create<RepeaterState>()(
         }));
 
         try {
-          const token = localStorage.getItem('token');
+          // Get token from auth store
+          const token = useAuthStore.getState().accessToken;
           const response = await fetch(`${BACKEND_URL}/api/repeater/send`, {
             method: 'POST',
             headers: {

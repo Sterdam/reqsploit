@@ -233,7 +233,7 @@ router.get('/plans', (req: Request, res: Response) => {
       currency: 'USD',
       interval: 'month',
       features: [
-        '100,000 AI tokens/month',
+        '200,000 AI tokens/month',
         'Advanced AI analysis (3 modes)',
         'Unlimited projects',
         'Request history (90 days)',
@@ -242,7 +242,7 @@ router.get('/plans', (req: Request, res: Response) => {
         'Chrome extension',
       ],
       limits: {
-        aiTokens: 100000,
+        aiTokens: 200000,
         requestHistory: 90,
         projects: -1, // unlimited
       },
@@ -255,7 +255,7 @@ router.get('/plans', (req: Request, res: Response) => {
       currency: 'USD',
       interval: 'month',
       features: [
-        '500,000 AI tokens/month',
+        '1,000,000 AI tokens/month',
         'All PRO features',
         'Team collaboration',
         'Custom AI training',
@@ -265,7 +265,7 @@ router.get('/plans', (req: Request, res: Response) => {
         'Custom integrations',
       ],
       limits: {
-        aiTokens: 500000,
+        aiTokens: 1000000,
         requestHistory: 365,
         projects: -1,
         teamMembers: 10,

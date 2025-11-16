@@ -222,6 +222,13 @@ export class RequestQueue extends EventEmitter {
   }
 
   /**
+   * Get a specific request from queue
+   */
+  get(requestId: string): PendingRequest | undefined {
+    return this.queue.get(requestId);
+  }
+
+  /**
    * Get all queued requests
    */
   getQueue(): PendingRequest[] {

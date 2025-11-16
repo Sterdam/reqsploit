@@ -1,11 +1,22 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { AIServiceError } from '../../utils/errors.js';
 import { aiLogger } from '../../utils/logger.js';
+import type { AIModel } from '../../services/ai-pricing.service.js';
 
 /**
  * Claude AI Client (Singleton)
  * Wrapper for Anthropic API with rate limiting and error handling
+ *
+ * Supports both models:
+ * - Haiku 4.5: Fast and cost-effective
+ * - Sonnet 4.5: Deep analysis and comprehensive responses
  */
+
+// Model name mapping
+const MODEL_MAP: Record<AIModel, string> = {
+  'haiku-4.5': 'claude-haiku-4-5-20251001',
+  'sonnet-4.5': 'claude-sonnet-4-5-20250929',
+};
 
 export interface ClaudeMessage {
   role: 'user' | 'assistant';
@@ -14,7 +25,8 @@ export interface ClaudeMessage {
 
 export interface ClaudeResponse {
   content: string;
-  tokensUsed: number;
+  inputTokens: number;
+  outputTokens: number;
   model: string;
   stopReason: string;
 }
@@ -22,10 +34,14 @@ export interface ClaudeResponse {
 export class ClaudeClient {
   private static instance: ClaudeClient;
   private client: Anthropic;
-  private model: string;
+  private defaultModel: AIModel;
   private maxTokens: number;
 
   private constructor() {
+    // Initialize properties first
+    this.defaultModel = (process.env.ANTHROPIC_MODEL as AIModel) || 'haiku-4.5';
+    this.maxTokens = parseInt(process.env.ANTHROPIC_MAX_TOKENS || '4096', 10);
+
     const apiKey = process.env.ANTHROPIC_API_KEY;
 
     if (!apiKey) {
@@ -37,13 +53,10 @@ export class ClaudeClient {
       });
 
       aiLogger.info('Claude AI Client initialized', {
-        model: this.model,
+        defaultModel: this.defaultModel,
         maxTokens: this.maxTokens,
       });
     }
-
-    this.model = process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-20250514';
-    this.maxTokens = parseInt(process.env.ANTHROPIC_MAX_TOKENS || '4096', 10);
   }
 
   /**
@@ -61,22 +74,33 @@ export class ClaudeClient {
    */
   async sendMessage(
     messages: ClaudeMessage[],
-    systemPrompt?: string,
-    temperature: number = 0.7
+    options?: {
+      systemPrompt?: string;
+      temperature?: number;
+      model?: AIModel;
+      maxTokens?: number;
+    }
   ): Promise<ClaudeResponse> {
     try {
+      const model = options?.model || this.defaultModel;
+      const modelName = MODEL_MAP[model];
+      const temperature = options?.temperature ?? 0.7;
+      const maxTokens = options?.maxTokens || this.maxTokens;
+
       aiLogger.debug('Sending message to Claude', {
         messageCount: messages.length,
-        systemPromptLength: systemPrompt?.length || 0,
+        model,
+        modelName,
+        systemPromptLength: options?.systemPrompt?.length || 0,
       });
 
       const startTime = Date.now();
 
       const response = await this.client.messages.create({
-        model: this.model,
-        max_tokens: this.maxTokens,
+        model: modelName,
+        max_tokens: maxTokens,
         temperature,
-        system: systemPrompt,
+        system: options?.systemPrompt,
         messages: messages.map((msg) => ({
           role: msg.role,
           content: msg.content,
@@ -87,13 +111,16 @@ export class ClaudeClient {
 
       const result: ClaudeResponse = {
         content: response.content[0].type === 'text' ? response.content[0].text : '',
-        tokensUsed: response.usage.input_tokens + response.usage.output_tokens,
+        inputTokens: response.usage.input_tokens,
+        outputTokens: response.usage.output_tokens,
         model: response.model,
         stopReason: response.stop_reason || 'unknown',
       };
 
       aiLogger.info('Claude response received', {
-        tokensUsed: result.tokensUsed,
+        inputTokens: result.inputTokens,
+        outputTokens: result.outputTokens,
+        totalTokens: result.inputTokens + result.outputTokens,
         duration: `${duration}ms`,
         stopReason: result.stopReason,
       });
@@ -119,14 +146,20 @@ export class ClaudeClient {
   async analyze(
     text: string,
     systemPrompt: string,
-    context?: string
+    options?: {
+      context?: string;
+      model?: AIModel;
+    }
   ): Promise<ClaudeResponse> {
-    const userMessage = context ? `${context}\n\n${text}` : text;
+    const userMessage = options?.context ? `${options.context}\n\n${text}` : text;
 
     return this.sendMessage(
       [{ role: 'user', content: userMessage }],
-      systemPrompt,
-      0.5 // Lower temperature for analysis tasks
+      {
+        systemPrompt,
+        temperature: 0.5, // Lower temperature for analysis tasks
+        model: options?.model,
+      }
     );
   }
 
@@ -135,17 +168,25 @@ export class ClaudeClient {
    */
   async *streamMessage(
     messages: ClaudeMessage[],
-    systemPrompt?: string
+    options?: {
+      systemPrompt?: string;
+      model?: AIModel;
+    }
   ): AsyncGenerator<string, void, unknown> {
     try {
+      const model = options?.model || this.defaultModel;
+      const modelName = MODEL_MAP[model];
+
       aiLogger.debug('Streaming message to Claude', {
         messageCount: messages.length,
+        model,
+        modelName,
       });
 
       const stream = await this.client.messages.stream({
-        model: this.model,
+        model: modelName,
         max_tokens: this.maxTokens,
-        system: systemPrompt,
+        system: options?.systemPrompt,
         messages: messages.map((msg) => ({
           role: msg.role,
           content: msg.content,
@@ -171,9 +212,9 @@ export class ClaudeClient {
   /**
    * Get current model information
    */
-  getModelInfo(): { model: string; maxTokens: number } {
+  getModelInfo(): { defaultModel: AIModel; maxTokens: number } {
     return {
-      model: this.model,
+      defaultModel: this.defaultModel,
       maxTokens: this.maxTokens,
     };
   }
@@ -189,6 +230,6 @@ export const claudeClient = {
     ClaudeClient.getInstance().sendMessage(...args),
   analyze: (...args: Parameters<ClaudeClient['analyze']>) =>
     ClaudeClient.getInstance().analyze(...args),
-  getConfig: () =>
-    ClaudeClient.getInstance().getConfig(),
+  getModelInfo: () =>
+    ClaudeClient.getInstance().getModelInfo(),
 };

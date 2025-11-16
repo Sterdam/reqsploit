@@ -1,4 +1,4 @@
-import { AnalysisType } from '@prisma/client';
+import { AIMode } from '@prisma/client';
 
 /**
  * AI & Analysis Types
@@ -6,7 +6,7 @@ import { AnalysisType } from '@prisma/client';
 
 export interface AIAnalysisRequest {
   requestLogId: string;
-  analysisType: AnalysisType;
+  analysisType: AIMode;
   userContext?: string;
   streaming?: boolean;
 }
@@ -14,12 +14,15 @@ export interface AIAnalysisRequest {
 export interface AIAnalysisResult {
   id: string;
   requestLogId: string;
-  analysisType: AnalysisType;
+  analysisType: 'request' | 'response' | 'full';
   aiResponse: string;
+  vulnerabilities: VulnerabilityInfo[];
   suggestions: AISuggestion[];
   tokensUsed: number;
   confidence: number;
-  createdAt: Date;
+  timestamp: Date | string;
+  requestUrl?: string;
+  requestMethod?: string;
 }
 
 export interface AISuggestion {
@@ -70,6 +73,16 @@ export interface Vulnerability {
   exploitation?: string;
   remediation?: string;
   cvss?: number;
+}
+
+export type VulnerabilityInfo = Vulnerability;
+
+export interface ExploitPayload {
+  name: string;
+  type: string;
+  payload: string;
+  description: string;
+  risk: 'safe' | 'moderate' | 'dangerous';
 }
 
 export type VulnerabilityType =
