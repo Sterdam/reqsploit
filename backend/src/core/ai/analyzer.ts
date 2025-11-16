@@ -1,4 +1,4 @@
-import { PrismaClient, AnalysisType } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 import { claudeClient } from './claude-client.js';
 import {
   REQUEST_ANALYZER_PROMPT,
@@ -19,6 +19,7 @@ import {
 import { aiLogger } from '../../utils/logger.js';
 import { AIServiceError, InsufficientTokensError } from '../../utils/errors.js';
 import { wsServer } from '../websocket/ws-server.js';
+import type { AIModel } from '../../services/ai-pricing.service.js';
 
 const prisma = new PrismaClient();
 
@@ -189,9 +190,10 @@ export class AIAnalyzer {
   async analyzeRequest(
     userId: string,
     requestLogId: string,
-    request: HTTPRequest
+    request: HTTPRequest,
+    model: AIModel = 'auto'
   ): Promise<AIAnalysisResult> {
-    aiLogger.info('Analyzing request', { userId, requestLogId });
+    aiLogger.info('Analyzing request', { userId, requestLogId, model });
 
     try {
       // Check token availability (estimate ~2000 tokens for request analysis)
@@ -200,9 +202,9 @@ export class AIAnalyzer {
       // Emit analysis started event
       wsServer.emitToUser(userId, 'ai:analysis-started', { requestId: requestLogId });
 
-      // Build context and analyze
+      // Build context and analyze with selected model
       const context = buildRequestAnalysisContext(request);
-      const response = await claudeClient.analyze(context, REQUEST_ANALYZER_PROMPT);
+      const response = await claudeClient.analyze(context, REQUEST_ANALYZER_PROMPT, { model });
 
       // Parse response
       const { vulnerabilities, suggestions } = this.parseAIResponse(response.content);
@@ -212,7 +214,6 @@ export class AIAnalyzer {
         data: {
           userId,
           requestLogId: requestLogId,
-          analysisType: AnalysisType.REQUEST,
           mode: 'DEFAULT',
           aiResponse: response.content,
           suggestions: suggestions as any,
@@ -277,9 +278,10 @@ export class AIAnalyzer {
     userId: string,
     requestLogId: string,
     request: HTTPRequest,
-    response: HTTPResponse
+    response: HTTPResponse,
+    model: AIModel = 'auto'
   ): Promise<AIAnalysisResult> {
-    aiLogger.info('Analyzing response', { userId, requestLogId });
+    aiLogger.info('Analyzing response', { userId, requestLogId, model });
 
     try {
       // Check token availability (estimate ~2500 tokens for response analysis)
@@ -288,9 +290,9 @@ export class AIAnalyzer {
       // Emit analysis started event
       wsServer.emitToUser(userId, 'ai:analysis-started', { requestId: requestLogId });
 
-      // Build context and analyze
+      // Build context and analyze with selected model
       const context = buildResponseAnalysisContext(request, response);
-      const aiResponse = await claudeClient.analyze(context, RESPONSE_ANALYZER_PROMPT);
+      const aiResponse = await claudeClient.analyze(context, RESPONSE_ANALYZER_PROMPT, { model });
 
       // Parse response
       const { vulnerabilities, suggestions } = this.parseAIResponse(aiResponse.content);
@@ -300,7 +302,6 @@ export class AIAnalyzer {
         data: {
           userId,
           requestLogId: requestLogId,
-          analysisType: AnalysisType.RESPONSE,
           mode: 'DEFAULT',
           aiResponse: aiResponse.content,
           suggestions: suggestions as any,
@@ -363,9 +364,10 @@ export class AIAnalyzer {
     userId: string,
     requestLogId: string,
     request: HTTPRequest,
-    response: HTTPResponse
+    response: HTTPResponse,
+    model: AIModel = 'auto'
   ): Promise<AIAnalysisResult> {
-    aiLogger.info('Analyzing transaction', { userId, requestLogId });
+    aiLogger.info('Analyzing transaction', { userId, requestLogId, model });
 
     try {
       // Check token availability (estimate ~4000 tokens for full analysis)
@@ -374,9 +376,9 @@ export class AIAnalyzer {
       // Emit analysis started event
       wsServer.emitToUser(userId, 'ai:analysis-started', { requestId: requestLogId });
 
-      // Build context and analyze
+      // Build context and analyze with selected model
       const context = buildFullAnalysisContext(request, response);
-      const aiResponse = await claudeClient.analyze(context, FULL_ANALYSIS_PROMPT);
+      const aiResponse = await claudeClient.analyze(context, FULL_ANALYSIS_PROMPT, { model });
 
       // Parse response
       const { vulnerabilities, suggestions } = this.parseAIResponse(aiResponse.content);
@@ -386,7 +388,6 @@ export class AIAnalyzer {
         data: {
           userId,
           requestLogId: requestLogId,
-          analysisType: AnalysisType.FULL,
           mode: 'ADVANCED',
           aiResponse: aiResponse.content,
           suggestions: suggestions as any,
@@ -447,9 +448,10 @@ export class AIAnalyzer {
    */
   async generateExploits(
     userId: string,
-    vulnerability: VulnerabilityInfo
+    vulnerability: VulnerabilityInfo,
+    model: AIModel = 'auto'
   ): Promise<ExploitPayload[]> {
-    aiLogger.info('Generating exploits', { userId, vulnerability: vulnerability.type });
+    aiLogger.info('Generating exploits', { userId, vulnerability: vulnerability.type, model });
 
     try {
       // Check token availability (estimate ~3000 tokens)
@@ -465,7 +467,7 @@ Location: ${vulnerability.location || 'N/A'}
 
 Provide practical, working exploit payloads.`;
 
-      const response = await claudeClient.analyze(context, EXPLOIT_GENERATOR_PROMPT);
+      const response = await claudeClient.analyze(context, EXPLOIT_GENERATOR_PROMPT, { model });
 
       // Update token usage
       await this.updateTokenUsage(userId, this.getTotalTokens(response));

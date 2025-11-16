@@ -18,7 +18,7 @@ import { AIServiceError } from '../utils/errors.js';
  * - ENTERPRISE: $99/month, 1,000,000 tokens/month
  */
 
-export type AIModel = 'haiku-4.5' | 'sonnet-4.5';
+export type AIModel = 'haiku-4.5' | 'sonnet-4.5' | 'auto';
 
 export type AIAction =
   | 'analyzeRequest'

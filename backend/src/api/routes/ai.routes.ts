@@ -70,6 +70,7 @@ router.post(
   asyncHandler(async (req: Request, res: Response) => {
     const userId = req.user!.id;
     const { requestId } = req.params;
+    const { model = 'auto' } = req.body; // Model selection
 
     // Get request from database
     const requestLog = await prisma.requestLog.findFirst({
@@ -83,7 +84,7 @@ router.post(
       throw new NotFoundError('Request or response not found');
     }
 
-    // Analyze response
+    // Analyze response with selected model
     const analysis = await aiAnalyzer.analyzeResponse(
       userId,
       requestId,
@@ -100,7 +101,8 @@ router.post(
         statusMessage: 'OK',
         headers: (requestLog.responseHeaders as Record<string, string>) || {},
         duration: requestLog.duration || 0,
-      }
+      },
+      model // Pass model to analyzer
     );
 
     res.json({
@@ -120,6 +122,7 @@ router.post(
   asyncHandler(async (req: Request, res: Response) => {
     const userId = req.user!.id;
     const { requestId } = req.params;
+    const { model = 'auto' } = req.body; // Model selection
 
     // Get request from database
     const requestLog = await prisma.requestLog.findFirst({
@@ -133,7 +136,7 @@ router.post(
       throw new NotFoundError('Complete transaction not found');
     }
 
-    // Analyze transaction
+    // Analyze transaction with selected model
     const analysis = await aiAnalyzer.analyzeTransaction(
       userId,
       requestId,
@@ -150,7 +153,8 @@ router.post(
         statusMessage: 'OK',
         headers: (requestLog.responseHeaders as Record<string, string>) || {},
         duration: requestLog.duration || 0,
-      }
+      },
+      model // Pass model to analyzer
     );
 
     res.json({
@@ -170,7 +174,7 @@ router.post(
   asyncHandler(async (req: Request, res: Response) => {
     const userId = req.user!.id;
     const { requestId } = req.params;
-    const { action, modifications } = req.body;
+    const { action, modifications, model = 'auto' } = req.body; // Model selection
 
     // Try to get request from intercept queue first
     const session = proxySessionManager.getSessionByUserId(userId);
@@ -229,22 +233,22 @@ router.post(
       });
     }
 
-    // Perform analysis based on action type
+    // Perform analysis based on action type with selected model
     let analysis;
     switch (action) {
       case 'analyzeRequest':
-        analysis = await aiAnalyzer.analyzeRequest(userId, requestId, httpRequest);
+        analysis = await aiAnalyzer.analyzeRequest(userId, requestId, httpRequest, model);
         break;
       case 'explain':
         // Use analyzeRequest with EDUCATIONAL mode for explanations
-        analysis = await aiAnalyzer.analyzeRequest(userId, requestId, httpRequest);
+        analysis = await aiAnalyzer.analyzeRequest(userId, requestId, httpRequest, model);
         break;
       case 'securityCheck':
         // Use analyzeRequest focused on security
-        analysis = await aiAnalyzer.analyzeRequest(userId, requestId, httpRequest);
+        analysis = await aiAnalyzer.analyzeRequest(userId, requestId, httpRequest, model);
         break;
       default:
-        analysis = await aiAnalyzer.analyzeRequest(userId, requestId, httpRequest);
+        analysis = await aiAnalyzer.analyzeRequest(userId, requestId, httpRequest, model);
     }
 
     res.json({
@@ -340,13 +344,13 @@ router.post(
   '/exploits/generate',
   asyncHandler(async (req: Request, res: Response) => {
     const userId = req.user!.id;
-    const { vulnerability } = req.body;
+    const { vulnerability, model = 'auto' } = req.body; // Model selection
 
     if (!vulnerability) {
       throw new NotFoundError('Vulnerability data required');
     }
 
-    const exploits = await aiAnalyzer.generateExploits(userId, vulnerability);
+    const exploits = await aiAnalyzer.generateExploits(userId, vulnerability, model); // Pass model to analyzer
 
     res.json({
       success: true,
@@ -396,6 +400,7 @@ router.post(
   asyncHandler(async (req: Request, res: Response) => {
     const userId = req.user!.id;
     const { requestId } = req.params;
+    const { model = 'haiku' } = req.body; // Model selection (default to Haiku for quick scan)
 
     // Try to get request from intercept queue first (like analyzeIntercepted)
     const session = proxySessionManager.getSessionByUserId(userId);
@@ -452,8 +457,8 @@ router.post(
       });
     }
 
-    // Analyze with Haiku only (quick scan)
-    const analysis = await aiAnalyzer.analyzeRequest(userId, requestId, httpRequest);
+    // Quick scan with selected model (defaults to Haiku)
+    const analysis = await aiAnalyzer.analyzeRequest(userId, requestId, httpRequest, model);
 
     res.json({
       success: true,
@@ -472,6 +477,7 @@ router.post(
   asyncHandler(async (req: Request, res: Response) => {
     const userId = req.user!.id;
     const { requestId } = req.params;
+    const { model = 'sonnet' } = req.body; // Model selection (default to Sonnet for deep scan)
 
     // Try to get request from intercept queue first (like analyzeIntercepted)
     const session = proxySessionManager.getSessionByUserId(userId);
@@ -539,13 +545,13 @@ router.post(
       });
     }
 
-    // Deep analysis with Sonnet (with or without response)
+    // Deep analysis with selected model (defaults to Sonnet)
     let analysis;
     if (httpResponse) {
-      analysis = await aiAnalyzer.analyzeTransaction(userId, requestId, httpRequest, httpResponse);
+      analysis = await aiAnalyzer.analyzeTransaction(userId, requestId, httpRequest, httpResponse, model);
     } else {
       // If no response yet, just analyze the request
-      analysis = await aiAnalyzer.analyzeRequest(userId, requestId, httpRequest);
+      analysis = await aiAnalyzer.analyzeRequest(userId, requestId, httpRequest, model);
     }
 
     res.json({
@@ -564,7 +570,7 @@ router.post(
   '/batch-analyze',
   asyncHandler(async (req: Request, res: Response) => {
     const userId = req.user!.id;
-    const { requestIds } = req.body;
+    const { requestIds, model = 'auto' } = req.body; // Model selection
 
     if (!Array.isArray(requestIds) || requestIds.length === 0) {
       throw new NotFoundError('Request IDs array required');
@@ -587,14 +593,19 @@ router.post(
           continue;
         }
 
-        const analysis = await aiAnalyzer.analyzeRequest(userId, requestId, {
-          id: requestLog.id,
-          method: requestLog.method,
-          url: requestLog.url,
-          headers: requestLog.headers as Record<string, string>,
-          body: requestLog.body || undefined,
-          timestamp: requestLog.timestamp,
-        });
+        const analysis = await aiAnalyzer.analyzeRequest(
+          userId,
+          requestId,
+          {
+            id: requestLog.id,
+            method: requestLog.method,
+            url: requestLog.url,
+            headers: requestLog.headers as Record<string, string>,
+            body: requestLog.body || undefined,
+            timestamp: requestLog.timestamp,
+          },
+          model // Pass model to analyzer
+        );
 
         results.push({
           requestId,
@@ -633,7 +644,7 @@ router.post(
   asyncHandler(async (req: Request, res: Response) => {
     const userId = req.user!.id;
     const { tabId } = req.params;
-    const { method, url, headers, body } = req.body;
+    const { method, url, headers, body, model = 'auto' } = req.body; // Model selection
 
     if (!method || !url) {
       throw new NotFoundError('Method and URL required');
@@ -690,7 +701,7 @@ Return a JSON object with this structure:
 
 Provide 5-10 most relevant tests based on the request type and parameters.`;
 
-    const response = await claudeClient.analyze(analysisContext, prompt);
+    const response = await claudeClient.analyze(analysisContext, prompt, { model }); // Pass model to Claude client
 
     // Parse response
     let suggestions;
@@ -725,7 +736,7 @@ router.post(
   '/generate-payloads',
   asyncHandler(async (req: Request, res: Response) => {
     const userId = req.user!.id;
-    const { category, context, count = 50 } = req.body;
+    const { category, context, count = 50, model = 'auto' } = req.body; // Model selection
 
     if (!category) {
       throw new NotFoundError('Payload category required');
@@ -780,7 +791,7 @@ Payload categories and their focus:
 
 Provide diverse, effective payloads with modern bypass techniques.`;
 
-    const response = await claudeClient.analyze(analysisContext, prompt);
+    const response = await claudeClient.analyze(analysisContext, prompt, { model }); // Pass model to Claude client
 
     // Parse response
     let payloadData;
@@ -819,7 +830,7 @@ router.post(
   '/generate-dorks',
   asyncHandler(async (req: Request, res: Response) => {
     const userId = req.user!.id;
-    const { target, objective, platforms = ['google', 'shodan', 'github'] } = req.body;
+    const { target, objective, platforms = ['google', 'shodan', 'github'], model = 'auto' } = req.body; // Model selection
 
     if (!target || !objective) {
       throw new NotFoundError('Target and objective required');
@@ -888,7 +899,7 @@ Dork categories and focus:
 
 Generate 5-10 dorks per requested platform. Focus on high-impact reconnaissance.`;
 
-    const response = await claudeClient.analyze(analysisContext, prompt);
+    const response = await claudeClient.analyze(analysisContext, prompt, { model }); // Pass model to Claude client
 
     // Parse response
     let dorkData;
@@ -934,7 +945,7 @@ router.post(
   asyncHandler(async (req: Request, res: Response) => {
     const userId = req.user!.id;
     const { projectId } = req.params;
-    const { objective } = req.body;
+    const { objective, model = 'auto' } = req.body; // Model selection
 
     if (!objective) {
       throw new NotFoundError('Attack objective required');
@@ -1026,7 +1037,7 @@ Focus on:
 
 Provide a complete, executable attack chain with 3-8 steps.`;
 
-    const response = await claudeClient.analyze(analysisContext, prompt);
+    const response = await claudeClient.analyze(analysisContext, prompt, { model }); // Pass model to Claude client
 
     // Parse response
     let attackChainData;
@@ -1073,7 +1084,7 @@ router.post(
   asyncHandler(async (req: Request, res: Response) => {
     const userId = req.user!.id;
     const { projectId } = req.params;
-    const { includeRemediation = true, format = 'json' } = req.body;
+    const { includeRemediation = true, format = 'json', model = 'auto' } = req.body; // Model selection
 
     // Fetch project info
     const project = await prisma.project.findFirst({
@@ -1203,7 +1214,7 @@ Generate a comprehensive security report with the following structure:
 
 Provide a professional, actionable security report.`;
 
-    const response = await claudeClient.analyze(analysisContext, prompt);
+    const response = await claudeClient.analyze(analysisContext, prompt, { model }); // Pass model to Claude client
 
     // Parse response
     let reportData;

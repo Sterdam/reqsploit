@@ -12,8 +12,8 @@ import type { AIModel } from '../../services/ai-pricing.service.js';
  * - Sonnet 4.5: Deep analysis and comprehensive responses
  */
 
-// Model name mapping
-const MODEL_MAP: Record<AIModel, string> = {
+// Model name mapping (excluding 'auto' which is handled by selection logic)
+const MODEL_MAP: Record<Exclude<AIModel, 'auto'>, string> = {
   'haiku-4.5': 'claude-haiku-4-5-20251001',
   'sonnet-4.5': 'claude-sonnet-4-5-20250929',
 };
@@ -82,14 +82,17 @@ export class ClaudeClient {
     }
   ): Promise<ClaudeResponse> {
     try {
-      const model = options?.model || this.defaultModel;
-      const modelName = MODEL_MAP[model];
+      // Handle 'auto' model selection - defaults to configured model
+      const selectedModel = options?.model === 'auto' || !options?.model
+        ? this.defaultModel
+        : options.model;
+      const modelName = MODEL_MAP[selectedModel as Exclude<AIModel, 'auto'>];
       const temperature = options?.temperature ?? 0.7;
       const maxTokens = options?.maxTokens || this.maxTokens;
 
       aiLogger.debug('Sending message to Claude', {
         messageCount: messages.length,
-        model,
+        model: selectedModel,
         modelName,
         systemPromptLength: options?.systemPrompt?.length || 0,
       });
@@ -174,12 +177,15 @@ export class ClaudeClient {
     }
   ): AsyncGenerator<string, void, unknown> {
     try {
-      const model = options?.model || this.defaultModel;
-      const modelName = MODEL_MAP[model];
+      // Handle 'auto' model selection - defaults to configured model
+      const selectedModel = options?.model === 'auto' || !options?.model
+        ? this.defaultModel
+        : options.model;
+      const modelName = MODEL_MAP[selectedModel as Exclude<AIModel, 'auto'>];
 
       aiLogger.debug('Streaming message to Claude', {
         messageCount: messages.length,
-        model,
+        model: selectedModel,
         modelName,
       });
 
