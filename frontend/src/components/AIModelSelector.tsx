@@ -89,7 +89,7 @@ export function AIModelSelector() {
 
       {/* Dropdown Menu */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-72 bg-[#0D1F2D] border border-white/20 rounded-lg shadow-2xl py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+        <div className="absolute right-0 mt-2 w-72 bg-[#0D1F2D] border border-white/20 rounded-lg shadow-2xl py-2 z-[9999] animate-in fade-in slide-in-from-top-2 duration-200">
           {/* Header */}
           <div className="px-4 py-2 border-b border-white/10">
             <p className="text-xs font-semibold text-gray-400 uppercase">AI Model</p>

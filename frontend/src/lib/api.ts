@@ -241,6 +241,7 @@ export const certificateAPI = {
 export interface Vulnerability {
   type: string;
   severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'INFO';
+  confidence?: number;
   title: string;
   description: string;
   location?: string;
@@ -250,6 +251,11 @@ export interface Vulnerability {
   references?: string[];
   cwe?: string;
   cvss?: number;
+  explanation?: {
+    why: string;
+    evidence: string[];
+    verificationSteps: string[];
+  };
 }
 
 export interface AISuggestion {

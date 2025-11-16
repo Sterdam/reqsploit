@@ -73,6 +73,14 @@ export interface Vulnerability {
   exploitation?: string;
   remediation?: string;
   cvss?: number;
+  explanation?: {
+    why: string;
+    evidence: string[];
+    verificationSteps: string[];
+  };
+  title?: string;
+  cwe?: string;
+  references?: string[];
 }
 
 export type VulnerabilityInfo = Vulnerability;

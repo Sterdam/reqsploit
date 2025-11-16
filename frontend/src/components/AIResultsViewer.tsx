@@ -145,6 +145,39 @@ export function AIResultsViewer() {
     return 'text-blue-500';
   };
 
+  const getConfidenceColor = (confidence: number) => {
+    if (confidence >= 90) {
+      return {
+        bg: 'bg-green-500/20',
+        border: 'border-green-500/50',
+        text: 'text-green-400',
+        label: 'High Confidence',
+      };
+    }
+    if (confidence >= 75) {
+      return {
+        bg: 'bg-blue-500/20',
+        border: 'border-blue-500/50',
+        text: 'text-blue-400',
+        label: 'Good Confidence',
+      };
+    }
+    if (confidence >= 60) {
+      return {
+        bg: 'bg-yellow-500/20',
+        border: 'border-yellow-500/50',
+        text: 'text-yellow-400',
+        label: 'Moderate',
+      };
+    }
+    return {
+      bg: 'bg-orange-500/20',
+      border: 'border-orange-500/50',
+      text: 'text-orange-400',
+      label: 'Low - Verify',
+    };
+  };
+
   const handleCopy = async (text: string, label: string) => {
     await navigator.clipboard.writeText(text);
     setCopiedItem(label);
@@ -273,11 +306,18 @@ export function AIResultsViewer() {
             </button>
           </div>
           <div className="flex items-center gap-3 text-xs">
-            <div className="flex items-center gap-1.5">
-              <Activity className="w-3 h-3 text-blue-400" />
-              <span className="text-gray-400">Confidence:</span>
-              <span className="text-blue-400 font-bold">{analysis.confidence}%</span>
-            </div>
+            {(() => {
+              const confidence = analysis.confidence || 80;
+              const confidenceConfig = getConfidenceColor(confidence);
+              return (
+                <div className={`flex items-center gap-1.5 px-2 py-1 rounded border ${confidenceConfig.bg} ${confidenceConfig.border}`}>
+                  <Activity className={`w-3 h-3 ${confidenceConfig.text}`} />
+                  <span className="text-gray-400">Confidence:</span>
+                  <span className={`${confidenceConfig.text} font-bold`}>{confidence}%</span>
+                  <span className={`${confidenceConfig.text} text-[10px] font-medium`}>({confidenceConfig.label})</span>
+                </div>
+              );
+            })()}
             <span className="text-gray-600">•</span>
             <span className="text-gray-400">{analysis.tokensUsed} tokens</span>
           </div>
@@ -522,6 +562,49 @@ export function AIResultsViewer() {
                               </div>
                               <div className="px-2 py-1.5 bg-green-500/10 border border-green-500/30 rounded text-xs text-green-300 leading-relaxed">
                                 {vuln.remediation}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Explanation */}
+                          {vuln.explanation && (
+                            <div className="space-y-1.5">
+                              <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-400">
+                                <Info className="w-3 h-3" />
+                                Detailed Explanation
+                              </div>
+                              <div className="space-y-2 px-2 py-2 bg-white/5 border border-white/10 rounded">
+                                {/* Why */}
+                                {vuln.explanation.why && (
+                                  <div>
+                                    <p className="text-xs font-medium text-blue-400 mb-1">Why this is a vulnerability:</p>
+                                    <p className="text-xs text-gray-300 leading-relaxed">{vuln.explanation.why}</p>
+                                  </div>
+                                )}
+
+                                {/* Evidence */}
+                                {vuln.explanation.evidence && vuln.explanation.evidence.length > 0 && (
+                                  <div>
+                                    <p className="text-xs font-medium text-purple-400 mb-1">Supporting evidence:</p>
+                                    <ul className="list-disc list-inside space-y-0.5 text-xs text-gray-300">
+                                      {vuln.explanation.evidence.map((item, evidIdx) => (
+                                        <li key={evidIdx} className="leading-relaxed">{item}</li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+
+                                {/* Verification Steps */}
+                                {vuln.explanation.verificationSteps && vuln.explanation.verificationSteps.length > 0 && (
+                                  <div>
+                                    <p className="text-xs font-medium text-green-400 mb-1">Verification steps:</p>
+                                    <ol className="list-decimal list-inside space-y-0.5 text-xs text-gray-300">
+                                      {vuln.explanation.verificationSteps.map((step, stepIdx) => (
+                                        <li key={stepIdx} className="leading-relaxed">{step}</li>
+                                      ))}
+                                    </ol>
+                                  </div>
+                                )}
                               </div>
                             </div>
                           )}
