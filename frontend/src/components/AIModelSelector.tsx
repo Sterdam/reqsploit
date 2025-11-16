@@ -91,10 +91,14 @@ export function AIModelSelector() {
       {/* Dropdown Menu */}
       {isOpen && (
         <div
-          className="absolute right-0 mt-2 w-72 rounded-lg shadow-2xl py-2 z-[9999] animate-in fade-in slide-in-from-top-2 duration-200 border-2 border-white/40"
+          className="fixed rounded-lg shadow-2xl py-2 animate-in fade-in slide-in-from-top-2 duration-200 border-2 border-white/40"
           style={{
             backgroundColor: '#0D1F2D',
-            backdropFilter: 'blur(10px)'
+            backdropFilter: 'blur(10px)',
+            zIndex: 99999,
+            right: '1rem',
+            top: '4.5rem',
+            width: '18rem'
           }}
         >
           {/* Header */}
