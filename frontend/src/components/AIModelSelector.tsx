@@ -60,6 +60,7 @@ export function AIModelSelector() {
   const CurrentIcon = currentModel.icon;
 
   const handleModelChange = (newModel: AIModel) => {
+    console.log('🔧 Changing model from', model, 'to', newModel);
     setModel(newModel);
     setIsOpen(false);
   };
@@ -89,10 +90,16 @@ export function AIModelSelector() {
 
       {/* Dropdown Menu */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-72 bg-[#0D1F2D] border border-white/30 rounded-lg shadow-2xl py-2 z-[9999] animate-in fade-in slide-in-from-top-2 duration-200" style={{ backgroundColor: 'rgb(13, 31, 45)' }}>
+        <div
+          className="absolute right-0 mt-2 w-72 rounded-lg shadow-2xl py-2 z-[9999] animate-in fade-in slide-in-from-top-2 duration-200 border-2 border-white/40"
+          style={{
+            backgroundColor: '#0D1F2D',
+            backdropFilter: 'blur(10px)'
+          }}
+        >
           {/* Header */}
-          <div className="px-4 py-2 border-b border-white/10">
-            <p className="text-xs font-semibold text-gray-400 uppercase">AI Model</p>
+          <div className="px-4 py-2 border-b border-white/20">
+            <p className="text-xs font-semibold text-gray-300 uppercase">AI Model</p>
           </div>
 
           {/* Model Options */}
@@ -155,8 +162,8 @@ export function AIModelSelector() {
           </div>
 
           {/* Footer Info */}
-          <div className="px-4 py-2 border-t border-white/10 mt-1">
-            <p className="text-xs text-gray-500 leading-relaxed">
+          <div className="px-4 py-2 border-t border-white/20 mt-1" style={{ backgroundColor: 'rgba(0, 0, 0, 0.3)' }}>
+            <p className="text-xs text-gray-400 leading-relaxed">
               Sonnet provides deeper analysis but costs 12× more tokens than Haiku
             </p>
           </div>

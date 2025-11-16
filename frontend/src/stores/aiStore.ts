@@ -213,7 +213,11 @@ export const useAIStore = create<AIState>()(
   },
 
   // New AI actions
-  setModel: (model) => set({ model }),
+  setModel: (model) => {
+    console.log('🔧 aiStore.setModel called with:', model);
+    set({ model });
+    console.log('✅ aiStore.model updated to:', model);
+  },
   setMode: (mode) => set({ mode }),
   setCredits: (credits) => set({ credits }),
   setActionCosts: (costs) => set({ actionCosts: costs }),
