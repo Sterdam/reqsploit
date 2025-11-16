@@ -40,7 +40,20 @@ const MODEL_INFO = {
 export function AIModelSelector() {
   const { model, setModel } = useAIStore();
   const [isOpen, setIsOpen] = useState(false);
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, right: 0 });
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+
+  // Update dropdown position when opened
+  useEffect(() => {
+    if (isOpen && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setDropdownPosition({
+        top: rect.bottom + 8, // 8px gap below button
+        right: window.innerWidth - rect.right, // Align right edge with button right edge
+      });
+    }
+  }, [isOpen]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -69,6 +82,7 @@ export function AIModelSelector() {
     <div className="relative" ref={dropdownRef}>
       {/* Trigger Button */}
       <button
+        ref={buttonRef}
         onClick={() => setIsOpen(!isOpen)}
         className={`
           flex items-center gap-2 px-3 py-2 rounded-lg transition-all duration-200
@@ -96,8 +110,8 @@ export function AIModelSelector() {
             backgroundColor: '#0D1F2D',
             backdropFilter: 'blur(10px)',
             zIndex: 99999,
-            right: '1rem',
-            top: '4.5rem',
+            right: `${dropdownPosition.right}px`,
+            top: `${dropdownPosition.top}px`,
             width: '18rem'
           }}
         >
