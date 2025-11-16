@@ -10,6 +10,8 @@ import {
 } from 'lucide-react';
 import { ResponseViewer } from './common';
 import { RepeaterAIPanel } from './RepeaterAIPanel';
+import { panelBridge } from '../lib/panel-bridge';
+import { useWorkflowStore } from '../stores/workflowStore';
 
 export function RepeaterPanel() {
   const {
@@ -35,6 +37,7 @@ export function RepeaterPanel() {
   const [autoExecuteAI, setAutoExecuteAI] = useState(false);
 
   const activeTab = getActiveTab();
+  const { setActivePanel } = useWorkflowStore();
 
   // Create first tab if none exist
   useEffect(() => {
@@ -42,6 +45,41 @@ export function RepeaterPanel() {
       createTab();
     }
   }, []);
+
+  // Listen for panel-bridge events (send_to_repeater)
+  useEffect(() => {
+    const unsubscribe = panelBridge.on('send_to_repeater', (event) => {
+      console.log('📥 Repeater received request from', event.source, event.data);
+
+      // Create new tab with the request
+      const tabId = createTab('From ' + event.source, event.data.request);
+
+      // Switch to repeater panel
+      setActivePanel('repeater');
+
+      // Set the new tab as active
+      setActiveTab(tabId);
+    });
+
+    return unsubscribe;
+  }, [createTab, setActiveTab, setActivePanel]);
+
+  // Listen for batch_to_repeater events
+  useEffect(() => {
+    const unsubscribe = panelBridge.on('batch_to_repeater', (event) => {
+      console.log('📥 Repeater received batch from', event.source, event.data);
+
+      // Create tabs for each request
+      event.data.requests.forEach((request: any, index: number) => {
+        createTab(`Batch ${index + 1}`, request);
+      });
+
+      // Switch to repeater panel
+      setActivePanel('repeater');
+    });
+
+    return unsubscribe;
+  }, [createTab, setActivePanel]);
 
   const getMethodColor = (method: string) => {
     switch (method.toUpperCase()) {

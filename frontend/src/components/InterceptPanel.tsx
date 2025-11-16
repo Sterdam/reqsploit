@@ -9,6 +9,7 @@ import { AIActionButton } from './AIActionButton';
 import { wsService } from '../lib/websocket';
 import { aiAPI } from '../lib/api';
 import { useUnifiedAIStore } from '../stores/unifiedAIStore';
+import { sendToRepeater } from '../lib/panel-bridge';
 import {
   Play,
   X,
@@ -203,13 +204,19 @@ export function InterceptPanel() {
   const handleSendToRepeater = useCallback(() => {
     if (!selectedRequest) return;
 
-    createTab(undefined, {
+    const request = {
       method: editedMethod,
       url: editedUrl,
       headers: editedHeaders,
       body: editedBody,
-    });
-  }, [selectedRequest, editedMethod, editedUrl, editedHeaders, editedBody]);
+    };
+
+    // Send via panel-bridge
+    sendToRepeater(request, 'intercept');
+
+    // Also create tab directly for immediate UX
+    createTab(undefined, request);
+  }, [selectedRequest, editedMethod, editedUrl, editedHeaders, editedBody, createTab]);
 
   const handleAIAnalyze = useCallback(async (action: 'analyzeRequest' | 'explain' | 'securityCheck') => {
     if (!selectedRequest) return;

@@ -9,6 +9,7 @@ import { useInterceptStore } from '../stores/interceptStore';
 import { useAIStore } from '../stores/aiStore';
 import { useLayoutPersistence } from '../hooks/useLayoutPersistence';
 import { toast } from '../stores/toastStore';
+import { useWorkflowStore } from '../stores/workflowStore';
 import { ProxyControls } from '../components/ProxyControls';
 import { RequestList } from '../components/RequestList';
 import { RequestViewer } from '../components/RequestViewer';
@@ -32,6 +33,7 @@ export function Dashboard() {
   const { fetchRequests, selectedRequest, setFilters } = useApiRequestsStore();
   const { loadTokenUsage, fetchActionCosts, shouldShowAIPanel, setShouldShowAIPanel } = useAIStore();
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const { activePanel } = useWorkflowStore();
 
   // Layout persistence
   const { layout, isLoaded, updatePanelVisibility, updateCenterTab } = useLayoutPersistence();
@@ -58,6 +60,13 @@ export function Dashboard() {
       updateCenterTab(centerTab);
     }
   }, [centerTab, isLoaded, updateCenterTab]);
+
+  // Sync workflowStore activePanel with centerTab
+  useEffect(() => {
+    if (activePanel && activePanel !== centerTab) {
+      setCenterTab(activePanel as typeof centerTab);
+    }
+  }, [activePanel]);
 
   // Auto-open AI panel when shouldShowAIPanel is true
   useEffect(() => {
