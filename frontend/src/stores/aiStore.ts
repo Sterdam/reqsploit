@@ -115,17 +115,20 @@ export const useAIStore = create<AIState>()(
   ) => {
     set({ isAnalyzing: true, error: null });
     try {
+      const { model } = get(); // Get current model selection
       let analysis: AIAnalysis;
+
+      console.log(`🎯 Analyzing with model: ${model}`);
 
       switch (type) {
         case 'request':
-          analysis = await aiAPI.analyzeRequest(requestId);
+          analysis = await aiAPI.analyzeRequest(requestId, model);
           break;
         case 'response':
-          analysis = await aiAPI.analyzeResponse(requestId);
+          analysis = await aiAPI.analyzeResponse(requestId, model);
           break;
         case 'full':
-          analysis = await aiAPI.analyzeTransaction(requestId);
+          analysis = await aiAPI.analyzeTransaction(requestId, model);
           break;
       }
 

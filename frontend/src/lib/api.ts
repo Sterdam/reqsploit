@@ -294,18 +294,18 @@ export interface TokenUsage {
 }
 
 export const aiAPI = {
-  analyzeRequest: async (requestId: string): Promise<AIAnalysis> => {
-    const response = await aiApi.post(`/ai/analyze/request/${requestId}`);
+  analyzeRequest: async (requestId: string, model?: string): Promise<AIAnalysis> => {
+    const response = await aiApi.post(`/ai/analyze/request/${requestId}`, { model });
     return response.data.data;
   },
 
-  analyzeResponse: async (requestId: string): Promise<AIAnalysis> => {
-    const response = await aiApi.post(`/ai/analyze/response/${requestId}`);
+  analyzeResponse: async (requestId: string, model?: string): Promise<AIAnalysis> => {
+    const response = await aiApi.post(`/ai/analyze/response/${requestId}`, { model });
     return response.data.data;
   },
 
-  analyzeTransaction: async (requestId: string): Promise<AIAnalysis> => {
-    const response = await aiApi.post(`/ai/analyze/transaction/${requestId}`);
+  analyzeTransaction: async (requestId: string, model?: string): Promise<AIAnalysis> => {
+    const response = await aiApi.post(`/ai/analyze/transaction/${requestId}`, { model });
     return response.data.data;
   },
 
