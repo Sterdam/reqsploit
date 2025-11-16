@@ -102,6 +102,15 @@ export function AIModelSelector() {
         />
       </button>
 
+      {/* Backdrop - Blocks everything behind */}
+      {isOpen && (
+        <div
+          className="fixed inset-0 bg-black/30 backdrop-blur-sm"
+          style={{ zIndex: 999998 }}
+          onClick={() => setIsOpen(false)}
+        />
+      )}
+
       {/* Dropdown Menu */}
       {isOpen && (
         <div
