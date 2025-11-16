@@ -44,11 +44,14 @@ export function RepeaterAIPanel({
   autoExecute,
   onToggleAutoExecute,
 }: RepeaterAIPanelProps) {
-  const { canAfford } = useAIStore();
+  const { canAfford, tokenUsage, actionCosts, getEstimatedCost } = useAIStore();
   const [isLoading, setIsLoading] = useState(false);
   const [suggestions, setSuggestions] = useState<AITestSuggestions | null>(null);
   const [expandedTests, setExpandedTests] = useState<Set<string>>(new Set());
   const [tokensUsed, setTokensUsed] = useState(0);
+
+  const estimatedCost = getEstimatedCost('suggestTests');
+  const hasTokenData = tokenUsage !== null && actionCosts.length > 0;
 
   const getSeverityIcon = (severity: string) => {
     switch (severity) {
@@ -116,7 +119,7 @@ export function RepeaterAIPanel({
   };
 
   return (
-    <div className="w-80 border-l border-white/10 bg-[#0D1F2D] flex flex-col">
+    <div className="w-80 min-w-[320px] border-l border-white/10 bg-[#0D1F2D] flex flex-col flex-shrink-0">
       {/* Header */}
       <div className="p-4 border-b border-white/10">
         <div className="flex items-center justify-between mb-3">
@@ -140,8 +143,15 @@ export function RepeaterAIPanel({
         {/* Suggest Tests Button */}
         <button
           onClick={handleSuggestTests}
-          disabled={isLoading || !canAfford('suggestTests')}
+          disabled={isLoading || !hasTokenData || !canAfford('suggestTests')}
           className="w-full mt-3 px-4 py-2 bg-electric-blue hover:bg-electric-blue/80 text-white rounded font-medium text-sm flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition"
+          title={
+            !hasTokenData
+              ? 'Loading token data...'
+              : !canAfford('suggestTests')
+              ? `Insufficient tokens (need ${estimatedCost?.toLocaleString() || 'N/A'}, have ${tokenUsage?.remaining.toLocaleString() || 0})`
+              : 'Generate AI test suggestions'
+          }
         >
           {isLoading ? (
             <>
@@ -151,13 +161,35 @@ export function RepeaterAIPanel({
           ) : (
             <>
               <Sparkles className="w-4 h-4" />
-              Suggest Tests (12K tokens)
+              Suggest Tests {estimatedCost ? `(${(estimatedCost / 1000).toFixed(1)}K)` : ''}
             </>
           )}
         </button>
 
+        {/* Token info */}
+        {hasTokenData && tokenUsage && (
+          <div className="mt-2 text-xs text-gray-400">
+            <div className="flex justify-between">
+              <span>Available:</span>
+              <span className="font-medium text-white">{tokenUsage.remaining.toLocaleString()}</span>
+            </div>
+            {estimatedCost && (
+              <div className="flex justify-between">
+                <span>Cost:</span>
+                <span className="font-medium text-electric-blue">{estimatedCost.toLocaleString()}</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {!hasTokenData && (
+          <p className="text-xs text-yellow-400 mt-2">
+            Loading pricing data...
+          </p>
+        )}
+
         {tokensUsed > 0 && (
-          <p className="text-xs text-gray-400 mt-2">
+          <p className="text-xs text-green-400 mt-2">
             Tokens used: {tokensUsed.toLocaleString()}
           </p>
         )}

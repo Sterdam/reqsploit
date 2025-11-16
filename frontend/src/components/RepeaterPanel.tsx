@@ -191,14 +191,18 @@ export function RepeaterPanel() {
         </div>
         <button
           onClick={() => setShowAIPanel(!showAIPanel)}
-          className={`px-4 py-3 transition-colors ${
+          className={`relative px-4 py-3 transition-all ${
             showAIPanel
-              ? 'text-electric-blue bg-[#0A1929]'
-              : 'text-white/60 hover:text-white hover:bg-[#0A1929]/50'
+              ? 'text-electric-blue bg-[#0A1929] shadow-lg shadow-electric-blue/20'
+              : 'text-white/60 hover:text-electric-blue hover:bg-[#0A1929]/50'
           }`}
-          title="Toggle AI Assistant"
+          title="Toggle AI Assistant (AI test suggestions and security analysis)"
         >
-          <Sparkles className="w-4 h-4" />
+          <Sparkles className={`w-4 h-4 ${showAIPanel ? 'animate-pulse' : ''}`} />
+          {/* Indicator badge when panel is hidden */}
+          {!showAIPanel && (
+            <span className="absolute top-1 right-1 w-2 h-2 bg-electric-blue rounded-full animate-pulse" />
+          )}
         </button>
         <button
           onClick={() => createTab()}
@@ -215,9 +219,9 @@ export function RepeaterPanel() {
       ) : (
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Main Content: Request + Response Split + AI Panel */}
-          <div className="flex-1 flex overflow-hidden">
+          <div className="flex-1 flex overflow-x-auto overflow-y-hidden scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
             {/* Request Editor (Left side - flexible width) */}
-            <div className={`${showAIPanel ? 'flex-1' : 'w-1/2'} flex flex-col border-r border-white/10`}>
+            <div className={`${showAIPanel ? 'flex-1 min-w-[400px]' : 'w-1/2 min-w-[400px]'} flex flex-col border-r border-white/10`}>
               {/* Request Header */}
               <div className="px-4 py-3 border-b border-white/10 bg-[#0D1F2D]">
                 <div className="flex items-center gap-2 min-w-0">
@@ -361,7 +365,7 @@ export function RepeaterPanel() {
             </div>
 
             {/* Response Viewer (Right side - flexible width) */}
-            <div className={`${showAIPanel ? 'flex-1' : 'w-1/2'} flex flex-col bg-[#0D1F2D]`}>
+            <div className={`${showAIPanel ? 'flex-1 min-w-[400px]' : 'w-1/2 min-w-[400px]'} flex flex-col bg-[#0D1F2D]`}>
               {/* Response Header */}
               <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
                 <div className="flex items-center gap-4">
