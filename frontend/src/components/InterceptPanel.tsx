@@ -6,10 +6,8 @@ import { useRequestsStore } from '../stores/requestsStore';
 import { useAIStore } from '../stores/aiStore';
 import { FilterDomainsModal } from './FilterDomainsModal';
 import { AIActionButton } from './AIActionButton';
-import { InterceptAIResults } from './InterceptAIResults';
 import { wsService } from '../lib/websocket';
 import { aiAPI } from '../lib/api';
-import type { AISuggestion } from '../lib/api';
 import {
   Play,
   X,
@@ -42,7 +40,7 @@ export function InterceptPanel() {
     clearQueue,
   } = useInterceptStore();
   const { domainFilters, domainFiltersEnabled, toggleDomainFilters, addDomainFilter } = useRequestsStore();
-  const { isAnalyzing, interceptAnalysis, setIsAnalyzing, setInterceptAnalysis, clearInterceptAnalysis } = useAIStore();
+  const { isAnalyzing, setIsAnalyzing, setActiveAnalysis } = useAIStore();
 
   const [activeTab, setActiveTab] = useState<'headers' | 'body'>('headers');
   const [showFilterModal, setShowFilterModal] = useState(false);
@@ -109,10 +107,8 @@ export function InterceptPanel() {
       setEditedHeaders({ ...selectedRequest.headers });
       setEditedBody(selectedRequest.body || '');
       setHasModifications(false);
-      // Clear intercept analysis when switching requests
-      clearInterceptAnalysis();
     }
-  }, [selectedRequest?.id, clearInterceptAnalysis]);
+  }, [selectedRequest?.id]);
 
   // Validate JSON
   useEffect(() => {
@@ -231,79 +227,15 @@ export function InterceptPanel() {
         } : undefined
       );
 
-      // Set intercept analysis for inline display (not sidebar)
-      setInterceptAnalysis(analysis);
+      // Set active analysis and open AI sidebar panel
+      setActiveAnalysis(analysis, true);
     } catch (error) {
       console.error('AI Analysis failed:', error);
       alert(error instanceof Error ? error.message : 'AI analysis failed');
     } finally {
       setIsAnalyzing(false);
     }
-  }, [selectedRequest, hasModifications, editedMethod, editedUrl, editedHeaders, editedBody, setIsAnalyzing, setInterceptAnalysis]);
-
-  const handleApplySuggestion = useCallback((suggestion: AISuggestion) => {
-    if (!selectedRequest) return;
-
-    try {
-      // Find modify action with payload
-      const modifyAction = suggestion.actions?.find(a => a.type === 'modify' && a.payload);
-      if (!modifyAction?.payload) {
-        alert('No modification payload found in suggestion');
-        return;
-      }
-
-      const payload = typeof modifyAction.payload === 'string'
-        ? modifyAction.payload
-        : JSON.stringify(modifyAction.payload);
-
-      // Determine where to apply the payload based on suggestion type
-      if (suggestion.type === 'modification') {
-        if (suggestion.title?.toLowerCase().includes('header')) {
-          // Extract header name and value
-          const headerName = suggestion.description?.match(/Add header: (.+?):/)?.[1] || 'X-Custom-Header';
-          setEditedHeaders({ ...editedHeaders, [headerName]: payload });
-        } else if (suggestion.title?.toLowerCase().includes('body') || suggestion.title?.toLowerCase().includes('param')) {
-          // Apply to body
-          if (editedBody) {
-            try {
-              // If body is JSON, try to merge
-              const bodyJson = JSON.parse(editedBody);
-              const payloadJson = JSON.parse(payload);
-              setEditedBody(JSON.stringify({ ...bodyJson, ...payloadJson }, null, 2));
-            } catch {
-              // Not JSON, append payload
-              setEditedBody(editedBody + '\n' + payload);
-            }
-          } else {
-            setEditedBody(payload);
-          }
-        } else if (suggestion.title?.toLowerCase().includes('url') || suggestion.title?.toLowerCase().includes('query')) {
-          // Apply to URL
-          try {
-            const url = new URL(editedUrl);
-            if (payload.includes('=')) {
-              const [key, value] = payload.split('=');
-              url.searchParams.set(key, value);
-              setEditedUrl(url.toString());
-            } else {
-              url.pathname += payload;
-              setEditedUrl(url.toString());
-            }
-          } catch {
-            setEditedUrl(editedUrl + payload);
-          }
-        } else {
-          // Default: apply to body
-          setEditedBody(payload);
-        }
-
-        alert(`✓ Suggestion applied: ${suggestion.title}`);
-      }
-    } catch (error) {
-      console.error('Failed to apply suggestion:', error);
-      alert('Failed to apply suggestion. Check console for details.');
-    }
-  }, [selectedRequest, editedHeaders, editedBody, editedUrl]);
+  }, [selectedRequest, hasModifications, editedMethod, editedUrl, editedHeaders, editedBody, setIsAnalyzing, setActiveAnalysis]);
 
   const handleFormatJson = useCallback(() => {
     try {
@@ -685,17 +617,6 @@ export function InterceptPanel() {
                     </button>
                   </div>
                 </div>
-
-                {/* Inline AI Results */}
-                {interceptAnalysis && (
-                  <div className="px-6 py-3 border-b border-white/10">
-                    <InterceptAIResults
-                      analysis={interceptAnalysis}
-                      onClose={clearInterceptAnalysis}
-                      onApplySuggestion={handleApplySuggestion}
-                    />
-                  </div>
-                )}
 
                 {/* Tabs */}
                 <div className="flex items-center justify-between border-b border-white/10 bg-[#0D1F2D]">
