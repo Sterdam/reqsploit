@@ -381,7 +381,7 @@ export function Dashboard() {
               )}
 
               {/* Tabs */}
-              <div className="flex border-b border-white/10 bg-[#0A1929] overflow-x-auto scrollbar-thin">
+              <div className="flex border-b border-white/10 bg-[#0A1929] overflow-x-auto scrollbar-thin relative z-10">
                 <button
                   onClick={() => setCenterTab('history')}
                   className={`px-4 py-2.5 text-xs font-medium transition whitespace-nowrap flex-shrink-0 ${
