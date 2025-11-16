@@ -30,6 +30,7 @@ export type AIAction =
   | 'explain'
   | 'quickScan'
   | 'deepScan'
+  | 'suggestTests'
   | 'generateDorks'
   | 'attackChain';
 
@@ -71,6 +72,7 @@ const PRICING_CONFIG: PricingConfig = {
     explain: { input: 600, output: 800 },
     quickScan: { input: 500, output: 400 },
     deepScan: { input: 2000, output: 1500 },
+    suggestTests: { input: 2000, output: 1500 }, // Similar to deepScan - comprehensive analysis
     generateDorks: { input: 400, output: 600 },
     attackChain: { input: 2500, output: 2000 },
   },

@@ -38,13 +38,13 @@ interface RepeaterAIPanelProps {
 }
 
 export function RepeaterAIPanel({
-  tabId,
-  request: _request,
+  tabId: _tabId,
+  request,
   onExecuteTest,
   autoExecute,
   onToggleAutoExecute,
 }: RepeaterAIPanelProps) {
-  const { canAfford, tokenUsage, actionCosts, getEstimatedCost, loadTokenUsage, fetchActionCosts } = useAIStore();
+  const { canAfford, tokenUsage, actionCosts, getEstimatedCost, loadTokenUsage, fetchActionCosts, model } = useAIStore();
   const [isLoading, setIsLoading] = useState(false);
   const [suggestions, setSuggestions] = useState<AITestSuggestions | null>(null);
   const [expandedTests, setExpandedTests] = useState<Set<string>>(new Set());
@@ -123,10 +123,10 @@ export function RepeaterAIPanel({
     }
 
     setIsLoading(true);
-    console.log('📡 Calling aiAPI.suggestTests with tabId:', tabId);
+    console.log('📡 Calling aiAPI.suggestTests with request:', request);
 
     try {
-      const result = await aiAPI.suggestTests(tabId);
+      const result = await aiAPI.suggestTests(request, model);
       console.log('✅ Suggestions received:', result);
       setSuggestions(result.suggestions);
       setTokensUsed(result.tokensUsed);

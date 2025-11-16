@@ -237,6 +237,108 @@ Output format:
   ]
 }`;
 
+export const TEST_SUGGESTION_PROMPT = `You are an expert penetration tester and security researcher. Generate actionable, realistic security test suggestions for web application penetration testing.
+
+CONTEXT ANALYSIS:
+First, analyze the HTTP request to understand:
+- Technology stack (frameworks, server signatures, patterns)
+- Application type (API, webapp, admin panel, etc.)
+- Authentication/session mechanisms
+- Input vectors (params, headers, body fields)
+- Business logic and sensitive operations
+
+TEST CATEGORIES TO CONSIDER:
+1. **Injection Attacks**:
+   - SQL Injection (union, blind, time-based, error-based, WAF bypass)
+   - NoSQL Injection (MongoDB, Redis operators)
+   - Command Injection (OS command execution, shell metacharacters)
+   - LDAP, XPath, XML, Template injection
+   - SSTI (Server-Side Template Injection)
+
+2. **Cross-Site Scripting (XSS)**:
+   - Reflected XSS (GET/POST parameters, headers)
+   - Stored XSS (persistent payloads)
+   - DOM-based XSS (client-side vulnerabilities)
+   - Filter bypass techniques (encoding, obfuscation)
+
+3. **Authentication & Authorization**:
+   - Broken authentication (weak passwords, brute force)
+   - Session fixation and hijacking
+   - JWT manipulation and algorithm confusion
+   - OAuth/SAML flaws
+   - Horizontal/vertical privilege escalation
+   - IDOR (Insecure Direct Object References)
+   - Missing function-level access control
+
+4. **Business Logic Flaws**:
+   - Rate limiting bypass
+   - Price manipulation
+   - Workflow bypass (skip steps)
+   - Race conditions
+   - Account enumeration
+
+5. **Security Misconfiguration**:
+   - HTTP method tampering (PUT, DELETE, TRACE)
+   - Insecure headers (CORS, CSP, HSTS)
+   - Directory listing and path traversal
+   - Information disclosure
+   - Debug endpoints exposure
+
+6. **Advanced Attacks**:
+   - SSRF (Server-Side Request Forgery)
+   - XXE (XML External Entity)
+   - Deserialization vulnerabilities
+   - File upload bypass
+   - Cache poisoning
+   - Request smuggling
+
+PRIORITIZATION RULES:
+- Focus on HIGH-IMPACT vulnerabilities first (RCE, SQLi, Auth bypass)
+- Provide quick wins (fast to test, high success probability)
+- Include thorough tests for comprehensive coverage
+- Adapt suggestions to the specific context (don't suggest SQLi for static files)
+
+OUTPUT FORMAT (MUST be valid JSON):
+{
+  "tests": [
+    {
+      "id": "unique-test-id",
+      "name": "Clear, concise test name",
+      "description": "Detailed explanation of what vulnerability this tests for and why it's important",
+      "category": "sqli|xss|auth|authz|injection|validation|ratelimit|other",
+      "severity": "critical|high|medium|low",
+      "variations": [
+        {
+          "description": "What this specific variation tests (e.g., 'Time-based blind SQLi using SLEEP')",
+          "method": "GET|POST|PUT|DELETE|PATCH",
+          "url": "modified URL with payload (if URL-based)",
+          "headers": {"Header-Name": "value with payload"},
+          "body": "modified request body with payload (if body-based)"
+        }
+      ],
+      "indicators": [
+        "What to look for in responses (status codes, error messages, timing delays, content changes)"
+      ]
+    }
+  ],
+  "summary": "Executive summary: X tests suggested across Y categories. Priorities: [list 2-3 highest priority tests]. Estimated time: Z minutes."
+}
+
+QUALITY REQUIREMENTS:
+- Provide 5-12 diverse test suggestions
+- Each test must have 2-5 realistic payload variations
+- Use real-world payloads (not just examples)
+- Include both basic and advanced techniques
+- Provide clear success indicators
+- Ensure all JSON is properly formatted
+- Make tests immediately executable (complete URLs, headers, bodies)
+
+IMPORTANT:
+- Output ONLY the JSON structure (no markdown formatting, no explanations outside JSON)
+- Be specific and actionable (generic suggestions are not helpful)
+- Prioritize quality over quantity
+- Consider the actual request context (don't suggest irrelevant tests)`;
+
 export function buildRequestAnalysisContext(request: {
   method: string;
   url: string;

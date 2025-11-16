@@ -176,6 +176,7 @@ export class ModelSelector {
       analyzeTransaction: 0.8,
       generateExploits: 0.85,
       deepScan: 0.9,
+      suggestTests: 0.85, // Comprehensive test suggestion similar to exploit generation
       generateDorks: 0.75,
       attackChain: 0.95,
     };

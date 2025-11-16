@@ -384,8 +384,8 @@ export const aiAPI = {
     return response.data.data;
   },
 
-  suggestTests: async (tabId: string): Promise<any> => {
-    const response = await aiApi.post(`/ai/suggest-tests/${tabId}`);
+  suggestTests: async (request: { method: string; url: string; headers: Record<string, string>; body?: string }, model?: string): Promise<any> => {
+    const response = await aiApi.post('/ai/suggest-tests', { request, model });
     return response.data.data;
   },
 };

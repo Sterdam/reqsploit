@@ -1265,4 +1265,102 @@ Provide a professional, actionable security report.`;
   })
 );
 
+/**
+ * POST /ai/suggest-tests
+ * Generate AI-powered security test suggestions for Repeater
+ */
+router.post(
+  '/suggest-tests',
+  asyncHandler(async (req: Request, res: Response) => {
+    const userId = req.user!.id;
+    const { request, model = 'auto' } = req.body;
+
+    if (!request || !request.method || !request.url) {
+      throw new ValidationError('Request data is required (method, url)');
+    }
+
+    // Build context for test suggestion
+    const requestContext = `HTTP Request to analyze for security testing:
+
+Method: ${request.method}
+URL: ${request.url}
+Headers:
+${JSON.stringify(request.headers || {}, null, 2)}
+${request.body ? `\nBody:\n${request.body}` : ''}
+
+Generate comprehensive security test suggestions for this request.`;
+
+    try {
+      // Import prompts
+      const { TEST_SUGGESTION_PROMPT } = await import('../../core/ai/prompts.js');
+
+      // Call Claude API with test suggestion prompt
+      const selectedModel = model === 'auto' ? 'haiku-4.5' : model;
+      const response = await anthropic.messages.create({
+        model: selectedModel === 'sonnet-4.5' ? 'claude-sonnet-4-20250514' : 'claude-3-5-haiku-20241022',
+        max_tokens: 4096,
+        temperature: 0.7,
+        system: TEST_SUGGESTION_PROMPT,
+        messages: [
+          {
+            role: 'user',
+            content: requestContext,
+          },
+        ],
+      });
+
+      // Extract AI response
+      const content = response.content[0];
+      if (content.type !== 'text') {
+        throw new AIServiceError('Unexpected AI response type');
+      }
+
+      let suggestions;
+      try {
+        // Try to parse JSON from response
+        const jsonMatch = content.text.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          suggestions = JSON.parse(jsonMatch[0]);
+        } else {
+          suggestions = JSON.parse(content.text);
+        }
+      } catch (parseError) {
+        aiLogger.error('Failed to parse AI test suggestions', { error: parseError });
+        throw new AIServiceError('AI returned invalid JSON response');
+      }
+
+      // Calculate and deduct tokens
+      const tokensUsed = response.usage.input_tokens + response.usage.output_tokens;
+      const tokenCost = aiPricingService.calculateTokenCost(
+        selectedModel,
+        response.usage.input_tokens,
+        response.usage.output_tokens
+      );
+      await aiPricingService.deductTokens(userId, tokenCost);
+
+      aiLogger.info('AI test suggestions generated', {
+        userId,
+        model: selectedModel,
+        testsCount: suggestions.tests?.length || 0,
+        tokensUsed,
+        tokenCost,
+      });
+
+      res.json({
+        success: true,
+        data: {
+          suggestions,
+          tokensUsed: tokenCost,
+          model: selectedModel,
+        },
+        message: 'Test suggestions generated successfully',
+      });
+    } catch (error) {
+      if (error instanceof AIServiceError) throw error;
+      aiLogger.error('Test suggestion generation failed', { error });
+      throw new AIServiceError('Failed to generate test suggestions');
+    }
+  })
+);
+
 export default router;
