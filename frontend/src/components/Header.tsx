@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useAuthStore } from '../stores/authStore';
 import { useAIStore } from '../stores/aiStore';
 import { LogOut, User, Menu, X } from 'lucide-react';
+import { AIModelSelector } from './AIModelSelector';
 
 export function Header() {
   const { user, logout } = useAuthStore();
@@ -66,6 +67,9 @@ export function Header() {
               </div>
             </div>
           )}
+
+          {/* AI Model Selector */}
+          <AIModelSelector />
 
           {/* Plan Badge */}
           {user && (
@@ -141,6 +145,11 @@ export function Header() {
               </div>
             </div>
           )}
+
+          {/* AI Model Selector */}
+          <div className="flex justify-center">
+            <AIModelSelector />
+          </div>
 
           {/* Logout Button */}
           <button

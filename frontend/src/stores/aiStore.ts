@@ -102,7 +102,7 @@ export const useAIStore = create<AIState>()(
       error: null,
 
       // New AI features state
-      model: 'auto',
+      model: 'haiku-4.5',
       mode: 'DEFAULT',
       credits: null,
       actionCosts: [],
