@@ -106,7 +106,7 @@ export function AIModelSelector() {
       {isOpen && (
         <div
           className="fixed inset-0 bg-black/30 backdrop-blur-sm"
-          style={{ zIndex: 999998 }}
+          style={{ zIndex: 2147483646 }}
           onClick={() => setIsOpen(false)}
         />
       )}
@@ -118,7 +118,7 @@ export function AIModelSelector() {
           style={{
             backgroundColor: '#0D1F2D',
             backdropFilter: 'blur(10px)',
-            zIndex: 999999,
+            zIndex: 2147483647,
             right: `${dropdownPosition.right}px`,
             top: `${dropdownPosition.top}px`,
             width: '18rem'
