@@ -4,6 +4,7 @@
  */
 
 import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useAIStore, type AIModel } from '../stores/aiStore';
 import { Cpu, ChevronDown, Check, Zap, Sparkles } from 'lucide-react';
 
@@ -102,99 +103,101 @@ export function AIModelSelector() {
         />
       </button>
 
-      {/* Backdrop - Blocks everything behind */}
-      {isOpen && (
-        <div
-          className="fixed inset-0 bg-black/30 backdrop-blur-sm"
-          style={{ zIndex: 2147483646 }}
-          onClick={() => setIsOpen(false)}
-        />
-      )}
+      {/* Backdrop & Dropdown - Rendered in Portal */}
+      {isOpen && createPortal(
+        <>
+          {/* Backdrop - Blocks everything behind */}
+          <div
+            className="fixed inset-0 bg-black/30 backdrop-blur-sm"
+            style={{ zIndex: 2147483646 }}
+            onClick={() => setIsOpen(false)}
+          />
 
-      {/* Dropdown Menu */}
-      {isOpen && (
-        <div
-          className="fixed rounded-lg shadow-2xl py-2 animate-in fade-in slide-in-from-top-2 duration-200 border-2 border-white/40"
-          style={{
-            backgroundColor: '#0D1F2D',
-            backdropFilter: 'blur(10px)',
-            zIndex: 2147483647,
-            right: `${dropdownPosition.right}px`,
-            top: `${dropdownPosition.top}px`,
-            width: '18rem'
-          }}
-        >
-          {/* Header */}
-          <div className="px-4 py-2 border-b border-white/20">
-            <p className="text-xs font-semibold text-gray-300 uppercase">AI Model</p>
-          </div>
+          {/* Dropdown Menu */}
+          <div
+            className="fixed rounded-lg shadow-2xl py-2 animate-in fade-in slide-in-from-top-2 duration-200 border-2 border-white/40"
+            style={{
+              backgroundColor: '#0D1F2D',
+              backdropFilter: 'blur(10px)',
+              zIndex: 2147483647,
+              right: `${dropdownPosition.right}px`,
+              top: `${dropdownPosition.top}px`,
+              width: '18rem'
+            }}
+          >
+            {/* Header */}
+            <div className="px-4 py-2 border-b border-white/20">
+              <p className="text-xs font-semibold text-gray-300 uppercase">AI Model</p>
+            </div>
 
-          {/* Model Options */}
-          <div className="py-1">
-            {(['haiku-4.5', 'sonnet-4.5', 'auto'] as AIModel[]).map((modelKey) => {
-              const modelInfo = MODEL_INFO[modelKey];
-              const Icon = modelInfo.icon;
-              const isSelected = model === modelKey;
-              const costInfo =
-                modelKey === 'haiku-4.5'
-                  ? 'Base cost'
-                  : modelKey === 'sonnet-4.5'
-                  ? '12× cost'
-                  : 'Optimized';
+            {/* Model Options */}
+            <div className="py-1">
+              {(['haiku-4.5', 'sonnet-4.5', 'auto'] as AIModel[]).map((modelKey) => {
+                const modelInfo = MODEL_INFO[modelKey];
+                const Icon = modelInfo.icon;
+                const isSelected = model === modelKey;
+                const costInfo =
+                  modelKey === 'haiku-4.5'
+                    ? 'Base cost'
+                    : modelKey === 'sonnet-4.5'
+                    ? '12× cost'
+                    : 'Optimized';
 
-              return (
-                <button
-                  key={modelKey}
-                  onClick={() => handleModelChange(modelKey)}
-                  className={`
-                    w-full px-4 py-3 flex items-start gap-3 transition-colors duration-150
-                    ${isSelected ? 'bg-white/10' : 'hover:bg-white/5'}
-                  `}
-                >
-                  {/* Icon */}
-                  <div
+                return (
+                  <button
+                    key={modelKey}
+                    onClick={() => handleModelChange(modelKey)}
                     className={`
-                      w-9 h-9 rounded-lg ${modelInfo.bgColor} border ${modelInfo.borderColor}
-                      flex items-center justify-center flex-shrink-0
+                      w-full px-4 py-3 flex items-start gap-3 transition-colors duration-150
+                      ${isSelected ? 'bg-white/10' : 'hover:bg-white/5'}
                     `}
                   >
-                    <Icon className={`w-5 h-5 ${modelInfo.color}`} />
-                  </div>
-
-                  {/* Info */}
-                  <div className="flex-1 text-left">
-                    <div className="flex items-center gap-2 mb-0.5">
-                      <span className="text-sm font-semibold text-white">{modelInfo.name}</span>
-                      {isSelected && <Check className="w-4 h-4 text-green-400" />}
+                    {/* Icon */}
+                    <div
+                      className={`
+                        w-9 h-9 rounded-lg ${modelInfo.bgColor} border ${modelInfo.borderColor}
+                        flex items-center justify-center flex-shrink-0
+                      `}
+                    >
+                      <Icon className={`w-5 h-5 ${modelInfo.color}`} />
                     </div>
-                    <p className="text-xs text-gray-400 mb-1">{modelInfo.description}</p>
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`
-                          text-xs px-1.5 py-0.5 rounded
-                          ${
-                            modelKey === 'sonnet-4.5'
-                              ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30'
-                              : 'bg-white/10 text-gray-400'
-                          }
-                        `}
-                      >
-                        {costInfo}
-                      </span>
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
 
-          {/* Footer Info */}
-          <div className="px-4 py-2 border-t border-white/20 mt-1" style={{ backgroundColor: 'rgba(0, 0, 0, 0.3)' }}>
-            <p className="text-xs text-gray-400 leading-relaxed">
-              Sonnet provides deeper analysis but costs 12× more tokens than Haiku
-            </p>
+                    {/* Info */}
+                    <div className="flex-1 text-left">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <span className="text-sm font-semibold text-white">{modelInfo.name}</span>
+                        {isSelected && <Check className="w-4 h-4 text-green-400" />}
+                      </div>
+                      <p className="text-xs text-gray-400 mb-1">{modelInfo.description}</p>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`
+                            text-xs px-1.5 py-0.5 rounded
+                            ${
+                              modelKey === 'sonnet-4.5'
+                                ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30'
+                                : 'bg-white/10 text-gray-400'
+                            }
+                          `}
+                        >
+                          {costInfo}
+                        </span>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Footer Info */}
+            <div className="px-4 py-2 border-t border-white/20 mt-1" style={{ backgroundColor: 'rgba(0, 0, 0, 0.3)' }}>
+              <p className="text-xs text-gray-400 leading-relaxed">
+                Sonnet provides deeper analysis but costs 12× more tokens than Haiku
+              </p>
+            </div>
           </div>
-        </div>
+        </>,
+        document.body
       )}
     </div>
   );
