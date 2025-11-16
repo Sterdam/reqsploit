@@ -59,7 +59,13 @@ export function AIModelSelector() {
   // Close dropdown when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      // Check if click is outside both button and dropdown
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node) &&
+        buttonRef.current &&
+        !buttonRef.current.contains(event.target as Node)
+      ) {
         setIsOpen(false);
       }
     }
@@ -80,7 +86,7 @@ export function AIModelSelector() {
   };
 
   return (
-    <div className="relative" ref={dropdownRef}>
+    <div className="relative">
       {/* Trigger Button */}
       <button
         ref={buttonRef}
@@ -115,6 +121,7 @@ export function AIModelSelector() {
 
           {/* Dropdown Menu */}
           <div
+            ref={dropdownRef}
             className="fixed rounded-lg shadow-2xl py-2 animate-in fade-in slide-in-from-top-2 duration-200 border-2 border-white/40"
             style={{
               backgroundColor: '#0D1F2D',
