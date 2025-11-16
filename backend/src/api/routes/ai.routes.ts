@@ -24,6 +24,7 @@ router.post(
   asyncHandler(async (req: Request, res: Response) => {
     const userId = req.user!.id;
     const { requestId } = req.params;
+    const { model = 'auto' } = req.body; // Model selection
 
     // Get request from database
     const requestLog = await prisma.requestLog.findFirst({
@@ -37,15 +38,20 @@ router.post(
       throw new NotFoundError('Request not found');
     }
 
-    // Analyze request
-    const analysis = await aiAnalyzer.analyzeRequest(userId, requestId, {
-      id: requestLog.id,
-      method: requestLog.method,
-      url: requestLog.url,
-      headers: requestLog.headers as Record<string, string>,
-      body: requestLog.body || undefined,
-      timestamp: requestLog.timestamp,
-    });
+    // Analyze request with selected model
+    const analysis = await aiAnalyzer.analyzeRequest(
+      userId,
+      requestId,
+      {
+        id: requestLog.id,
+        method: requestLog.method,
+        url: requestLog.url,
+        headers: requestLog.headers as Record<string, string>,
+        body: requestLog.body || undefined,
+        timestamp: requestLog.timestamp,
+      },
+      model // Pass model to analyzer
+    );
 
     res.json({
       success: true,
