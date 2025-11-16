@@ -4,6 +4,8 @@ import { useAIStore } from '../stores/aiStore';
 import { exportToCSV, exportToJSON, generateExportFilename } from '../utils/exportUtils';
 import { toast } from '../stores/toastStore';
 import { aiAPI } from '../lib/api';
+import { panelBridge } from '../lib/panel-bridge';
+import { useWorkflowStore } from '../stores/workflowStore';
 import {
   Play,
   Pause,
@@ -58,6 +60,7 @@ export function IntruderPanel() {
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
 
   const { canAfford } = useAIStore();
+  const { setActivePanel } = useWorkflowStore();
 
   // Load campaigns and builtin payloads on mount
   useEffect(() => {
@@ -75,6 +78,28 @@ export function IntruderPanel() {
       return () => clearInterval(interval);
     }
   }, [activeCampaignId, view]);
+
+  // Listen for panel-bridge events (send_to_intruder)
+  useEffect(() => {
+    const unsubscribe = panelBridge.on('send_to_intruder', (event) => {
+      console.log('📥 Intruder received payloads from', event.source, event.data);
+
+      // Start a new draft campaign with the payloads
+      startDraft(event.data.targetRequest);
+
+      // Load the payloads into custom payloads
+      if (event.data.payloads && event.data.payloads.length > 0) {
+        setCustomPayloads(event.data.payloads.join('\n'));
+        toast.success('Payloads loaded', `${event.data.payloads.length} payloads loaded from ${event.source}`);
+      }
+
+      // Switch to intruder panel and create view
+      setActivePanel('intruder');
+      setView('create');
+    });
+
+    return unsubscribe;
+  }, [startDraft, setActivePanel]);
 
   const activeCampaign = getActiveCampaign();
   const results = activeCampaignId ? getCampaignResults(activeCampaignId) : [];

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useRepeaterStore } from '../stores/repeaterStore';
 import {
   Play,
@@ -405,8 +406,8 @@ export function RepeaterPanel() {
               </div>
             </div>
 
-            {/* AI Assistant Panel (Right side - 320px when shown) */}
-            {showAIPanel && activeTab && (
+            {/* AI Assistant Panel (Right side - 320px when shown inline OR modal in Portal) */}
+            {showAIPanel && activeTab && window.innerWidth >= 1024 && (
               <RepeaterAIPanel
                 tabId={activeTab.id}
                 request={activeTab.request}
@@ -457,6 +458,53 @@ export function RepeaterPanel() {
             </div>
           )}
         </div>
+      )}
+
+      {/* AI Assistant Modal (Portal for small screens or narrow panels) */}
+      {showAIPanel && activeTab && window.innerWidth < 1024 && createPortal(
+        <>
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm"
+            style={{ zIndex: 2147483646 }}
+            onClick={() => setShowAIPanel(false)}
+          />
+
+          {/* Modal Panel */}
+          <div
+            className="fixed right-4 top-4 bottom-4 w-[400px] max-w-[90vw] rounded-lg shadow-2xl border-2 border-white/20 overflow-hidden"
+            style={{
+              backgroundColor: '#0D1F2D',
+              zIndex: 2147483647,
+            }}
+          >
+            {/* Header */}
+            <div className="px-4 py-3 bg-[#0A1929] border-b border-white/10 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-electric-blue" />
+                AI Assistant
+              </h3>
+              <button
+                onClick={() => setShowAIPanel(false)}
+                className="p-1 text-white/60 hover:text-white hover:bg-white/10 rounded"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="overflow-auto h-full">
+              <RepeaterAIPanel
+                tabId={activeTab.id}
+                request={activeTab.request}
+                onExecuteTest={handleExecuteAITest}
+                autoExecute={autoExecuteAI}
+                onToggleAutoExecute={setAutoExecuteAI}
+              />
+            </div>
+          </div>
+        </>,
+        document.body
       )}
     </div>
   );
