@@ -109,7 +109,7 @@ export function AIModelSelector() {
           style={{
             backgroundColor: '#0D1F2D',
             backdropFilter: 'blur(10px)',
-            zIndex: 99999,
+            zIndex: 999999,
             right: `${dropdownPosition.right}px`,
             top: `${dropdownPosition.top}px`,
             width: '18rem'
