@@ -1,5 +1,5 @@
 import { aiAPI } from '../lib/api';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Sparkles, Play, Loader2, ChevronDown, ChevronUp, AlertTriangle, Shield, Zap, CheckCircle } from 'lucide-react';
 import { useAIStore } from '../stores/aiStore';
 
@@ -44,7 +44,7 @@ export function RepeaterAIPanel({
   autoExecute,
   onToggleAutoExecute,
 }: RepeaterAIPanelProps) {
-  const { canAfford, tokenUsage, actionCosts, getEstimatedCost } = useAIStore();
+  const { canAfford, tokenUsage, actionCosts, getEstimatedCost, loadTokenUsage, fetchActionCosts } = useAIStore();
   const [isLoading, setIsLoading] = useState(false);
   const [suggestions, setSuggestions] = useState<AITestSuggestions | null>(null);
   const [expandedTests, setExpandedTests] = useState<Set<string>>(new Set());
@@ -52,6 +52,30 @@ export function RepeaterAIPanel({
 
   const estimatedCost = getEstimatedCost('suggestTests');
   const hasTokenData = tokenUsage !== null && actionCosts.length > 0;
+
+  // Load token data on mount
+  useEffect(() => {
+    console.log('🔍 RepeaterAIPanel: Loading token data...');
+    console.log('  tokenUsage:', tokenUsage);
+    console.log('  actionCosts length:', actionCosts.length);
+
+    if (!tokenUsage) {
+      loadTokenUsage().then(() => console.log('✅ Token usage loaded'));
+    }
+    if (actionCosts.length === 0) {
+      fetchActionCosts().then(() => console.log('✅ Action costs loaded'));
+    }
+  }, []);
+
+  // Debug log when data changes
+  useEffect(() => {
+    console.log('📊 RepeaterAIPanel state update:');
+    console.log('  hasTokenData:', hasTokenData);
+    console.log('  estimatedCost:', estimatedCost);
+    console.log('  canAfford:', canAfford('suggestTests'));
+    console.log('  tokenUsage:', tokenUsage);
+    console.log('  actionCosts:', actionCosts);
+  }, [hasTokenData, estimatedCost, tokenUsage, actionCosts]);
 
   const getSeverityIcon = (severity: string) => {
     switch (severity) {
@@ -88,18 +112,26 @@ export function RepeaterAIPanel({
   };
 
   const handleSuggestTests = async () => {
-    if (!canAfford('suggestTests')) {
-      alert('Insufficient tokens to generate test suggestions');
+    console.log('🚀 handleSuggestTests called');
+
+    // Only check if we have token data AND insufficient tokens
+    if (hasTokenData && !canAfford('suggestTests')) {
+      const msg = `Insufficient tokens. Need ${estimatedCost?.toLocaleString() || 'N/A'}, have ${tokenUsage?.remaining.toLocaleString() || 0}`;
+      alert(msg);
+      console.error('❌', msg);
       return;
     }
 
     setIsLoading(true);
+    console.log('📡 Calling aiAPI.suggestTests with tabId:', tabId);
+
     try {
       const result = await aiAPI.suggestTests(tabId);
+      console.log('✅ Suggestions received:', result);
       setSuggestions(result.suggestions);
       setTokensUsed(result.tokensUsed);
     } catch (error) {
-      console.error('Test suggestion failed:', error);
+      console.error('❌ Test suggestion failed:', error);
       alert(error instanceof Error ? error.message : 'Failed to generate test suggestions');
     } finally {
       setIsLoading(false);
@@ -143,11 +175,13 @@ export function RepeaterAIPanel({
         {/* Suggest Tests Button */}
         <button
           onClick={handleSuggestTests}
-          disabled={isLoading || !hasTokenData || !canAfford('suggestTests')}
+          disabled={isLoading || (hasTokenData && !canAfford('suggestTests'))}
           className="w-full mt-3 px-4 py-2 bg-electric-blue hover:bg-electric-blue/80 text-white rounded font-medium text-sm flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition"
           title={
-            !hasTokenData
-              ? 'Loading token data...'
+            isLoading
+              ? 'Generating suggestions...'
+              : !hasTokenData
+              ? 'Click to generate test suggestions (token data loading...)'
               : !canAfford('suggestTests')
               ? `Insufficient tokens (need ${estimatedCost?.toLocaleString() || 'N/A'}, have ${tokenUsage?.remaining.toLocaleString() || 0})`
               : 'Generate AI test suggestions'
