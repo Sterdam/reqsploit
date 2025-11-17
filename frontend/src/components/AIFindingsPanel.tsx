@@ -10,7 +10,8 @@
  * - Statistics dashboard
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   Shield,
   Filter,
@@ -42,8 +43,18 @@ export function AIFindingsPanel() {
   const [searchTerm, setSearchTerm] = useState('');
   const [showExportMenu, setShowExportMenu] = useState(false);
 
+  const parentRef = useRef<HTMLDivElement>(null);
+
   const findings = useMemo(() => getFilteredFindings(), [getFilteredFindings, filter, searchTerm]);
   const stats = useMemo(() => getStats(), [getStats]);
+
+  // Virtual scrolling for performance with large lists
+  const rowVirtualizer = useVirtualizer({
+    count: findings.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 180, // Estimated height of VulnerabilityCard
+    overscan: 5, // Render 5 extra items above/below viewport
+  });
 
   const handleSeverityFilter = (severity: FindingFilter['severity']) => {
     setFilter({ severity: severity === filter.severity ? null : severity });
@@ -297,8 +308,8 @@ export function AIFindingsPanel() {
         </div>
       )}
 
-      {/* Findings List */}
-      <div className="flex-1 overflow-y-auto px-6 py-4">
+      {/* Findings List with Virtual Scrolling */}
+      <div ref={parentRef} className="flex-1 overflow-y-auto px-6 py-4">
         {findings.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center text-gray-400">
             <BarChart3 className="w-16 h-16 mb-4 opacity-50" />
@@ -312,17 +323,39 @@ export function AIFindingsPanel() {
             </p>
           </div>
         ) : (
-          <div className="space-y-3">
-            {findings.map((finding) => (
-              <VulnerabilityCard
-                key={finding.id}
-                finding={finding}
-                onViewRequest={(requestId) => {
-                  console.log('View request:', requestId);
-                  // TODO: Navigate to request in appropriate panel
-                }}
-              />
-            ))}
+          <div
+            style={{
+              height: `${rowVirtualizer.getTotalSize()}px`,
+              width: '100%',
+              position: 'relative',
+            }}
+          >
+            {rowVirtualizer.getVirtualItems().map((virtualItem) => {
+              const finding = findings[virtualItem.index];
+              return (
+                <div
+                  key={virtualItem.key}
+                  data-index={virtualItem.index}
+                  ref={rowVirtualizer.measureElement}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    transform: `translateY(${virtualItem.start}px)`,
+                  }}
+                  className="pb-3"
+                >
+                  <VulnerabilityCard
+                    finding={finding}
+                    onViewRequest={(requestId) => {
+                      console.log('View request:', requestId);
+                      // TODO: Navigate to request in appropriate panel
+                    }}
+                  />
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
