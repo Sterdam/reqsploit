@@ -5,6 +5,8 @@ import { authenticateToken } from '../middlewares/auth.middleware.js';
 import { asyncHandler } from '../../utils/errors.js';
 import { validate } from '../../utils/validators.js';
 import { proxySessionSettingsSchema } from '../../utils/validators.js';
+import { prisma } from '../../db.js';
+import { NotFoundError } from '../../utils/errors.js';
 
 const router = Router();
 
@@ -175,6 +177,40 @@ router.get(
       data: {
         activeSessionsCount: count,
       },
+    });
+  })
+);
+
+/**
+ * DELETE /proxy/request/:requestId
+ * Delete a single request log
+ */
+router.delete(
+  '/request/:requestId',
+  asyncHandler(async (req: Request, res: Response) => {
+    const userId = req.user!.id;
+    const { requestId } = req.params;
+
+    // Verify ownership before deletion
+    const request = await prisma.requestLog.findFirst({
+      where: {
+        id: requestId,
+        userId, // User-scoped security
+      },
+    });
+
+    if (!request) {
+      throw new NotFoundError('Request not found or unauthorized');
+    }
+
+    // Delete request (cascade will delete related AI analyses & vulnerabilities)
+    await prisma.requestLog.delete({
+      where: { id: requestId },
+    });
+
+    res.json({
+      success: true,
+      message: 'Request deleted successfully',
     });
   })
 );

@@ -6,7 +6,7 @@ import { useUnifiedAIStore } from '../stores/unifiedAIStore';
 import { ContextMenu, type ContextMenuItem } from './common';
 import { FilterDomainsModal } from './FilterDomainsModal';
 import { Copy, Send, Trash2, ArrowUpDown, Clock, AlertCircle, Filter, FilterX, Shield, Zap, AlertTriangle, CheckCircle, Info, XOctagon } from 'lucide-react';
-import { aiAPI } from '../lib/api';
+import { aiAPI, proxyAPI } from '../lib/api';
 
 const ITEMS_PER_PAGE = 100;
 
@@ -19,6 +19,7 @@ export function RequestList() {
     setFilter,
     getFilteredRequests,
     clearRequests,
+    deleteRequest,
     requests,
     domainFiltersEnabled,
     toggleDomainFilters,
@@ -788,10 +789,17 @@ export function RequestList() {
           {
             label: 'Delete',
             icon: <Trash2 size={14} />,
-            onClick: () => {
-              // TODO: Implement delete single request
-              console.log('Delete request:', request.id);
-              setContextMenu(null);
+            onClick: async () => {
+              if (confirm(`Delete request to ${request.url}?`)) {
+                try {
+                  await proxyAPI.deleteRequest(request.id);
+                  deleteRequest(request.id);
+                  setContextMenu(null);
+                } catch (error) {
+                  console.error('Failed to delete request:', error);
+                  alert(error instanceof Error ? error.message : 'Failed to delete request');
+                }
+              }
             },
           },
         ];

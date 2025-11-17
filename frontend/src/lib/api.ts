@@ -210,6 +210,10 @@ export const proxyAPI = {
     const response = await api.get('/proxy/sessions/active');
     return response.data.data.activeSessionsCount;
   },
+
+  deleteRequest: async (requestId: string): Promise<void> => {
+    await api.delete(`/proxy/request/${requestId}`);
+  },
 };
 
 // ============================================

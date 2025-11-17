@@ -277,6 +277,10 @@ router.get(
         id: analysisId,
         userId,
       },
+      include: {
+        vulnerabilities: true, // Fetch vulnerabilities relation
+        requestLog: true, // Include request details for context
+      },
     });
 
     if (!analysis) {
@@ -289,11 +293,13 @@ router.get(
         analysisId: analysis.id,
         requestId: analysis.requestLogId,
         analysisType: analysis.mode,
-        vulnerabilities: [], // TODO: Fetch from relation
+        vulnerabilities: analysis.vulnerabilities, // Return actual vulnerabilities
         suggestions: analysis.suggestions,
         tokensUsed: analysis.tokensUsed,
-        model: 'unknown', // TODO: Store model in schema
+        model: analysis.model || 'unknown', // Return stored model (added in schema)
         timestamp: analysis.createdAt,
+        requestUrl: analysis.requestLog.url, // Include request URL for context
+        requestMethod: analysis.requestLog.method, // Include method for context
       },
     });
   })

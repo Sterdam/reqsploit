@@ -24,10 +24,14 @@ import {
   Table,
 } from 'lucide-react';
 import { useUnifiedAIStore } from '../stores/unifiedAIStore';
+import { useRequestsStore } from '../stores/requestsStore';
+import { useWorkflowStore } from '../stores/workflowStore';
 import { VulnerabilityCard } from './VulnerabilityCard';
 import type { FindingFilter, AISource } from '../stores/unifiedAIStore';
 
 export function AIFindingsPanel() {
+  const { selectRequest } = useRequestsStore();
+  const { setActivePanel } = useWorkflowStore();
   const {
     getFilteredFindings,
     filter,
@@ -349,8 +353,11 @@ export function AIFindingsPanel() {
                   <VulnerabilityCard
                     finding={finding}
                     onViewRequest={(requestId) => {
-                      console.log('View request:', requestId);
-                      // TODO: Navigate to request in appropriate panel
+                      // Select the request in the store
+                      selectRequest(requestId);
+
+                      // Navigate to history panel to view the request details
+                      setActivePanel('history');
                     }}
                   />
                 </div>

@@ -19,7 +19,7 @@ export interface BatchSuggestion {
   groups: RequestGroup[];
   totalRequests: number;
   suggestedBatches: number;
-  estimatedTimeS saving: number;
+  estimatedTimeSaving: number;
 }
 
 class RequestGrouperService {

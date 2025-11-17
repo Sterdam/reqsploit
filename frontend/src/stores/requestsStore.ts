@@ -158,6 +158,7 @@ interface RequestsState {
   addRequest: (request: HTTPRequest) => void;
   updateRequest: (requestId: string, updates: Partial<HTTPRequest>) => void;
   selectRequest: (requestId: string | null) => void;
+  deleteRequest: (requestId: string) => void;
   clearRequests: () => void;
   setFilter: (filter: Partial<RequestsState['filter']>) => void;
   getFilteredRequests: () => HTTPRequest[];
@@ -255,6 +256,29 @@ export const useRequestsStore = create<RequestsState>()(
 
         const request = get().requests.find((r) => r.id === requestId);
         set({ selectedRequest: request || null });
+      },
+
+      // Delete a single request
+      deleteRequest: (requestId: string) => {
+        set((state) => {
+          const newRequests = state.requests.filter((r) => r.id !== requestId);
+          const newSelectedRequest = state.selectedRequest?.id === requestId ? null : state.selectedRequest;
+
+          // Also remove from selection if selected
+          const newSelectedIds = new Set(state.selectedRequestIds);
+          newSelectedIds.delete(requestId);
+
+          // Remove AI analysis for this request
+          const newAiAnalyses = new Map(state.aiAnalyses);
+          newAiAnalyses.delete(requestId);
+
+          return {
+            requests: newRequests,
+            selectedRequest: newSelectedRequest,
+            selectedRequestIds: newSelectedIds,
+            aiAnalyses: newAiAnalyses,
+          };
+        });
       },
 
       // Clear all requests

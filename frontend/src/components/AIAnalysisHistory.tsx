@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { aiAPI, type AIAnalysis } from '../lib/api';
 import { useAIStore } from '../stores/aiStore';
+import { useAuthStore } from '../stores/authStore';
 import { AnalysisComparisonView } from './AnalysisComparisonView';
 
 interface AIAnalysisHistoryProps {
@@ -152,8 +153,9 @@ export function AIAnalysisHistory({ isOpen, onClose }: AIAnalysisHistoryProps) {
   };
 
   const getRetentionInfo = (): { days: number; label: string } => {
-    // This would come from user's plan in production
-    const plan = 'FREE' as 'FREE' | 'PRO' | 'ENTERPRISE'; // TODO: Get from auth store
+    // Get user's plan from auth store
+    const { user } = useAuthStore();
+    const plan = user?.plan || 'FREE';
 
     if (plan === 'PRO') {
       return { days: 30, label: '30 days' };
