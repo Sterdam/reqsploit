@@ -22,9 +22,11 @@ import {
   Clock,
   Filter,
   ChevronRight,
+  GitCompare,
 } from 'lucide-react';
 import { aiAPI, type AIAnalysis } from '../lib/api';
 import { useAIStore } from '../stores/aiStore';
+import { AnalysisComparisonView } from './AnalysisComparisonView';
 
 interface AIAnalysisHistoryProps {
   isOpen: boolean;
@@ -40,6 +42,9 @@ export function AIAnalysisHistory({ isOpen, onClose }: AIAnalysisHistoryProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [severityFilter, setSeverityFilter] = useState<SeverityFilter>('all');
   const [sortBy, setSortBy] = useState<'date' | 'severity'>('date');
+  const [compareMode, setCompareMode] = useState(false);
+  const [selectedForCompare, setSelectedForCompare] = useState<AIAnalysis[]>([]);
+  const [showComparison, setShowComparison] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -60,8 +65,39 @@ export function AIAnalysisHistory({ isOpen, onClose }: AIAnalysisHistoryProps) {
   };
 
   const handleSelectAnalysis = (analysis: AIAnalysis) => {
-    setActiveAnalysis(analysis, true);
-    onClose();
+    if (compareMode) {
+      // In compare mode, toggle selection
+      const isSelected = selectedForCompare.some(a => a.analysisId === analysis.analysisId);
+      if (isSelected) {
+        setSelectedForCompare(selectedForCompare.filter(a => a.analysisId !== analysis.analysisId));
+      } else if (selectedForCompare.length < 2) {
+        setSelectedForCompare([...selectedForCompare, analysis]);
+      }
+    } else {
+      // Normal mode - load analysis
+      setActiveAnalysis(analysis, true);
+      onClose();
+    }
+  };
+
+  const handleStartCompare = () => {
+    setCompareMode(true);
+    setSelectedForCompare([]);
+  };
+
+  const handleCancelCompare = () => {
+    setCompareMode(false);
+    setSelectedForCompare([]);
+  };
+
+  const handleCompare = () => {
+    if (selectedForCompare.length === 2) {
+      setShowComparison(true);
+    }
+  };
+
+  const isSelected = (analysis: AIAnalysis) => {
+    return selectedForCompare.some(a => a.analysisId === analysis.analysisId);
   };
 
   const getSeverityColor = (severity: string) => {
@@ -182,16 +218,52 @@ export function AIAnalysisHistory({ isOpen, onClose }: AIAnalysisHistoryProps) {
             <div>
               <h2 className="text-lg font-bold text-white">Analysis History</h2>
               <p className="text-xs text-gray-400">
-                Retention: {retention.label} • {filteredAnalyses.length} analyses
+                {compareMode ? (
+                  <>Select 2 analyses to compare • {selectedForCompare.length}/2 selected</>
+                ) : (
+                  <>Retention: {retention.label} • {filteredAnalyses.length} analyses</>
+                )}
               </p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-white/10 rounded-lg transition text-gray-400 hover:text-white"
-          >
-            <X className="w-5 h-5" />
-          </button>
+
+          <div className="flex items-center gap-2">
+            {compareMode ? (
+              <>
+                <button
+                  onClick={handleCompare}
+                  disabled={selectedForCompare.length !== 2}
+                  className="px-4 py-2 bg-electric-blue hover:bg-electric-blue/80 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition flex items-center gap-2"
+                >
+                  <GitCompare className="w-4 h-4" />
+                  Compare ({selectedForCompare.length}/2)
+                </button>
+                <button
+                  onClick={handleCancelCompare}
+                  className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg text-sm font-medium transition"
+                >
+                  Cancel
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={handleStartCompare}
+                  disabled={filteredAnalyses.length < 2}
+                  className="px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition flex items-center gap-2"
+                >
+                  <GitCompare className="w-4 h-4" />
+                  Compare
+                </button>
+                <button
+                  onClick={onClose}
+                  className="p-2 hover:bg-white/10 rounded-lg transition text-gray-400 hover:text-white"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </>
+            )}
+          </div>
         </div>
 
         {/* Filters */}
@@ -266,7 +338,11 @@ export function AIAnalysisHistory({ isOpen, onClose }: AIAnalysisHistoryProps) {
                 <button
                   key={analysis.analysisId}
                   onClick={() => handleSelectAnalysis(analysis)}
-                  className="w-full p-3 bg-[#0D1F2D] hover:bg-[#162C3D] border border-white/10 hover:border-white/20 rounded-lg transition text-left group"
+                  className={`w-full p-3 bg-[#0D1F2D] hover:bg-[#162C3D] border rounded-lg transition text-left group ${
+                    isSelected(analysis)
+                      ? 'border-electric-blue bg-electric-blue/10'
+                      : 'border-white/10 hover:border-white/20'
+                  }`}
                 >
                   <div className="flex items-start gap-3">
                     {/* Severity indicator */}
@@ -336,6 +412,19 @@ export function AIAnalysisHistory({ isOpen, onClose }: AIAnalysisHistoryProps) {
           </button>
         </div>
       </div>
+
+      {/* Comparison Modal */}
+      {showComparison && selectedForCompare.length === 2 && (
+        <AnalysisComparisonView
+          baseline={selectedForCompare[0]}
+          current={selectedForCompare[1]}
+          onClose={() => {
+            setShowComparison(false);
+            setCompareMode(false);
+            setSelectedForCompare([]);
+          }}
+        />
+      )}
     </div>
   );
 }
