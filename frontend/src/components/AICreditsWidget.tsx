@@ -1,6 +1,7 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useAIStore } from '../stores/aiStore';
-import { Sparkles, RefreshCw, Settings } from 'lucide-react';
+import { Sparkles, RefreshCw, Settings, BarChart3 } from 'lucide-react';
+import { CostBreakdownModal } from './CostBreakdownModal';
 
 /**
  * AI Credits Widget
@@ -22,6 +23,8 @@ export function AICreditsWidget() {
     setModel,
     setMode,
   } = useAIStore();
+
+  const [showCostBreakdown, setShowCostBreakdown] = useState(false);
 
   // Fetch token usage on mount
   useEffect(() => {
@@ -168,7 +171,24 @@ export function AICreditsWidget() {
             </p>
           </div>
         )}
+
+        {/* Cost Breakdown Button */}
+        <div className="p-4 border-t border-white/10">
+          <button
+            onClick={() => setShowCostBreakdown(true)}
+            className="w-full px-3 py-2 bg-electric-blue/20 hover:bg-electric-blue/30 border border-electric-blue/40 rounded-lg text-sm text-electric-blue font-medium transition flex items-center justify-center gap-2"
+          >
+            <BarChart3 className="w-4 h-4" />
+            View Cost Breakdown
+          </button>
+        </div>
       </div>
+
+      {/* Cost Breakdown Modal */}
+      <CostBreakdownModal
+        isOpen={showCostBreakdown}
+        onClose={() => setShowCostBreakdown(false)}
+      />
     </div>
   );
 }
