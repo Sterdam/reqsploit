@@ -5,7 +5,7 @@ import { authenticateToken } from '../middlewares/auth.middleware.js';
 import { asyncHandler } from '../../utils/errors.js';
 import { validate } from '../../utils/validators.js';
 import { proxySessionSettingsSchema } from '../../utils/validators.js';
-import { prisma } from '../../db.js';
+import { prisma } from '../../lib/prisma.js';
 import { NotFoundError } from '../../utils/errors.js';
 
 const router = Router();

@@ -1426,6 +1426,7 @@ router.get(
             method: true,
           },
         },
+        vulnerabilities: true, // Include vulnerabilities for frontend
       },
     });
 
