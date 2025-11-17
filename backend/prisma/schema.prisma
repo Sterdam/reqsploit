@@ -99,16 +99,18 @@ model User {
   updatedAt     DateTime @updatedAt
 
   // Relations
-  sessions         Session[]
-  proxySessions    ProxySession[]
-  certificates     Certificate[]
-  requestLogs      RequestLog[]
-  aiAnalyses       AIAnalysis[]
-  tokenUsage       TokenUsage[]
-  subscription      Subscription?
-  projects          Project[]
-  fuzzingCampaigns  FuzzingCampaign[]
-  repeaterTemplates RepeaterTemplate[]
+  sessions                 Session[]
+  proxySessions            ProxySession[]
+  certificates             Certificate[]
+  requestLogs              RequestLog[]
+  aiAnalyses               AIAnalysis[]
+  tokenUsage               TokenUsage[]
+  subscription             Subscription?
+  projects                 Project[]
+  fuzzingCampaigns         FuzzingCampaign[]
+  repeaterTemplates        RepeaterTemplate[]
+  dismissedVulnerabilities Vulnerability[]         @relation("DismissedVulnerabilities")
+  falsePositivePatterns    FalsePositivePattern[]  @relation("FalsePositivePatterns")
 
   @@index([email])
   @@index([plan])
@@ -250,13 +252,45 @@ model Vulnerability {
   cvss          Float?
   createdAt     DateTime          @default(now())
 
+  // False Positive Management (Module 3.1)
+  status        FindingStatus     @default(OPEN)
+  dismissedAt   DateTime?
+  dismissedBy   String?
+  dismissReason String?           @db.Text
+  confidence    Int               @default(50) // 0-100: AI confidence in this finding
+
   // Relations
-  analysis AIAnalysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+  analysis      AIAnalysis        @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+  dismissedUser User?             @relation("DismissedVulnerabilities", fields: [dismissedBy], references: [id], onDelete: SetNull)
 
   @@index([analysisId])
   @@index([type])
   @@index([severity])
+  @@index([status])
+  @@index([dismissedBy])
   @@map("vulnerabilities")
+}
+
+// False Positive Patterns (Module 3.1)
+// Stores patterns learned from dismissed vulnerabilities for auto-suppression
+model FalsePositivePattern {
+  id              String            @id @default(uuid())
+  userId          String
+  vulnerabilityType VulnerabilityType
+  pattern         Json              // Pattern matching rules (URL, headers, body patterns)
+  confidence      Int               @default(50) // 0-100: Pattern accuracy
+  matchCount      Int               @default(0) // Number of times this pattern matched
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  isActive        Boolean           @default(true)
+
+  // Relations
+  user User @relation("FalsePositivePatterns", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([vulnerabilityType])
+  @@index([isActive])
+  @@map("false_positive_patterns")
 }
 
 // Project/Target Organization

@@ -426,6 +426,55 @@ export const aiAPI = {
     const response = await aiApi.post('/ai/suggest-tests', { request, model });
     return response.data.data;
   },
+
+  // False Positive Management (Module 3.1)
+  dismissVulnerability: async (vulnerabilityId: string, reason: string, createPattern: boolean = false): Promise<void> => {
+    await aiApi.post(`/ai/vulnerabilities/${vulnerabilityId}/dismiss`, { reason, createPattern });
+  },
+
+  restoreVulnerability: async (vulnerabilityId: string): Promise<void> => {
+    await aiApi.post(`/ai/vulnerabilities/${vulnerabilityId}/restore`);
+  },
+
+  getFalsePositives: async (limit: number = 100): Promise<any[]> => {
+    const response = await aiApi.get('/ai/false-positives', { params: { limit } });
+    return response.data.data;
+  },
+
+  getFalsePositivePatterns: async (activeOnly: boolean = true): Promise<any[]> => {
+    const response = await aiApi.get('/ai/false-positive-patterns', { params: { activeOnly } });
+    return response.data.data;
+  },
+
+  deleteFalsePositivePattern: async (patternId: string): Promise<void> => {
+    await aiApi.delete(`/ai/false-positive-patterns/${patternId}`);
+  },
+
+  toggleFalsePositivePattern: async (patternId: string): Promise<void> => {
+    await aiApi.patch(`/ai/false-positive-patterns/${patternId}/toggle`);
+  },
+
+  getFalsePositiveStats: async (): Promise<{
+    totalDismissed: number;
+    totalPatterns: number;
+    activePatterns: number;
+    averageConfidence: number;
+    totalMatches: number;
+  }> => {
+    const response = await aiApi.get('/ai/false-positive-stats');
+    return response.data.data;
+  },
+
+  // Smart Batch Suggestions (Module 3.3)
+  suggestBatches: async (requestIds: string[]): Promise<any> => {
+    const response = await aiApi.post('/ai/suggest-batches', { requestIds });
+    return response.data.data;
+  },
+
+  getGroupDetails: async (requestIds: string[]): Promise<any> => {
+    const response = await aiApi.post('/ai/group-details', { requestIds });
+    return response.data.data;
+  },
 };
 
 // ============================================

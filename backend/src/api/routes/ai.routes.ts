@@ -9,6 +9,8 @@ import { aiPricingService } from '../../services/ai-pricing.service.js';
 import { proxySessionManager } from '../../core/proxy/session-manager.js';
 import { RequestLogService } from '../../services/request-log.service.js';
 import pLimit from 'p-limit';
+import { falsePositiveService } from '../../services/false-positive.service.js';
+import { requestGrouperService } from '../../services/request-grouper.service.js';
 
 const router = Router();
 const requestLogService = new RequestLogService(prisma);
@@ -1583,6 +1585,201 @@ router.post(
         current: formatAnalysis(current),
       },
       message: 'Analyses retrieved for comparison',
+    });
+  })
+);
+
+// ============================================
+// FALSE POSITIVE MANAGEMENT (Module 3.1)
+// ============================================
+
+/**
+ * POST /ai/vulnerabilities/:vulnerabilityId/dismiss
+ * Dismiss a vulnerability as false positive
+ */
+router.post(
+  '/vulnerabilities/:vulnerabilityId/dismiss',
+  asyncHandler(async (req: Request, res: Response) => {
+    const userId = req.user!.id;
+    const { vulnerabilityId } = req.params;
+    const { reason, createPattern = false } = req.body;
+
+    if (!reason || reason.trim().length === 0) {
+      throw new NotFoundError('Dismiss reason is required');
+    }
+
+    await falsePositiveService.dismissVulnerability(userId, vulnerabilityId, reason, createPattern);
+
+    res.json({
+      success: true,
+      message: 'Vulnerability dismissed as false positive',
+    });
+  })
+);
+
+/**
+ * POST /ai/vulnerabilities/:vulnerabilityId/restore
+ * Restore a dismissed vulnerability
+ */
+router.post(
+  '/vulnerabilities/:vulnerabilityId/restore',
+  asyncHandler(async (req: Request, res: Response) => {
+    const { vulnerabilityId } = req.params;
+
+    await falsePositiveService.restoreVulnerability(vulnerabilityId);
+
+    res.json({
+      success: true,
+      message: 'Vulnerability restored',
+    });
+  })
+);
+
+/**
+ * GET /ai/false-positives
+ * Get all dismissed vulnerabilities for current user
+ */
+router.get(
+  '/false-positives',
+  asyncHandler(async (req: Request, res: Response) => {
+    const userId = req.user!.id;
+    const limit = parseInt(req.query.limit as string) || 100;
+
+    const dismissed = await falsePositiveService.getDismissedVulnerabilities(userId, limit);
+
+    res.json({
+      success: true,
+      data: dismissed,
+      message: 'Dismissed vulnerabilities retrieved',
+    });
+  })
+);
+
+/**
+ * GET /ai/false-positive-patterns
+ * Get all false positive patterns for current user
+ */
+router.get(
+  '/false-positive-patterns',
+  asyncHandler(async (req: Request, res: Response) => {
+    const userId = req.user!.id;
+    const activeOnly = req.query.activeOnly === 'true';
+
+    const patterns = await falsePositiveService.getUserPatterns(userId, activeOnly);
+
+    res.json({
+      success: true,
+      data: patterns,
+      message: 'False positive patterns retrieved',
+    });
+  })
+);
+
+/**
+ * DELETE /ai/false-positive-patterns/:patternId
+ * Delete a false positive pattern
+ */
+router.delete(
+  '/false-positive-patterns/:patternId',
+  asyncHandler(async (req: Request, res: Response) => {
+    const userId = req.user!.id;
+    const { patternId } = req.params;
+
+    await falsePositiveService.deletePattern(userId, patternId);
+
+    res.json({
+      success: true,
+      message: 'Pattern deleted',
+    });
+  })
+);
+
+/**
+ * PATCH /ai/false-positive-patterns/:patternId/toggle
+ * Toggle pattern active status
+ */
+router.patch(
+  '/false-positive-patterns/:patternId/toggle',
+  asyncHandler(async (req: Request, res: Response) => {
+    const userId = req.user!.id;
+    const { patternId } = req.params;
+
+    await falsePositiveService.togglePatternStatus(userId, patternId);
+
+    res.json({
+      success: true,
+      message: 'Pattern status toggled',
+    });
+  })
+);
+
+/**
+ * GET /ai/false-positive-stats
+ * Get false positive statistics for current user
+ */
+router.get(
+  '/false-positive-stats',
+  asyncHandler(async (req: Request, res: Response) => {
+    const userId = req.user!.id;
+
+    const stats = await falsePositiveService.getFalsePositiveStats(userId);
+
+    res.json({
+      success: true,
+      data: stats,
+      message: 'False positive statistics retrieved',
+    });
+  })
+);
+
+// ============================================
+// SMART BATCH SUGGESTIONS (Module 3.3)
+// ============================================
+
+/**
+ * POST /ai/suggest-batches
+ * Get smart batching suggestions for a list of requests
+ */
+router.post(
+  '/suggest-batches',
+  asyncHandler(async (req: Request, res: Response) => {
+    const userId = req.user!.id;
+    const { requestIds } = req.body;
+
+    if (!Array.isArray(requestIds) || requestIds.length === 0) {
+      throw new NotFoundError('Request IDs array required');
+    }
+
+    const suggestions = await requestGrouperService.suggestBatches(userId, requestIds);
+
+    res.json({
+      success: true,
+      data: suggestions,
+      message: `Found ${suggestions.suggestedBatches} suggested batch groups`,
+    });
+  })
+);
+
+/**
+ * POST /ai/group-details
+ * Get detailed information about a specific group
+ */
+router.post(
+  '/group-details',
+  asyncHandler(async (req: Request, res: Response) => {
+    const userId = req.user!.id;
+    const { requestIds } = req.body;
+
+    if (!Array.isArray(requestIds)) {
+      throw new NotFoundError('Request IDs array required');
+    }
+
+    const details = await requestGrouperService.getGroupDetails(userId, requestIds);
+
+    res.json({
+      success: true,
+      data: details,
+      message: 'Group details retrieved',
     });
   })
 );
