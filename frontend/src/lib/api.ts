@@ -331,9 +331,29 @@ export const aiAPI = {
     return response.data.data;
   },
 
-  getHistory: async (limit: number = 50): Promise<AIAnalysis[]> => {
-    const response = await aiApi.get('/ai/history', { params: { limit } });
-    return response.data.data.analyses;
+  getHistory: async (limit: number = 100, requestId?: string): Promise<AIAnalysis[]> => {
+    const params: any = { limit };
+    if (requestId) params.requestId = requestId;
+    const response = await aiApi.get('/ai/history', { params });
+    return response.data.data;
+  },
+
+  getUsageHistory: async (days: number = 30): Promise<{
+    history: Array<{ date: string; tokensUsed: number; actions: number; byType: Record<string, number> }>;
+    totalTokens: number;
+    totalActions: number;
+    period: number;
+  }> => {
+    const response = await aiApi.get('/ai/usage-history', { params: { days } });
+    return response.data.data;
+  },
+
+  compareAnalyses: async (baselineId: string, currentId: string): Promise<{
+    baseline: AIAnalysis;
+    current: AIAnalysis;
+  }> => {
+    const response = await aiApi.post('/ai/history/compare', { baselineId, currentId });
+    return response.data.data;
   },
 
   getTokenUsage: async (): Promise<TokenUsage> => {

@@ -10,7 +10,7 @@
  * - Daily/weekly/monthly usage stats
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   X,
   DollarSign,
@@ -22,6 +22,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { useAIStore } from '../stores/aiStore';
+import { aiAPI } from '../lib/api';
 
 interface CostBreakdownModalProps {
   isOpen: boolean;
@@ -36,57 +37,92 @@ interface ActionStats {
   percentage: number;
 }
 
-// Mock historical data - would come from backend in production
-const mockUsageHistory = [
-  { date: '2025-11-10', tokensUsed: 45000, actions: 12 },
-  { date: '2025-11-11', tokensUsed: 52000, actions: 15 },
-  { date: '2025-11-12', tokensUsed: 38000, actions: 10 },
-  { date: '2025-11-13', tokensUsed: 61000, actions: 18 },
-  { date: '2025-11-14', tokensUsed: 48000, actions: 14 },
-  { date: '2025-11-15', tokensUsed: 55000, actions: 16 },
-  { date: '2025-11-16', tokensUsed: 72000, actions: 22 },
-  { date: '2025-11-17', tokensUsed: 29000, actions: 8 }, // Today (partial)
-];
-
 export function CostBreakdownModal({ isOpen, onClose }: CostBreakdownModalProps) {
   const { tokenUsage, actionCosts, model } = useAIStore();
   const [selectedTab, setSelectedTab] = useState<'breakdown' | 'comparison' | 'predictions'>('breakdown');
+  const [usageHistory, setUsageHistory] = useState<Array<{ date: string; tokensUsed: number; actions: number; byType: Record<string, number> }>>([]);
+
+  // Load usage history from backend
+  useEffect(() => {
+    if (isOpen) {
+      loadUsageHistory();
+    }
+  }, [isOpen]);
+
+  const loadUsageHistory = async () => {
+    try {
+      const data = await aiAPI.getUsageHistory(30);
+      setUsageHistory(data.history);
+    } catch (error) {
+      console.error('Failed to load usage history:', error);
+      // Use fallback mock data if API fails
+      setUsageHistory([
+        { date: '2025-11-10', tokensUsed: 45000, actions: 12, byType: {} },
+        { date: '2025-11-11', tokensUsed: 52000, actions: 15, byType: {} },
+        { date: '2025-11-12', tokensUsed: 38000, actions: 10, byType: {} },
+        { date: '2025-11-13', tokensUsed: 61000, actions: 18, byType: {} },
+        { date: '2025-11-14', tokensUsed: 48000, actions: 14, byType: {} },
+        { date: '2025-11-15', tokensUsed: 55000, actions: 16, byType: {} },
+        { date: '2025-11-16', tokensUsed: 72000, actions: 22, byType: {} },
+        { date: '2025-11-17', tokensUsed: 29000, actions: 8, byType: {} },
+      ]);
+    }
+  };
 
   // Calculate action statistics
   const actionStats: ActionStats[] = useMemo(() => {
-    if (!actionCosts.length) return [];
+    if (!actionCosts.length || !usageHistory.length) return [];
 
-    const totalUsed = mockUsageHistory.reduce((sum, day) => sum + day.tokensUsed, 0);
+    const totalUsed = usageHistory.reduce((sum, day) => sum + day.tokensUsed, 0);
 
-    // Estimate usage distribution by action type (would be real data from backend)
-    const estimatedUsage = actionCosts.map((action) => {
-      // Simplified estimation - in production, track real usage per action
-      const basePercentage = action.action === 'analyzeRequest' ? 0.25 :
-                            action.action === 'securityCheck' ? 0.20 :
-                            action.action === 'explain' ? 0.15 :
-                            action.action === 'generateExploits' ? 0.15 :
-                            action.action === 'suggestTests' ? 0.10 :
-                            0.05;
+    // Aggregate usage by type from history
+    const usageByType: Record<string, { count: number; tokensUsed: number }> = {};
 
-      const tokensUsed = Math.round(totalUsed * basePercentage);
-      const count = Math.round(mockUsageHistory.reduce((sum, day) => sum + day.actions, 0) * basePercentage);
+    usageHistory.forEach((day) => {
+      Object.entries(day.byType || {}).forEach(([type, count]) => {
+        if (!usageByType[type]) {
+          usageByType[type] = { count: 0, tokensUsed: 0 };
+        }
+        usageByType[type].count += count;
+        // Estimate tokens used (proportional distribution)
+        const typePercentage = count / day.actions;
+        usageByType[type].tokensUsed += Math.round(day.tokensUsed * typePercentage);
+      });
+    });
+
+    // Map to action costs
+    const stats = actionCosts.map((action) => {
+      const usage = usageByType[action.action] || { count: 0, tokensUsed: 0 };
+      const percentage = totalUsed > 0 ? (usage.tokensUsed / totalUsed) * 100 : 0;
 
       return {
         action: formatActionName(action.action),
-        count,
-        tokensUsed,
-        cost: action.haiku, // Use haiku as base cost
-        percentage: basePercentage * 100,
+        count: usage.count,
+        tokensUsed: usage.tokensUsed,
+        cost: action.haiku,
+        percentage,
       };
     });
 
-    return estimatedUsage.sort((a, b) => b.tokensUsed - a.tokensUsed);
-  }, [actionCosts]);
+    return stats.filter(s => s.count > 0).sort((a, b) => b.tokensUsed - a.tokensUsed);
+  }, [actionCosts, usageHistory]);
 
   // Calculate predictions
   const predictions = useMemo(() => {
-    const recentAverage = mockUsageHistory.slice(-7).reduce((sum, day) => sum + day.tokensUsed, 0) / 7;
-    const dailyAverage = mockUsageHistory.reduce((sum, day) => sum + day.tokensUsed, 0) / mockUsageHistory.length;
+    if (!usageHistory.length) {
+      return {
+        dailyAverage: 0,
+        projectedTotal: 0,
+        projectedRemaining: tokenUsage?.remaining || 0,
+        daysUntilReset: 30,
+        trend: 'down' as const,
+        trendPercentage: 0,
+        willExceed: false,
+      };
+    }
+
+    const recentAverage = usageHistory.slice(-7).reduce((sum, day) => sum + day.tokensUsed, 0) / Math.min(7, usageHistory.length);
+    const dailyAverage = usageHistory.reduce((sum, day) => sum + day.tokensUsed, 0) / usageHistory.length;
 
     const limit = tokenUsage?.limit || 100000;
     const remaining = tokenUsage?.remaining || 0;
@@ -108,7 +144,7 @@ export function CostBreakdownModal({ isOpen, onClose }: CostBreakdownModalProps)
       trendPercentage: Math.round(trendPercentage),
       willExceed: projectedTotal > limit,
     };
-  }, [tokenUsage]);
+  }, [tokenUsage, usageHistory]);
 
   // Model comparison data
   const modelComparison = useMemo(() => {
@@ -204,7 +240,7 @@ export function CostBreakdownModal({ isOpen, onClose }: CostBreakdownModalProps)
                 <div className="p-4 bg-[#0D1F2D] border border-white/10 rounded-lg">
                   <div className="text-xs text-gray-400 mb-1">Total Used (Period)</div>
                   <div className="text-2xl font-bold text-white">
-                    {mockUsageHistory.reduce((sum, day) => sum + day.tokensUsed, 0).toLocaleString()}
+                    {usageHistory.reduce((sum, day) => sum + day.tokensUsed, 0).toLocaleString()}
                   </div>
                   <div className="text-xs text-gray-500 mt-1">tokens</div>
                 </div>
@@ -222,7 +258,7 @@ export function CostBreakdownModal({ isOpen, onClose }: CostBreakdownModalProps)
                 <div className="p-4 bg-[#0D1F2D] border border-white/10 rounded-lg">
                   <div className="text-xs text-gray-400 mb-1">Total Actions</div>
                   <div className="text-2xl font-bold text-white">
-                    {mockUsageHistory.reduce((sum, day) => sum + day.actions, 0)}
+                    {usageHistory.reduce((sum, day) => sum + day.actions, 0)}
                   </div>
                   <div className="text-xs text-gray-500 mt-1">API calls</div>
                 </div>
@@ -394,8 +430,8 @@ export function CostBreakdownModal({ isOpen, onClose }: CostBreakdownModalProps)
               <div>
                 <h3 className="text-sm font-semibold text-white mb-3">Daily Usage Trend</h3>
                 <div className="space-y-2">
-                  {mockUsageHistory.map((day) => {
-                    const maxTokens = Math.max(...mockUsageHistory.map(d => d.tokensUsed));
+                  {usageHistory.map((day) => {
+                    const maxTokens = Math.max(...usageHistory.map(d => d.tokensUsed), 1);
                     const percentage = (day.tokensUsed / maxTokens) * 100;
 
                     return (

@@ -1363,4 +1363,202 @@ Generate comprehensive security test suggestions for this request.`;
   })
 );
 
+/**
+ * GET /ai/history
+ * Get analysis history for current user
+ */
+router.get(
+  '/history',
+  asyncHandler(async (req: Request, res: Response) => {
+    const userId = req.user!.id;
+    const { limit = '100', requestId } = req.query;
+
+    const where: any = { userId };
+    if (requestId) {
+      where.requestLogId = requestId as string;
+    }
+
+    // Get analyses from database
+    const analyses = await prisma.aIAnalysis.findMany({
+      where,
+      orderBy: {
+        createdAt: 'desc',
+      },
+      take: parseInt(limit as string),
+      include: {
+        requestLog: {
+          select: {
+            url: true,
+            method: true,
+          },
+        },
+      },
+    });
+
+    // Transform to frontend format
+    const formattedAnalyses = analyses.map((analysis) => ({
+      analysisId: analysis.id,
+      requestId: analysis.requestLogId,
+      requestUrl: analysis.requestLog?.url || 'Unknown',
+      requestMethod: analysis.requestLog?.method || 'GET',
+      analysisType: analysis.analysisType,
+      vulnerabilities: analysis.vulnerabilities as any[],
+      suggestions: analysis.suggestions as any[],
+      timestamp: analysis.createdAt.toISOString(),
+      confidence: analysis.confidence || 0,
+      tokensUsed: analysis.tokensUsed || 0,
+    }));
+
+    res.json({
+      success: true,
+      data: formattedAnalyses,
+      message: 'Analysis history retrieved successfully',
+    });
+  })
+);
+
+/**
+ * GET /ai/usage-history
+ * Get token usage history for analytics
+ */
+router.get(
+  '/usage-history',
+  asyncHandler(async (req: Request, res: Response) => {
+    const userId = req.user!.id;
+    const { days = '30' } = req.query;
+
+    const daysCount = parseInt(days as string);
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - daysCount);
+
+    // Get analyses grouped by day
+    const analyses = await prisma.aIAnalysis.findMany({
+      where: {
+        userId,
+        createdAt: {
+          gte: startDate,
+        },
+      },
+      select: {
+        createdAt: true,
+        tokensUsed: true,
+        analysisType: true,
+      },
+      orderBy: {
+        createdAt: 'asc',
+      },
+    });
+
+    // Group by day
+    const dailyUsage: Record<string, { date: string; tokensUsed: number; actions: number; byType: Record<string, number> }> = {};
+
+    analyses.forEach((analysis) => {
+      const dateKey = analysis.createdAt.toISOString().split('T')[0];
+
+      if (!dailyUsage[dateKey]) {
+        dailyUsage[dateKey] = {
+          date: dateKey,
+          tokensUsed: 0,
+          actions: 0,
+          byType: {},
+        };
+      }
+
+      dailyUsage[dateKey].tokensUsed += analysis.tokensUsed || 0;
+      dailyUsage[dateKey].actions += 1;
+
+      const type = analysis.analysisType || 'unknown';
+      dailyUsage[dateKey].byType[type] = (dailyUsage[dateKey].byType[type] || 0) + 1;
+    });
+
+    // Convert to array and sort by date
+    const usageHistory = Object.values(dailyUsage).sort((a, b) =>
+      a.date.localeCompare(b.date)
+    );
+
+    res.json({
+      success: true,
+      data: {
+        history: usageHistory,
+        totalTokens: analyses.reduce((sum, a) => sum + (a.tokensUsed || 0), 0),
+        totalActions: analyses.length,
+        period: daysCount,
+      },
+      message: 'Usage history retrieved successfully',
+    });
+  })
+);
+
+/**
+ * POST /ai/history/compare
+ * Compare two analyses
+ */
+router.post(
+  '/history/compare',
+  asyncHandler(async (req: Request, res: Response) => {
+    const userId = req.user!.id;
+    const { baselineId, currentId } = req.body;
+
+    if (!baselineId || !currentId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Both baselineId and currentId are required',
+      });
+    }
+
+    // Get both analyses
+    const [baseline, current] = await Promise.all([
+      prisma.aIAnalysis.findFirst({
+        where: { id: baselineId, userId },
+        include: {
+          requestLog: {
+            select: {
+              url: true,
+              method: true,
+            },
+          },
+        },
+      }),
+      prisma.aIAnalysis.findFirst({
+        where: { id: currentId, userId },
+        include: {
+          requestLog: {
+            select: {
+              url: true,
+              method: true,
+            },
+          },
+        },
+      }),
+    ]);
+
+    if (!baseline || !current) {
+      throw new NotFoundError('One or both analyses not found');
+    }
+
+    // Format for frontend
+    const formatAnalysis = (analysis: any) => ({
+      analysisId: analysis.id,
+      requestId: analysis.requestLogId,
+      requestUrl: analysis.requestLog?.url || 'Unknown',
+      requestMethod: analysis.requestLog?.method || 'GET',
+      analysisType: analysis.analysisType,
+      vulnerabilities: analysis.vulnerabilities as any[],
+      suggestions: analysis.suggestions as any[],
+      timestamp: analysis.createdAt.toISOString(),
+      confidence: analysis.confidence || 0,
+      tokensUsed: analysis.tokensUsed || 0,
+    });
+
+    res.json({
+      success: true,
+      data: {
+        baseline: formatAnalysis(baseline),
+        current: formatAnalysis(current),
+      },
+      message: 'Analyses retrieved for comparison',
+    });
+  })
+);
+
 export default router;
