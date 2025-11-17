@@ -384,8 +384,26 @@ export const aiAPI = {
     return response.data.data;
   },
 
-  batchAnalyze: async (requestIds: string[]): Promise<any> => {
-    const response = await aiApi.post('/ai/batch-analyze', { requestIds });
+  batchAnalyze: async (
+    requestIds: string[],
+    options?: { model?: string; concurrency?: number }
+  ): Promise<{
+    results: Array<{ requestId: string; analysis: AIAnalysis }>;
+    errors: Array<{ requestId: string; error: string }>;
+    summary: {
+      total: number;
+      successful: number;
+      failed: number;
+      duration: number;
+      averageTime: number;
+      concurrency: number;
+    };
+  }> => {
+    const response = await aiApi.post('/ai/batch-analyze', {
+      requestIds,
+      model: options?.model || 'auto',
+      concurrency: options?.concurrency || 5,
+    });
     return response.data.data;
   },
 

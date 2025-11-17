@@ -36,7 +36,7 @@ export function RequestList() {
     getSelectedRequests,
   } = useRequestsStore();
   const { createTab } = useRepeaterStore();
-  const { canAfford, setActiveAnalysis, setIsAnalyzing } = useAIStore();
+  const { canAfford, setActiveAnalysis, setIsAnalyzing, model } = useAIStore();
   const [search, setSearch] = useState('');
   const [methodFilter, setMethodFilter] = useState<string>('');
   const listRef = useRef<HTMLDivElement>(null);
@@ -267,8 +267,12 @@ export function RequestList() {
       setBatchAnalyzing(true);
       setBatchProgress({ current: 0, total: selected.length });
 
-      const result = await aiAPI.batchAnalyze(selected.map((r) => r.id));
-      const { results, summary } = result.data;
+      // Use enhanced batch analyze with performance metrics
+      const result = await aiAPI.batchAnalyze(
+        selected.map((r) => r.id),
+        { model, concurrency: 5 }
+      );
+      const { results, summary } = result;
 
       // Store analysis results for each successful request
       results.forEach((r: any) => {
@@ -301,9 +305,16 @@ export function RequestList() {
       // Clear selection after successful analysis
       clearSelection();
 
-      // Show summary
+      // Show summary with performance metrics
+      const durationSec = (summary.duration / 1000).toFixed(1);
+      const avgTimeSec = (summary.averageTime / 1000).toFixed(2);
       alert(
-        `Batch analysis completed!\n\nSuccessful: ${summary.successful}\nFailed: ${summary.failed}\nTotal: ${summary.total}`
+        `Batch analysis completed in ${durationSec}s!\n\n` +
+        `Successful: ${summary.successful}\n` +
+        `Failed: ${summary.failed}\n` +
+        `Total: ${summary.total}\n` +
+        `Average time: ${avgTimeSec}s per request\n` +
+        `Concurrency: ${summary.concurrency} parallel requests`
       );
     } catch (error) {
       console.error('Batch analysis failed:', error);

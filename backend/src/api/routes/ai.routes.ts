@@ -8,6 +8,7 @@ import { NotFoundError } from '../../utils/errors.js';
 import { aiPricingService } from '../../services/ai-pricing.service.js';
 import { proxySessionManager } from '../../core/proxy/session-manager.js';
 import { RequestLogService } from '../../services/request-log.service.js';
+import pLimit from 'p-limit';
 
 const router = Router();
 const requestLogService = new RequestLogService(prisma);
@@ -564,60 +565,82 @@ router.post(
 
 /**
  * POST /ai/batch-analyze
- * Batch analyze multiple requests
+ * Batch analyze multiple requests with parallel processing
+ * Module 3.2: Enhanced with p-limit for 5 concurrent requests
  */
 router.post(
   '/batch-analyze',
   asyncHandler(async (req: Request, res: Response) => {
     const userId = req.user!.id;
-    const { requestIds, model = 'auto' } = req.body; // Model selection
+    const { requestIds, model = 'auto', concurrency = 5 } = req.body;
 
     if (!Array.isArray(requestIds) || requestIds.length === 0) {
       throw new NotFoundError('Request IDs array required');
     }
 
-    const results = [];
-    const errors = [];
+    // Limit concurrent analyses to prevent overwhelming the AI API
+    const limit = pLimit(Math.min(concurrency, 5));
 
-    for (const requestId of requestIds) {
-      try {
-        const requestLog = await prisma.requestLog.findFirst({
-          where: {
-            id: requestId,
+    const results: Array<{ requestId: string; analysis: any }> = [];
+    const errors: Array<{ requestId: string; error: string }> = [];
+
+    // Track progress
+    let completed = 0;
+    const startTime = Date.now();
+
+    // Process all requests in parallel with concurrency limit
+    const promises = requestIds.map((requestId: string) =>
+      limit(async () => {
+        try {
+          // Fetch request log
+          const requestLog = await prisma.requestLog.findFirst({
+            where: {
+              id: requestId,
+              userId,
+            },
+          });
+
+          if (!requestLog) {
+            errors.push({ requestId, error: 'Request not found' });
+            completed++;
+            return;
+          }
+
+          // Analyze request
+          const analysis = await aiAnalyzer.analyzeRequest(
             userId,
-          },
-        });
+            requestId,
+            {
+              id: requestLog.id,
+              method: requestLog.method,
+              url: requestLog.url,
+              headers: requestLog.headers as Record<string, string>,
+              body: requestLog.body || undefined,
+              timestamp: requestLog.timestamp,
+            },
+            model
+          );
 
-        if (!requestLog) {
-          errors.push({ requestId, error: 'Request not found' });
-          continue;
+          results.push({
+            requestId,
+            analysis,
+          });
+
+          completed++;
+        } catch (error: any) {
+          errors.push({
+            requestId,
+            error: error.message || 'Analysis failed',
+          });
+          completed++;
         }
+      })
+    );
 
-        const analysis = await aiAnalyzer.analyzeRequest(
-          userId,
-          requestId,
-          {
-            id: requestLog.id,
-            method: requestLog.method,
-            url: requestLog.url,
-            headers: requestLog.headers as Record<string, string>,
-            body: requestLog.body || undefined,
-            timestamp: requestLog.timestamp,
-          },
-          model // Pass model to analyzer
-        );
+    // Wait for all promises to complete
+    await Promise.all(promises);
 
-        results.push({
-          requestId,
-          analysis,
-        });
-      } catch (error: any) {
-        errors.push({
-          requestId,
-          error: error.message || 'Analysis failed',
-        });
-      }
-    }
+    const duration = Date.now() - startTime;
 
     res.json({
       success: true,
@@ -628,9 +651,12 @@ router.post(
           total: requestIds.length,
           successful: results.length,
           failed: errors.length,
+          duration, // in milliseconds
+          averageTime: Math.round(duration / requestIds.length),
+          concurrency,
         },
       },
-      message: `Batch analysis completed: ${results.length}/${requestIds.length} successful`,
+      message: `Batch analysis completed: ${results.length}/${requestIds.length} successful in ${(duration / 1000).toFixed(1)}s`,
     });
   })
 );
