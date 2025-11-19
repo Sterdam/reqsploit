@@ -8,6 +8,10 @@ import { FilterDomainsModal } from './FilterDomainsModal';
 import { AIActionButton } from './AIActionButton';
 import { BulkActionsToolbar } from './BulkActionsToolbar';
 import { SmartFiltersPanel } from './SmartFiltersPanel';
+import { TagSelector } from './TagSelector';
+import { TagBadge } from './TagBadge';
+import { TagFilterPanel } from './TagFilterPanel';
+import { useTagStore } from '../stores/tagStore';
 import { wsService } from '../lib/websocket';
 import { aiAPI } from '../lib/api';
 import { useUnifiedAIStore } from '../stores/unifiedAIStore';
@@ -32,6 +36,7 @@ import {
   BookOpen,
   Square,
   CheckSquare,
+  Tag,
 } from 'lucide-react';
 
 export function InterceptPanel() {
@@ -58,6 +63,7 @@ export function InterceptPanel() {
   } = useInterceptStore();
   const { domainFilters, domainFiltersEnabled, toggleDomainFilters, addDomainFilter } = useRequestsStore();
   const { isAnalyzing, setIsAnalyzing, setActiveAnalysis } = useAIStore();
+  const { getTagDefinition, removeTagFromRequests, selectedTags } = useTagStore();
 
   const [activeTab, setActiveTab] = useState<'headers' | 'body'>('headers');
   const [showFilterModal, setShowFilterModal] = useState(false);
@@ -66,6 +72,9 @@ export function InterceptPanel() {
   const [domainFocusFilter, setDomainFocusFilter] = useState(''); // Focus on specific domain
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; requestId: string } | null>(null);
   const [lastClickedIndex, setLastClickedIndex] = useState<number | null>(null);
+  const [showTagSelector, setShowTagSelector] = useState(false);
+  const [tagSelectorPosition, setTagSelectorPosition] = useState({ x: 0, y: 0 });
+  const [selectedRequestForTagging, setSelectedRequestForTagging] = useState<string[]>([]);
 
   // Always-on editing state
   const [editedMethod, setEditedMethod] = useState('GET');
@@ -77,7 +86,7 @@ export function InterceptPanel() {
   const [isJsonValid, setIsJsonValid] = useState(true);
   const [hasModifications, setHasModifications] = useState(false);
 
-  // Filter queued requests by domain filters + focus filter
+  // Filter queued requests by domain filters + focus filter + tag filters
   const filteredQueuedRequests = queuedRequests.filter((req) => {
     // Apply domain focus filter first (positive filter - show ONLY this domain)
     if (domainFocusFilter.trim()) {
@@ -88,6 +97,15 @@ export function InterceptPanel() {
           return false;
         }
       } catch {
+        return false;
+      }
+    }
+
+    // Apply tag filters (if any tags selected, show only requests with those tags)
+    if (selectedTags.length > 0) {
+      const reqTags = req.tags || [];
+      const hasSelectedTag = selectedTags.some(tag => reqTags.includes(tag));
+      if (!hasSelectedTag) {
         return false;
       }
     }
@@ -161,6 +179,13 @@ export function InterceptPanel() {
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
+      // Escape: Close tag selector
+      if (e.key === 'Escape' && showTagSelector) {
+        e.preventDefault();
+        setShowTagSelector(false);
+        return;
+      }
+
       if (!selectedRequest) return;
 
       // Ctrl+F: Forward
@@ -182,7 +207,7 @@ export function InterceptPanel() {
 
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [selectedRequest, hasModifications]);
+  }, [selectedRequest, hasModifications, showTagSelector]);
 
   const handleForward = useCallback(() => {
     if (!selectedRequest) return;
@@ -530,6 +555,11 @@ export function InterceptPanel() {
               }}
             />
 
+            {/* Tag Filter Panel */}
+            <div className="px-3 py-2">
+              <TagFilterPanel />
+            </div>
+
             {/* Bulk Actions Toolbar */}
             <BulkActionsToolbar
               selectedCount={selectedRequestIds.size}
@@ -602,6 +632,25 @@ export function InterceptPanel() {
                             <span className="text-xs text-gray-500">{formatTimestamp(request.queuedAt)}</span>
                           </div>
                           <div className="text-sm text-gray-300 truncate font-mono">{request.url}</div>
+                          {request.tags && request.tags.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {request.tags.map((tagId) => {
+                                const tagDef = getTagDefinition(tagId);
+                                if (!tagDef) return null;
+                                return (
+                                  <TagBadge
+                                    key={tagId}
+                                    tag={tagDef.name}
+                                    color={tagDef.color}
+                                    size="sm"
+                                    onRemove={async () => {
+                                      await removeTagFromRequests([request.id], tagId);
+                                    }}
+                                  />
+                                );
+                              })}
+                            </div>
+                          )}
                         </button>
                       </div>
                     </div>
@@ -913,6 +962,19 @@ export function InterceptPanel() {
             <div className="border-t border-white/10 my-1" />
             <button
               onClick={() => {
+                setSelectedRequestForTagging([request.id]);
+                setTagSelectorPosition({ x: contextMenu.x, y: contextMenu.y });
+                setShowTagSelector(true);
+                setContextMenu(null);
+              }}
+              className="w-full px-4 py-2 text-left text-sm text-white hover:bg-white/10 transition flex items-center gap-2"
+            >
+              <Tag className="w-3.5 h-3.5 text-yellow-400" />
+              Add Tag
+            </button>
+            <div className="border-t border-white/10 my-1" />
+            <button
+              onClick={() => {
                 setDomainFocusFilter(domain);
                 toast.info(`Focusing on "${domain}"`);
                 setContextMenu(null);
@@ -1002,6 +1064,25 @@ export function InterceptPanel() {
           isOpen={showFilterModal}
           onClose={() => setShowFilterModal(false)}
         />
+      )}
+
+      {/* Tag Selector Modal */}
+      {showTagSelector && (
+        <div
+          className="fixed inset-0 z-40"
+          onClick={() => setShowTagSelector(false)}
+        >
+          <div
+            className="absolute"
+            style={{ left: tagSelectorPosition.x, top: tagSelectorPosition.y }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <TagSelector
+              requestIds={selectedRequestForTagging}
+              onClose={() => setShowTagSelector(false)}
+            />
+          </div>
+        </div>
       )}
     </div>
   );
