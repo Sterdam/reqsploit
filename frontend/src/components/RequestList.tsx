@@ -1,10 +1,16 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+// import { useVirtualizer } from '@tanstack/react-virtual'; // TODO: Add virtual scrolling for >1000 items
 import { useRequestsStore } from '../stores/requestsStore';
 import { useRepeaterStore } from '../stores/repeaterStore';
 import { useAIStore } from '../stores/aiStore';
 import { useUnifiedAIStore } from '../stores/unifiedAIStore';
+import { useTagStore } from '../stores/tagStore';
+import { useAdvancedShortcuts } from '../hooks/useAdvancedShortcuts';
 import { ContextMenu, type ContextMenuItem } from './common';
 import { FilterDomainsModal } from './FilterDomainsModal';
+import { TagBadge } from './TagBadge';
+import { TagFilterPanel } from './TagFilterPanel';
+import { AdvancedFiltersPanel } from './AdvancedFiltersPanel';
 import { Copy, Send, Trash2, ArrowUpDown, Clock, AlertCircle, Filter, FilterX, Shield, Zap, AlertTriangle, CheckCircle, Info, XOctagon } from 'lucide-react';
 import { aiAPI, proxyAPI } from '../lib/api';
 
@@ -21,6 +27,8 @@ export function RequestList() {
     clearRequests,
     deleteRequest,
     requests,
+    filter,
+    domainFilters,
     domainFiltersEnabled,
     toggleDomainFilters,
     getFilteredCount,
@@ -38,9 +46,11 @@ export function RequestList() {
   } = useRequestsStore();
   const { createTab } = useRepeaterStore();
   const { canAfford, setActiveAnalysis, setIsAnalyzing, model } = useAIStore();
+  const { getTagDefinition } = useTagStore();
   const [search, setSearch] = useState('');
   const [methodFilter, setMethodFilter] = useState<string>('');
   const listRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; requestId: string } | null>(null);
   const [displayLimit, setDisplayLimit] = useState(ITEMS_PER_PAGE);
   const [sortBy, setSortBy] = useState<SortBy>('time');
@@ -49,27 +59,42 @@ export function RequestList() {
   const [batchAnalyzing, setBatchAnalyzing] = useState(false);
   const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0 });
 
-  const filteredRequests = getFilteredRequests();
-  const filteredByDomainCount = getFilteredCount();
+  // Memoize filtered requests to avoid re-filtering on every render
+  const filteredRequests = useMemo(() => getFilteredRequests(), [
+    requests,
+    filter,
+    domainFilters,
+    domainFiltersEnabled,
+    aiFilter,
+  ]);
 
-  // Sort requests
-  const sortedRequests = [...filteredRequests].sort((a, b) => {
-    switch (sortBy) {
-      case 'time':
-        return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(); // Newest first
-      case 'status':
-        return (a.statusCode || 0) - (b.statusCode || 0);
-      case 'method':
-        return a.method.localeCompare(b.method);
-      case 'url':
-        return a.url.localeCompare(b.url);
-      default:
-        return 0;
-    }
-  });
+  const filteredByDomainCount = useMemo(() => getFilteredCount(), [requests, domainFilters, domainFiltersEnabled]);
+
+  // Memoize sorted requests
+  const sortedRequests = useMemo(() => {
+    return [...filteredRequests].sort((a, b) => {
+      switch (sortBy) {
+        case 'time':
+          return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(); // Newest first
+        case 'status':
+          return (a.statusCode || 0) - (b.statusCode || 0);
+        case 'method':
+          return a.method.localeCompare(b.method);
+        case 'url':
+          return a.url.localeCompare(b.url);
+        default:
+          return 0;
+      }
+    });
+  }, [filteredRequests, sortBy]);
 
   const displayedRequests = sortedRequests.slice(0, displayLimit);
   const hasMore = sortedRequests.length > displayLimit;
+
+  // Virtual scrolling for large lists (>50 items)
+  // TODO: Implement virtual scrolling when list rendering becomes bottleneck
+  // const parentRef = useRef<HTMLDivElement>(null);
+  // const useVirtual = sortedRequests.length > 50;
 
   useEffect(() => {
     setFilter({ search, method: methodFilter || undefined });
@@ -77,7 +102,62 @@ export function RequestList() {
     setDisplayLimit(ITEMS_PER_PAGE);
   }, [search, methodFilter, setFilter]);
 
-  const getMethodColor = (method: string) => {
+  // Advanced keyboard shortcuts handlers
+  const handleSelectNext = useCallback(() => {
+    if (!selectedRequest || sortedRequests.length === 0) {
+      // Select first request
+      if (sortedRequests[0]) {
+        selectRequest(sortedRequests[0].id);
+      }
+      return;
+    }
+
+    const currentIndex = sortedRequests.findIndex((r) => r.id === selectedRequest.id);
+    if (currentIndex < sortedRequests.length - 1) {
+      selectRequest(sortedRequests[currentIndex + 1].id);
+    }
+  }, [selectedRequest, sortedRequests, selectRequest]);
+
+  const handleSelectPrevious = useCallback(() => {
+    if (!selectedRequest || sortedRequests.length === 0) return;
+
+    const currentIndex = sortedRequests.findIndex((r) => r.id === selectedRequest.id);
+    if (currentIndex > 0) {
+      selectRequest(sortedRequests[currentIndex - 1].id);
+    }
+  }, [selectedRequest, sortedRequests, selectRequest]);
+
+  const handleJumpToTop = useCallback(() => {
+    if (sortedRequests.length > 0) {
+      selectRequest(sortedRequests[0].id);
+      listRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [sortedRequests, selectRequest]);
+
+  const handleJumpToBottom = useCallback(() => {
+    if (sortedRequests.length > 0) {
+      selectRequest(sortedRequests[sortedRequests.length - 1].id);
+      listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' });
+    }
+  }, [sortedRequests, selectRequest]);
+
+  const handleFocusSearch = useCallback(() => {
+    searchInputRef.current?.focus();
+  }, []);
+
+  // Advanced shortcuts integration
+  useAdvancedShortcuts({
+    onSelectNext: handleSelectNext,
+    onSelectPrevious: handleSelectPrevious,
+    onJumpToTop: handleJumpToTop,
+    onJumpToBottom: handleJumpToBottom,
+    onFocusSearch: handleFocusSearch,
+    onSelectAll: selectAllRequests,
+    // onOpenTagMenu: TODO - implement when tag menu component is ready
+  });
+
+  // Memoized color getters
+  const getMethodColor = useCallback((method: string) => {
     switch (method) {
       case 'GET':
         return 'bg-blue-500';
@@ -92,26 +172,26 @@ export function RequestList() {
       default:
         return 'bg-gray-500';
     }
-  };
+  }, []);
 
-  const getStatusColor = (statusCode?: number) => {
+  const getStatusColor = useCallback((statusCode?: number) => {
     if (!statusCode) return 'bg-gray-500';
     if (statusCode >= 200 && statusCode < 300) return 'bg-green-500';
     if (statusCode >= 300 && statusCode < 400) return 'bg-blue-500';
     if (statusCode >= 400 && statusCode < 500) return 'bg-yellow-500';
     if (statusCode >= 500) return 'bg-red-500';
     return 'bg-gray-500';
-  };
+  }, []);
 
-  const formatTime = (timestamp: string) => {
+  const formatTime = useCallback((timestamp: string) => {
     const date = new Date(timestamp);
     return date.toLocaleTimeString();
-  };
+  }, []);
 
-  const truncateUrl = (url: string, maxLength: number = 40) => {
+  const truncateUrl = useCallback((url: string, maxLength: number = 40) => {
     if (url.length <= maxLength) return url;
     return url.substring(0, maxLength) + '...';
-  };
+  }, []);
 
   const getSeverityIcon = (severity: string) => {
     switch (severity) {
@@ -427,6 +507,7 @@ export function RequestList() {
 
         {/* Search */}
         <input
+          ref={searchInputRef}
           type="text"
           placeholder="Search URLs..."
           value={search}
@@ -582,6 +663,12 @@ export function RequestList() {
             <option value="url">URL</option>
           </select>
         </div>
+
+        {/* Tag Filter Panel */}
+        <TagFilterPanel />
+
+        {/* Advanced Filters Panel */}
+        <AdvancedFiltersPanel />
       </div>
 
       {/* Request List */}
@@ -682,6 +769,24 @@ export function RequestList() {
                 <p className="text-sm text-white font-mono truncate mb-1" title={request.url}>
                   {truncateUrl(request.url, 50)}
                 </p>
+
+                {/* Tags */}
+                {request.tags && request.tags.length > 0 && (
+                  <div className="flex gap-1 flex-wrap mb-1">
+                    {request.tags.map((tagId) => {
+                      const tagDef = getTagDefinition(tagId);
+                      if (!tagDef) return null;
+                      return (
+                        <TagBadge
+                          key={tagId}
+                          tag={tagDef.name}
+                          color={tagDef.color}
+                          size="sm"
+                        />
+                      );
+                    })}
+                  </div>
+                )}
 
                   {/* Time */}
                   <p className="text-xs text-gray-400">{formatTime(request.timestamp)}</p>

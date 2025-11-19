@@ -19,6 +19,7 @@ import requestsRoutes from './routes/requests.routes.js';
 import projectsRoutes from './routes/projects.routes.js';
 import analysisRoutes from './routes/analysis.routes.js';
 import billingRoutes from './routes/billing.routes.js';
+import tagsRoutes from './routes/tags.routes.js';
 
 // Middlewares
 import { errorHandler, notFoundHandler } from './api/middlewares/error-handler.middleware.js';
@@ -127,6 +128,7 @@ app.use('/api/requests', requestsRoutes);
 app.use('/api/projects', projectsRoutes);
 app.use('/api/analysis', analysisRoutes);
 app.use('/api/billing', billingRoutes);
+app.use('/api/tags', tagsRoutes);
 
 /**
  * Error Handling

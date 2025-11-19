@@ -20,9 +20,20 @@ export interface ClientToServerEvents {
   'proxy:toggle-intercept': (data: { enabled: boolean }) => void;
 
   // Request Management
-  'request:forward': (data: { requestId: string }) => void;
+  'request:forward': (data: { requestId: string; modifications?: any }) => void;
   'request:drop': (data: { requestId: string }) => void;
-  'request:modify': (data: { requestId: string; modified: Partial<HTTPRequest> }) => void;
+  'request:modify': (data: { requestId: string; modified: Partial<HTTPRequest>; modifications?: any }) => void;
+  'request:get-queue': () => void;
+
+  // Bulk Request Management
+  'request:bulk-forward': (data: { requestIds: string[] }) => void;
+  'request:bulk-drop': (data: { requestIds: string[] }) => void;
+  'request:forward-by-pattern': (data: { urlPattern: string }) => void;
+  'request:drop-by-pattern': (data: { urlPattern: string }) => void;
+
+  // Smart Filters
+  'smart-filters:get': () => void;
+  'smart-filters:update': (data: { filters: any[] }) => void;
 
   // AI Analysis
   'ai:analyze-request': (data: { requestId: string }) => void;
@@ -46,16 +57,31 @@ export interface ServerToClientEvents {
 
   // Request Events
   'request:intercepted': (data: RequestInterceptedPayload) => void;
+  'request:held': (data: { requestId: string }) => void;
+  'request:forwarded': (data: { requestId: string }) => void;
+  'request:dropped': (data: { requestId: string }) => void;
+  'request:queue': (data: { queue: any[] }) => void;
+  'queue:changed': (data: { count: number }) => void;
   'response:received': (data: ResponseReceivedPayload) => void;
+
+  // Bulk Action Results
+  'bulk:result': (data: { action: 'forward' | 'drop'; success: string[]; failed: string[] }) => void;
+
+  // Smart Filters
+  'smart-filters:config': (data: { filters: any[] }) => void;
 
   // AI Events
   'ai:analysis-started': (data: { requestId: string }) => void;
   'ai:analysis-complete': (data: AIAnalysisPayload) => void;
   'ai:analysis-error': (data: { requestId: string; message: string }) => void;
+  'ai:suggestion': (data: { requestId: string; suggestions: any[] }) => void;
 
   // Token Usage
   'tokens:updated': (data: TokenUsagePayload) => void;
   'tokens:limit-reached': (data: { message: string }) => void;
+
+  // Generic Error
+  error: (data: { message: string }) => void;
 }
 
 // ============================================

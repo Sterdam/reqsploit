@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { useRepeaterStore } from '../stores/repeaterStore';
 import {
   Play,
@@ -7,12 +6,13 @@ import {
   Plus,
   Clock,
   Copy,
-  Sparkles,
 } from 'lucide-react';
 import { ResponseViewer } from './common';
-import { RepeaterAIPanel } from './RepeaterAIPanel';
+import { CompactAITestHeader } from './CompactAITestHeader';
 import { panelBridge } from '../lib/panel-bridge';
 import { useWorkflowStore } from '../stores/workflowStore';
+import { useAITestResultsStore } from '../stores/aiTestResultsStore';
+import { useAIStore } from '../stores/aiStore';
 
 export function RepeaterPanel() {
   const {
@@ -34,11 +34,14 @@ export function RepeaterPanel() {
   const [activeEditorTab, setActiveEditorTab] = useState<'headers' | 'body'>('headers');
   const [newHeaderKey, setNewHeaderKey] = useState('');
   const [newHeaderValue, setNewHeaderValue] = useState('');
-  const [showAIPanel, setShowAIPanel] = useState(false);
-  const [autoExecuteAI, setAutoExecuteAI] = useState(false);
+  const [autoExecuteAI, setAutoExecuteAI] = useState(true); // Default to true for better UX
 
   const activeTab = getActiveTab();
   const { setActivePanel } = useWorkflowStore();
+  const {
+    setSuggestions,
+  } = useAITestResultsStore();
+  const { setShouldShowAIPanel } = useAIStore();
 
   // Create first tab if none exist
   useEffect(() => {
@@ -125,31 +128,15 @@ export function RepeaterPanel() {
     navigator.clipboard.writeText(activeTab.response.body);
   };
 
-  const handleExecuteAITest = async (test: any, variationIndex: number) => {
+  // Handle test suggestions ready
+  const handleTestSuggestionsReady = (result: any) => {
     if (!activeTab) return;
 
-    const variation = test.variations[variationIndex];
-
-    // Apply the variation to create a new request
-    updateRequest(activeTab.id, 'method', variation.method || activeTab.request.method);
-    if (variation.url) {
-      updateRequest(activeTab.id, 'url', variation.url);
-    }
-    if (variation.body) {
-      updateRequest(activeTab.id, 'body', variation.body);
-    }
-    if (variation.headers) {
-      // Merge headers
-      const newHeaders = { ...activeTab.request.headers, ...variation.headers };
-      Object.entries(newHeaders).forEach(([key, value]) => {
-        updateHeader(activeTab.id, key, value as string);
-      });
-    }
-
-    // Execute the test if auto-execute is enabled
-    if (autoExecuteAI) {
-      await sendRequest(activeTab.id);
-    }
+    // Extract suggestions from API response
+    // API returns: { suggestions: {...}, tokensUsed, model }
+    const suggestionsData = result.suggestions || result;
+    setSuggestions(activeTab.id, suggestionsData);
+    setShouldShowAIPanel(true); // Show Security Analysis panel
   };
 
   return (
@@ -189,21 +176,7 @@ export function RepeaterPanel() {
             </button>
           ))}
         </div>
-        <button
-          onClick={() => setShowAIPanel(!showAIPanel)}
-          className={`relative px-4 py-3 transition-all ${
-            showAIPanel
-              ? 'text-electric-blue bg-[#0A1929] shadow-lg shadow-electric-blue/20'
-              : 'text-white/60 hover:text-electric-blue hover:bg-[#0A1929]/50'
-          }`}
-          title="Toggle AI Assistant (AI test suggestions and security analysis)"
-        >
-          <Sparkles className={`w-4 h-4 ${showAIPanel ? 'animate-pulse' : ''}`} />
-          {/* Indicator badge when panel is hidden */}
-          {!showAIPanel && (
-            <span className="absolute top-1 right-1 w-2 h-2 bg-electric-blue rounded-full animate-pulse" />
-          )}
-        </button>
+        {/* AI Assistant now integrated in Response header - old toggle button removed */}
         <button
           onClick={() => createTab()}
           className="px-4 py-3 text-white/60 hover:text-white hover:bg-[#0A1929]/50 transition-colors"
@@ -218,10 +191,10 @@ export function RepeaterPanel() {
         </div>
       ) : (
         <div className="flex-1 flex flex-col overflow-hidden">
-          {/* Main Content: Request + Response Split + AI Panel */}
+          {/* Main Content: Request + Response Split */}
           <div className="flex-1 flex overflow-x-auto overflow-y-hidden scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
-            {/* Request Editor (Left side - flexible width) */}
-            <div className={`${showAIPanel ? 'flex-1 min-w-[400px]' : 'w-1/2 min-w-[400px]'} flex flex-col border-r border-white/10`}>
+            {/* Request Editor (Left side - 50% width) */}
+            <div className="w-1/2 min-w-[400px] flex flex-col border-r border-white/10">
               {/* Request Header */}
               <div className="px-4 py-3 border-b border-white/10 bg-[#0D1F2D]">
                 <div className="flex items-center gap-2 min-w-0">
@@ -364,8 +337,16 @@ export function RepeaterPanel() {
               </div>
             </div>
 
-            {/* Response Viewer (Right side - flexible width) */}
-            <div className={`${showAIPanel ? 'flex-1 min-w-[400px]' : 'w-1/2 min-w-[400px]'} flex flex-col bg-[#0D1F2D]`}>
+            {/* Response Viewer (Right side - 50% width) */}
+            <div className="w-1/2 min-w-[400px] flex flex-col bg-[#0D1F2D]">
+              {/* AI Test Header - Compact */}
+              <CompactAITestHeader
+                request={activeTab.request}
+                onTestSuggestionsReady={handleTestSuggestionsReady}
+                autoExecute={autoExecuteAI}
+                onToggleAutoExecute={setAutoExecuteAI}
+              />
+
               {/* Response Header */}
               <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
                 <div className="flex items-center gap-4">
@@ -410,16 +391,7 @@ export function RepeaterPanel() {
               </div>
             </div>
 
-            {/* AI Assistant Panel (Right side - 320px when shown inline OR modal in Portal) */}
-            {showAIPanel && activeTab && window.innerWidth >= 1024 && (
-              <RepeaterAIPanel
-                tabId={activeTab.id}
-                request={activeTab.request}
-                onExecuteTest={handleExecuteAITest}
-                autoExecute={autoExecuteAI}
-                onToggleAutoExecute={setAutoExecuteAI}
-              />
-            )}
+            {/* AI Test results now shown in Security Analysis panel (right side of Dashboard) */}
           </div>
 
           {/* History Bottom Panel (20% height) */}
@@ -464,52 +436,7 @@ export function RepeaterPanel() {
         </div>
       )}
 
-      {/* AI Assistant Modal (Portal for small screens or narrow panels) */}
-      {showAIPanel && activeTab && window.innerWidth < 1024 && createPortal(
-        <>
-          {/* Backdrop */}
-          <div
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm"
-            style={{ zIndex: 2147483646 }}
-            onClick={() => setShowAIPanel(false)}
-          />
-
-          {/* Modal Panel */}
-          <div
-            className="fixed right-4 top-4 bottom-4 w-[400px] max-w-[90vw] rounded-lg shadow-2xl border-2 border-white/20 overflow-hidden"
-            style={{
-              backgroundColor: '#0D1F2D',
-              zIndex: 2147483647,
-            }}
-          >
-            {/* Header */}
-            <div className="px-4 py-3 bg-[#0A1929] border-b border-white/10 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-white flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-electric-blue" />
-                AI Assistant
-              </h3>
-              <button
-                onClick={() => setShowAIPanel(false)}
-                className="p-1 text-white/60 hover:text-white hover:bg-white/10 rounded"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Content */}
-            <div className="overflow-auto h-full">
-              <RepeaterAIPanel
-                tabId={activeTab.id}
-                request={activeTab.request}
-                onExecuteTest={handleExecuteAITest}
-                autoExecute={autoExecuteAI}
-                onToggleAutoExecute={setAutoExecuteAI}
-              />
-            </div>
-          </div>
-        </>,
-        document.body
-      )}
+      {/* AI Assistant Modal removed - now integrated in compact header + Security Analysis panel */}
     </div>
   );
 }

@@ -497,6 +497,7 @@ export interface HTTPRequest {
   responseBody?: string;
   duration?: number;
   isIntercepted: boolean;
+  tags?: string[];
 }
 
 // Note: This would need a dedicated endpoint in the backend

@@ -207,9 +207,9 @@ async function generateTokenPair(user: User): Promise<TokenPair> {
     type: 'access',
   };
 
-  const accessToken = jwt.sign(accessTokenPayload, JWT_SECRET, {
+  const accessToken = jwt.sign(accessTokenPayload as object, JWT_SECRET, {
     expiresIn: JWT_EXPIRES_IN,
-  });
+  } as jwt.SignOptions);
 
   // Generate refresh token
   const sessionId = crypto.randomUUID();
@@ -219,9 +219,9 @@ async function generateTokenPair(user: User): Promise<TokenPair> {
     type: 'refresh',
   };
 
-  const refreshToken = jwt.sign(refreshTokenPayload, JWT_REFRESH_SECRET, {
+  const refreshToken = jwt.sign(refreshTokenPayload as object, JWT_REFRESH_SECRET, {
     expiresIn: JWT_REFRESH_EXPIRES_IN,
-  });
+  } as jwt.SignOptions);
 
   // Store session in database
   const expiresAt = new Date();

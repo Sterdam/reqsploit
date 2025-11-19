@@ -1,5 +1,5 @@
 import { PrismaClient, VulnerabilityType, FindingStatus } from '@prisma/client';
-import { prisma } from '../server.js';
+import { prisma } from '../lib/prisma.js';
 
 /**
  * False Positive Management Service (Module 3.1)
@@ -96,7 +96,7 @@ class FalsePositiveService {
       data: {
         userId,
         vulnerabilityType: vulnerability.type,
-        pattern,
+        pattern: pattern as any, // Cast to JsonValue for Prisma
         confidence: 50,
         matchCount: 1,
       },
@@ -158,7 +158,7 @@ class FalsePositiveService {
   /**
    * Get all false positive patterns for a user
    */
-  async getUserPatterns(userId: string, activeOnly: boolean = true): Promise<FalsePositivePattern[]> {
+  async getUserPatterns(userId: string, activeOnly: boolean = true): Promise<any[]> {
     return this.prisma.falsePositivePattern.findMany({
       where: {
         userId,

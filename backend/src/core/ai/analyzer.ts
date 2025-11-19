@@ -214,6 +214,7 @@ export class AIAnalyzer {
         data: {
           userId,
           requestLogId: requestLogId,
+          analysisType: 'REQUEST', // Analysis of request only
           mode: 'DEFAULT',
           aiResponse: response.content,
           suggestions: suggestions as any,
@@ -302,6 +303,7 @@ export class AIAnalyzer {
         data: {
           userId,
           requestLogId: requestLogId,
+          analysisType: 'RESPONSE', // Analysis of response only
           mode: 'DEFAULT',
           aiResponse: aiResponse.content,
           suggestions: suggestions as any,
@@ -388,6 +390,7 @@ export class AIAnalyzer {
         data: {
           userId,
           requestLogId: requestLogId,
+          analysisType: 'FULL', // Analysis of full transaction (request + response)
           mode: 'ADVANCED',
           aiResponse: aiResponse.content,
           suggestions: suggestions as any,

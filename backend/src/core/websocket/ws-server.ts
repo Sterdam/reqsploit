@@ -249,6 +249,133 @@ export class WebSocketServer {
       }
     });
 
+    // Bulk Request Management
+    socket.on('request:bulk-forward', async (data) => {
+      wsLogger.info('Bulk forward requested', { userId, count: data.requestIds.length });
+
+      try {
+        const session = proxySessionManager.getSessionByUserId(userId);
+        if (!session) {
+          socket.emit('error', { message: 'No active proxy session' });
+          return;
+        }
+
+        const queue = session.proxy.getRequestQueue();
+        const result = await queue.bulkForward(data.requestIds);
+
+        socket.emit('bulk:result', { action: 'forward', ...result });
+        wsLogger.info('Bulk forward completed', { userId, success: result.success.length, failed: result.failed.length });
+      } catch (error) {
+        wsLogger.error('Bulk forward failed', { userId, error });
+        socket.emit('error', { message: 'Bulk forward failed' });
+      }
+    });
+
+    socket.on('request:bulk-drop', async (data) => {
+      wsLogger.info('Bulk drop requested', { userId, count: data.requestIds.length });
+
+      try {
+        const session = proxySessionManager.getSessionByUserId(userId);
+        if (!session) {
+          socket.emit('error', { message: 'No active proxy session' });
+          return;
+        }
+
+        const queue = session.proxy.getRequestQueue();
+        const result = queue.bulkDrop(data.requestIds);
+
+        socket.emit('bulk:result', { action: 'drop', ...result });
+        wsLogger.info('Bulk drop completed', { userId, success: result.success.length, failed: result.failed.length });
+      } catch (error) {
+        wsLogger.error('Bulk drop failed', { userId, error });
+        socket.emit('error', { message: 'Bulk drop failed' });
+      }
+    });
+
+    socket.on('request:forward-by-pattern', async (data) => {
+      wsLogger.info('Pattern-based forward requested', { userId, pattern: data.urlPattern });
+
+      try {
+        const session = proxySessionManager.getSessionByUserId(userId);
+        if (!session) {
+          socket.emit('error', { message: 'No active proxy session' });
+          return;
+        }
+
+        const queue = session.proxy.getRequestQueue();
+        const result = await queue.forwardByPattern(data.urlPattern);
+
+        socket.emit('bulk:result', { action: 'forward', ...result });
+        wsLogger.info('Pattern forward completed', { userId, pattern: data.urlPattern, matches: result.success.length });
+      } catch (error) {
+        wsLogger.error('Pattern forward failed', { userId, error });
+        socket.emit('error', { message: 'Pattern forward failed' });
+      }
+    });
+
+    socket.on('request:drop-by-pattern', async (data) => {
+      wsLogger.info('Pattern-based drop requested', { userId, pattern: data.urlPattern });
+
+      try {
+        const session = proxySessionManager.getSessionByUserId(userId);
+        if (!session) {
+          socket.emit('error', { message: 'No active proxy session' });
+          return;
+        }
+
+        const queue = session.proxy.getRequestQueue();
+        const result = queue.dropByPattern(data.urlPattern);
+
+        socket.emit('bulk:result', { action: 'drop', ...result });
+        wsLogger.info('Pattern drop completed', { userId, pattern: data.urlPattern, matches: result.success.length });
+      } catch (error) {
+        wsLogger.error('Pattern drop failed', { userId, error });
+        socket.emit('error', { message: 'Pattern drop failed' });
+      }
+    });
+
+    // Smart Filters Management
+    socket.on('smart-filters:get', async () => {
+      wsLogger.debug('Get smart filters', { userId });
+
+      try {
+        const session = proxySessionManager.getSessionByUserId(userId);
+        if (!session) {
+          socket.emit('smart-filters:config', { filters: [] });
+          return;
+        }
+
+        const queue = session.proxy.getRequestQueue();
+        const filters = queue.getSmartFilters();
+
+        socket.emit('smart-filters:config', { filters });
+      } catch (error) {
+        wsLogger.error('Failed to get smart filters', { userId, error });
+        socket.emit('error', { message: 'Failed to get smart filters' });
+      }
+    });
+
+    socket.on('smart-filters:update', async (data) => {
+      wsLogger.info('Update smart filters', { userId, count: data.filters.length });
+
+      try {
+        const session = proxySessionManager.getSessionByUserId(userId);
+        if (!session) {
+          socket.emit('error', { message: 'No active proxy session' });
+          return;
+        }
+
+        const queue = session.proxy.getRequestQueue();
+        queue.setSmartFilters(data.filters);
+
+        socket.emit('smart-filters:config', { filters: data.filters });
+        wsLogger.info('Smart filters updated', { userId });
+      } catch (error) {
+        wsLogger.error('Failed to update smart filters', { userId, error });
+        socket.emit('error', { message: 'Failed to update smart filters' });
+      }
+    });
+
     // AI Analysis Events
     socket.on('ai:analyze-request', async (data) => {
       wsLogger.debug('AI analysis requested', { userId, requestId: data.requestId });
@@ -306,14 +433,14 @@ export class WebSocketServer {
   emitToUser<K extends keyof ServerToClientEvents>(
     userId: string,
     event: K,
-    data: Parameters<ServerToClientEvents[K]>[0]
+    ...args: Parameters<ServerToClientEvents[K]>
   ): void {
     if (!this.io) {
       wsLogger.error('WebSocket server not initialized');
       return;
     }
 
-    this.io.to(WS_ROOMS.user(userId)).emit(event, data);
+    this.io.to(WS_ROOMS.user(userId)).emit(event, ...(args as any));
 
     wsLogger.info('Event emitted to user', {
       userId,
@@ -328,14 +455,14 @@ export class WebSocketServer {
   emitToSession<K extends keyof ServerToClientEvents>(
     sessionId: string,
     event: K,
-    data: Parameters<ServerToClientEvents[K]>[0]
+    ...args: Parameters<ServerToClientEvents[K]>
   ): void {
     if (!this.io) {
       wsLogger.error('WebSocket server not initialized');
       return;
     }
 
-    this.io.to(WS_ROOMS.proxySession(sessionId)).emit(event, data);
+    this.io.to(WS_ROOMS.proxySession(sessionId)).emit(event, ...(args as any));
 
     wsLogger.debug('Event emitted to session', {
       sessionId,
@@ -348,14 +475,14 @@ export class WebSocketServer {
    */
   broadcast<K extends keyof ServerToClientEvents>(
     event: K,
-    data: Parameters<ServerToClientEvents[K]>[0]
+    ...args: Parameters<ServerToClientEvents[K]>
   ): void {
     if (!this.io) {
       wsLogger.error('WebSocket server not initialized');
       return;
     }
 
-    this.io.emit(event, data);
+    this.io.emit(event, ...(args as any));
 
     wsLogger.debug('Event broadcasted', { event });
   }

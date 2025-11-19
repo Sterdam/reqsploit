@@ -5,9 +5,9 @@
     "lib": ["ES2022"],
 
     /* Modules */
-    "module": "commonjs",
+    "module": "ESNext",
     "rootDir": "./src",
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "baseUrl": "./src",
     "paths": {
       "@/*": ["./*"],

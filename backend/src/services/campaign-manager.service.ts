@@ -4,6 +4,7 @@
  */
 
 import { EventEmitter } from 'events';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { PayloadEngine, type AttackType, type PayloadSet, type PayloadPosition } from './payload-engine.service.js';
 import http from 'http';
@@ -222,7 +223,7 @@ export class CampaignManager extends EventEmitter {
           statusCode: null,
           responseLength: null,
           responseTime,
-          response: null,
+          response: Prisma.JsonNull,
           error: error instanceof Error ? error.message : 'Unknown error',
         },
       });

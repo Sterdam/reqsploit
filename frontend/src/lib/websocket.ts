@@ -91,6 +91,8 @@ export interface WebSocketEventHandlers {
   onRequestDropped?: (data: { sessionId: string; userId: string; requestId: string }) => void;
   onQueueChanged?: (data: QueueChangedPayload) => void;
   onRequestQueue?: (data: { queue: PendingRequest[] }) => void;
+  onBulkResult?: (data: { action: 'forward' | 'drop'; success: string[]; failed: string[] }) => void;
+  onSmartFiltersConfig?: (data: { filters: any[] }) => void;
 
   // AI events
   onAIAnalysisStarted?: (data: { requestId: string }) => void;
@@ -259,6 +261,16 @@ export class WebSocketService {
       this.handlers.onRequestQueue?.(data);
     });
 
+    this.socket.on('bulk:result', (data: { action: 'forward' | 'drop'; success: string[]; failed: string[] }) => {
+      console.log('[WS] Bulk result:', data.action, data.success.length, 'success', data.failed.length, 'failed');
+      this.handlers.onBulkResult?.(data);
+    });
+
+    this.socket.on('smart-filters:config', (data: { filters: any[] }) => {
+      console.log('[WS] Smart filters config received:', data.filters.length, 'filters');
+      this.handlers.onSmartFiltersConfig?.(data);
+    });
+
     // AI events
     this.socket.on('ai:analysis-started', (data: { requestId: string }) => {
       console.log('[WS] AI analysis started:', data);
@@ -356,6 +368,48 @@ export class WebSocketService {
    */
   applySuggestion(requestId: string, suggestionId: string): void {
     this.socket?.emit('ai:apply-suggestion', { requestId, suggestionId });
+  }
+
+  /**
+   * Bulk forward multiple requests
+   */
+  bulkForward(requestIds: string[]): void {
+    this.socket?.emit('request:bulk-forward', { requestIds });
+  }
+
+  /**
+   * Bulk drop multiple requests
+   */
+  bulkDrop(requestIds: string[]): void {
+    this.socket?.emit('request:bulk-drop', { requestIds });
+  }
+
+  /**
+   * Forward requests matching URL pattern
+   */
+  forwardByPattern(urlPattern: string): void {
+    this.socket?.emit('request:forward-by-pattern', { urlPattern });
+  }
+
+  /**
+   * Drop requests matching URL pattern
+   */
+  dropByPattern(urlPattern: string): void {
+    this.socket?.emit('request:drop-by-pattern', { urlPattern });
+  }
+
+  /**
+   * Get smart filters configuration
+   */
+  getSmartFilters(): void {
+    this.socket?.emit('smart-filters:get');
+  }
+
+  /**
+   * Update smart filters configuration
+   */
+  updateSmartFilters(filters: any[]): void {
+    this.socket?.emit('smart-filters:update', { filters });
   }
 }
 

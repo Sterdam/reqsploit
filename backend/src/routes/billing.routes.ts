@@ -5,9 +5,9 @@
 import { Router, Request, Response } from 'express';
 import { PrismaClient, Plan } from '@prisma/client';
 import Stripe from 'stripe';
-import { BillingService } from '../services/billing.service';
-import { authenticateToken } from '../middleware/auth.middleware';
-import { asyncHandler } from '../utils/errors';
+import { BillingService } from '../services/billing.service.js';
+import { authenticateToken } from '../api/middlewares/auth.middleware.js';
+import { asyncHandler } from '../utils/errors.js';
 
 const router = Router();
 import { prisma } from '../lib/prisma.js';
@@ -167,7 +167,7 @@ router.post(
     try {
       // Verify webhook signature
       const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-        apiVersion: '2024-11-20.acacia',
+        apiVersion: '2023-10-16',
       });
 
       event = stripe.webhooks.constructEvent(

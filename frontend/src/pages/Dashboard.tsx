@@ -24,8 +24,10 @@ import { ToastContainer } from '../components/ToastContainer';
 import { KeyboardShortcutHelp } from '../components/KeyboardShortcutHelp';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { DorkGeneratorModal } from '../components/DorkGeneratorModal';
+import { KeyboardShortcutsModal } from '../components/KeyboardShortcutsModal';
 import { ChevronLeft, ChevronRight, Search } from 'lucide-react';
 import { useKeyboardShortcuts, type ShortcutAction } from '../hooks/useKeyboardShortcuts';
+import { useAdvancedShortcuts } from '../hooks/useAdvancedShortcuts';
 
 export function Dashboard() {
   const { accessToken, _hasHydrated } = useAuthStore();
@@ -34,6 +36,7 @@ export function Dashboard() {
   const { loadTokenUsage, fetchActionCosts, shouldShowAIPanel, setShouldShowAIPanel } = useAIStore();
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const { activePanel } = useWorkflowStore();
+  const { selectedRequestIds, bulkSendToRepeater: interceptBulkSendToRepeater } = useInterceptStore();
 
   // Layout persistence
   const { layout, isLoaded, updatePanelVisibility, updateCenterTab } = useLayoutPersistence();
@@ -46,6 +49,7 @@ export function Dashboard() {
   const [mobileMenu, setMobileMenu] = useState<'projects' | 'requests' | 'viewer' | 'ai' | 'intercept' | 'repeater' | 'decoder' | 'intruder'>('viewer');
   const [centerTab, setCenterTab] = useState<'history' | 'intercept' | 'repeater' | 'decoder' | 'intruder'>(layout.centerTab);
   const [showDorkGenerator, setShowDorkGenerator] = useState(false);
+  const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
 
   // Update persisted layout when panel visibility changes
   useEffect(() => {
@@ -120,7 +124,15 @@ export function Dashboard() {
         toggleIntercept(!currentInterceptMode);
         break;
       case 'send-to-repeater':
-        if (selectedRequest) {
+        // If in intercept panel with selections, use bulk send
+        if (centerTab === 'intercept' && selectedRequestIds.size > 0) {
+          interceptBulkSendToRepeater();
+          setCenterTab('repeater');
+          if (isMobile) setMobileMenu('repeater');
+          toast.success('Sent to Repeater', `${selectedRequestIds.size} request${selectedRequestIds.size > 1 ? 's' : ''}`);
+        }
+        // Otherwise use history selected request
+        else if (selectedRequest) {
           setCenterTab('repeater');
           if (isMobile) setMobileMenu('repeater');
 
@@ -162,6 +174,57 @@ export function Dashboard() {
 
   useKeyboardShortcuts(handleShortcut);
 
+  // Advanced shortcuts for view switching
+  useAdvancedShortcuts({
+    onSwitchToHistory: useCallback(() => {
+      setCenterTab('history');
+      if (isMobile) setMobileMenu('viewer');
+    }, [isMobile]),
+    onSwitchToIntercept: useCallback(() => {
+      setCenterTab('intercept');
+      if (isMobile) setMobileMenu('intercept');
+    }, [isMobile]),
+    onSwitchToRepeater: useCallback(() => {
+      setCenterTab('repeater');
+      if (isMobile) setMobileMenu('repeater');
+    }, [isMobile]),
+    onSwitchToDecoder: useCallback(() => {
+      setCenterTab('decoder');
+      if (isMobile) setMobileMenu('decoder');
+    }, [isMobile]),
+    onSwitchToIntruder: useCallback(() => {
+      setCenterTab('intruder');
+      if (isMobile) setMobileMenu('intruder');
+    }, [isMobile]),
+  });
+
+  // Global keyboard shortcut for help modal (Ctrl+/ or ?)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl+/ or Cmd+/
+      if ((e.ctrlKey || e.metaKey) && e.key === '/') {
+        e.preventDefault();
+        setShowKeyboardShortcuts((prev) => !prev);
+      }
+      // ? key (Shift+/)
+      if (e.key === '?' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        // Don't trigger if typing in input
+        const target = e.target as HTMLElement;
+        if (target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA') {
+          e.preventDefault();
+          setShowKeyboardShortcuts(true);
+        }
+      }
+      // Escape to close
+      if (e.key === 'Escape' && showKeyboardShortcuts) {
+        setShowKeyboardShortcuts(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showKeyboardShortcuts]);
+
   // Mobile view
   if (isMobile) {
     return (
@@ -169,6 +232,7 @@ export function Dashboard() {
         <Header />
         <ToastContainer />
         <KeyboardShortcutHelp />
+        <KeyboardShortcutsModal isOpen={showKeyboardShortcuts} onClose={() => setShowKeyboardShortcuts(false)} />
 
         {/* Mobile Navigation */}
         <div className="flex border-b border-white/10 bg-[#0A1929]">
@@ -299,6 +363,7 @@ export function Dashboard() {
       <Header />
       <ToastContainer />
       <KeyboardShortcutHelp />
+      <KeyboardShortcutsModal isOpen={showKeyboardShortcuts} onClose={() => setShowKeyboardShortcuts(false)} />
 
       <div className="flex-1 flex overflow-hidden">
         <PanelGroup direction="horizontal">

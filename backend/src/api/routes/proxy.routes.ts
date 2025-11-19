@@ -215,4 +215,58 @@ router.delete(
   })
 );
 
+/**
+ * POST /proxy/intercept/undo
+ * Undo drop for one or more requests (within grace period)
+ */
+router.post(
+  '/intercept/undo',
+  asyncHandler(async (req: Request, res: Response) => {
+    const userId = req.user!.id;
+    const { requestId, requestIds } = req.body;
+
+    // Get user's proxy session
+    const session = proxySessionManager.getSessionByUserId(userId);
+
+    if (!session) {
+      return res.status(404).json({
+        success: false,
+        message: 'No active proxy session found',
+      });
+    }
+
+    const queue = session.proxy.getRequestQueue();
+
+    // Single undo
+    if (requestId) {
+      const success = queue.undoDrop(requestId);
+
+      return res.json({
+        success,
+        requestId,
+        message: success
+          ? 'Request restored to queue'
+          : 'Cannot undo: grace period expired or request not found',
+      });
+    }
+
+    // Bulk undo
+    if (requestIds && Array.isArray(requestIds)) {
+      const results = queue.bulkUndoDrop(requestIds);
+
+      return res.json({
+        success: results.success.length > 0,
+        restored: results.success,
+        failed: results.failed,
+        message: `Restored ${results.success.length}/${requestIds.length} requests`,
+      });
+    }
+
+    return res.status(400).json({
+      success: false,
+      message: 'Either requestId or requestIds array is required',
+    });
+  })
+);
+
 export default router;

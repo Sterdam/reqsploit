@@ -13,9 +13,9 @@ import { AIServiceError } from '../utils/errors.js';
  * - Haiku 4.5: $0.25/MTok input, $1.25/MTok output
  *
  * PLANS:
- * - FREE: 10,000 tokens/month (Haiku only)
- * - PRO: $29/month, 200,000 tokens/month
- * - ENTERPRISE: $99/month, 1,000,000 tokens/month
+ * - FREE: 50,000 tokens/month (Haiku only)
+ * - PRO: $29/month, 5,000,000 tokens/month
+ * - ENTERPRISE: $99/month, 25,000,000 tokens/month
  */
 
 export type AIModel = 'haiku-4.5' | 'sonnet-4.5' | 'auto';
@@ -58,9 +58,9 @@ const PRICING_CONFIG: PricingConfig = {
     'sonnet-4.5': { input: 3, output: 15 },     // $3/$15 per MTok
   },
   planLimits: {
-    FREE: 10000,      // 10K tokens/month (Haiku only)
-    PRO: 200000,      // 200K tokens/month
-    ENTERPRISE: 1000000, // 1M tokens/month
+    FREE: 50000,        // 50K tokens/month (Haiku only)
+    PRO: 5000000,       // 5M tokens/month
+    ENTERPRISE: 25000000, // 25M tokens/month
   },
   estimatedTokens: {
     analyzeRequest: { input: 800, output: 600 },

@@ -52,6 +52,8 @@ export class MITMProxy extends EventEmitter {
     this.requestQueue.on('request:held', (data) => this.emit('request:held', data));
     this.requestQueue.on('request:forwarded', (data) => this.emit('request:forwarded', data));
     this.requestQueue.on('request:dropped', (data) => this.emit('request:dropped', data));
+    this.requestQueue.on('request:undo-success', (data) => this.emit('request:undo-success', data));
+    this.requestQueue.on('request:final-drop', (data) => this.emit('request:final-drop', data));
     this.requestQueue.on('queue:changed', (data) => this.emit('queue:changed', data));
 
     proxyLogger.info('MITM Proxy initialized', {

@@ -6,10 +6,13 @@ import { useRequestsStore } from '../stores/requestsStore';
 import { useAIStore } from '../stores/aiStore';
 import { FilterDomainsModal } from './FilterDomainsModal';
 import { AIActionButton } from './AIActionButton';
+import { BulkActionsToolbar } from './BulkActionsToolbar';
+import { SmartFiltersPanel } from './SmartFiltersPanel';
 import { wsService } from '../lib/websocket';
 import { aiAPI } from '../lib/api';
 import { useUnifiedAIStore } from '../stores/unifiedAIStore';
 import { sendToRepeater } from '../lib/panel-bridge';
+import { toast } from '../stores/toastStore';
 import {
   Play,
   X,
@@ -27,6 +30,8 @@ import {
   Sparkles,
   Shield,
   BookOpen,
+  Square,
+  CheckSquare,
 } from 'lucide-react';
 
 export function InterceptPanel() {
@@ -40,6 +45,16 @@ export function InterceptPanel() {
     forwardRequest,
     dropRequest,
     clearQueue,
+    selectedRequestIds,
+    toggleSelection,
+    selectAll,
+    deselectAll,
+    isSelected,
+    bulkForward,
+    bulkDrop,
+    bulkSendToRepeater,
+    smartFilters,
+    updateSmartFilters,
   } = useInterceptStore();
   const { domainFilters, domainFiltersEnabled, toggleDomainFilters, addDomainFilter } = useRequestsStore();
   const { isAnalyzing, setIsAnalyzing, setActiveAnalysis } = useAIStore();
@@ -50,6 +65,7 @@ export function InterceptPanel() {
   const [isResizing, setIsResizing] = useState(false);
   const [domainFocusFilter, setDomainFocusFilter] = useState(''); // Focus on specific domain
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; requestId: string } | null>(null);
+  const [lastClickedIndex, setLastClickedIndex] = useState<number | null>(null);
 
   // Always-on editing state
   const [editedMethod, setEditedMethod] = useState('GET');
@@ -316,6 +332,33 @@ export function InterceptPanel() {
     }
   }, [session?.interceptMode]);
 
+  // Handle checkbox click with Shift+Click range selection
+  const handleCheckboxClick = useCallback((index: number, requestId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+
+    if (e.shiftKey && lastClickedIndex !== null) {
+      // Range selection avec Shift+Click
+      const sortedRequests = [...filteredQueuedRequests].sort(
+        (a, b) => new Date(b.queuedAt).getTime() - new Date(a.queuedAt).getTime()
+      );
+
+      const start = Math.min(lastClickedIndex, index);
+      const end = Math.max(lastClickedIndex, index);
+
+      // Sélectionner toutes les requêtes dans le range
+      for (let i = start; i <= end; i++) {
+        const req = sortedRequests[i];
+        if (req && !isSelected(req.id)) {
+          toggleSelection(req.id);
+        }
+      }
+    } else {
+      // Click normal - toggle simple
+      toggleSelection(requestId);
+      setLastClickedIndex(index);
+    }
+  }, [lastClickedIndex, filteredQueuedRequests, isSelected, toggleSelection]);
+
   const formatTimestamp = (timestamp: string) => {
     const date = new Date(timestamp);
     return date.toLocaleTimeString('en-US', {
@@ -466,6 +509,51 @@ export function InterceptPanel() {
               </div>
             </div>
 
+            {/* Smart Filters Panel */}
+            <SmartFiltersPanel
+              filters={smartFilters}
+              onToggle={(name) => {
+                const updatedFilters = smartFilters.map((f) =>
+                  f.name === name ? { ...f, enabled: !f.enabled } : f
+                );
+                updateSmartFilters(updatedFilters);
+                toast.info(`Filter "${name}" ${updatedFilters.find((f) => f.name === name)?.enabled ? 'enabled' : 'disabled'}`);
+              }}
+              onDelete={(name) => {
+                const updatedFilters = smartFilters.filter((f) => f.name !== name);
+                updateSmartFilters(updatedFilters);
+                toast.success(`Filter "${name}" deleted`);
+              }}
+              onUpdate={(filters) => {
+                updateSmartFilters(filters);
+                toast.success('Filter updated');
+              }}
+            />
+
+            {/* Bulk Actions Toolbar */}
+            <BulkActionsToolbar
+              selectedCount={selectedRequestIds.size}
+              totalCount={filteredQueuedRequests.length}
+              selectedRequestIds={Array.from(selectedRequestIds)}
+              onSelectAll={selectAll}
+              onDeselectAll={deselectAll}
+              onBulkForward={() => {
+                const count = selectedRequestIds.size;
+                bulkForward();
+                toast.success(`${count} request${count > 1 ? 's' : ''} forwarded`);
+              }}
+              onBulkDrop={() => {
+                const count = selectedRequestIds.size;
+                bulkDrop();
+                toast.warning(`${count} request${count > 1 ? 's' : ''} dropped`);
+              }}
+              onBulkSendToRepeater={() => {
+                const count = selectedRequestIds.size;
+                bulkSendToRepeater();
+                toast.success(`${count} request${count > 1 ? 's' : ''} sent to Repeater`);
+              }}
+            />
+
             <div className="overflow-y-auto" style={{ maxHeight: 'calc(100vh - 240px)' }}>
               {filteredQueuedRequests.length === 0 ? (
                 <div className="text-center text-gray-400 py-8 px-4">
@@ -477,26 +565,46 @@ export function InterceptPanel() {
               ) : (
                 [...filteredQueuedRequests]
                   .sort((a, b) => new Date(b.queuedAt).getTime() - new Date(a.queuedAt).getTime())
-                  .map((request) => (
-                    <button
+                  .map((request, index) => (
+                    <div
                       key={request.id}
-                      onClick={() => selectRequest(request.id)}
-                      onContextMenu={(e) => {
-                        e.preventDefault();
-                        setContextMenu({ x: e.clientX, y: e.clientY, requestId: request.id });
-                      }}
-                      className={`w-full px-4 py-3 border-b border-white/5 text-left hover:bg-white/5 transition ${
+                      className={`w-full border-b border-white/5 hover:bg-white/5 transition ${
                         selectedRequest?.id === request.id ? 'bg-blue-600/20 border-l-4 border-l-blue-600' : ''
-                      }`}
+                      } ${isSelected(request.id) ? 'bg-green-600/10' : ''}`}
                     >
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className={`text-xs font-bold px-2 py-0.5 rounded border ${getMethodColor(request.method)}`}>
-                          {request.method}
-                        </span>
-                        <span className="text-xs text-gray-500">{formatTimestamp(request.queuedAt)}</span>
+                      <div className="flex items-center px-4 py-3">
+                        {/* Checkbox */}
+                        <button
+                          onClick={(e) => handleCheckboxClick(index, request.id, e)}
+                          className="mr-3 text-gray-400 hover:text-blue-400 transition"
+                          title={isSelected(request.id) ? "Deselect (Shift+Click for range)" : "Select (Shift+Click for range)"}
+                        >
+                          {isSelected(request.id) ? (
+                            <CheckSquare className="w-4 h-4 text-green-400" />
+                          ) : (
+                            <Square className="w-4 h-4" />
+                          )}
+                        </button>
+
+                        {/* Request Details */}
+                        <button
+                          onClick={() => selectRequest(request.id)}
+                          onContextMenu={(e) => {
+                            e.preventDefault();
+                            setContextMenu({ x: e.clientX, y: e.clientY, requestId: request.id });
+                          }}
+                          className="flex-1 text-left"
+                        >
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className={`text-xs font-bold px-2 py-0.5 rounded border ${getMethodColor(request.method)}`}>
+                              {request.method}
+                            </span>
+                            <span className="text-xs text-gray-500">{formatTimestamp(request.queuedAt)}</span>
+                          </div>
+                          <div className="text-sm text-gray-300 truncate font-mono">{request.url}</div>
+                        </button>
                       </div>
-                      <div className="text-sm text-gray-300 truncate font-mono">{request.url}</div>
-                    </button>
+                    </div>
                   ))
               )}
             </div>
@@ -794,6 +902,7 @@ export function InterceptPanel() {
                   headers: request.headers,
                   body: request.body || '',
                 });
+                toast.success('Request sent to Repeater');
                 setContextMenu(null);
               }}
               className="w-full px-4 py-2 text-left text-sm text-white hover:bg-white/10 transition flex items-center gap-2"
@@ -805,6 +914,7 @@ export function InterceptPanel() {
             <button
               onClick={() => {
                 setDomainFocusFilter(domain);
+                toast.info(`Focusing on "${domain}"`);
                 setContextMenu(null);
               }}
               className="w-full px-4 py-2 text-left text-sm text-white hover:bg-white/10 transition flex items-center gap-2"
@@ -815,12 +925,51 @@ export function InterceptPanel() {
             <button
               onClick={() => {
                 addDomainFilter(domain);
+                toast.info(`Hiding requests from "${domain}"`);
                 setContextMenu(null);
               }}
               className="w-full px-4 py-2 text-left text-sm text-white hover:bg-white/10 transition flex items-center gap-2"
             >
               <FilterX className="w-3.5 h-3.5 text-red-400" />
               Hide "{domain}"
+            </button>
+            <button
+              onClick={() => {
+                try {
+                  const url = new URL(request.url);
+                  const pathPrefix = url.pathname.split('/').filter(Boolean)[0] || '';
+
+                  // Create smart filter pattern
+                  const pattern = pathPrefix
+                    ? `${domain}/${pathPrefix}/.*`
+                    : `${domain}/.*`;
+
+                  const filterName = `auto-${domain}${pathPrefix ? `-${pathPrefix}` : ''}`;
+
+                  // Update smart filters
+                  const { smartFilters, updateSmartFilters } = useInterceptStore.getState();
+                  updateSmartFilters([
+                    ...smartFilters,
+                    {
+                      name: filterName,
+                      pattern: new RegExp(pattern.replace(/\./g, '\\.')),
+                      enabled: true,
+                      description: `Auto-forward ${domain}${pathPrefix ? `/${pathPrefix}/*` : '/*'}`,
+                    },
+                  ]);
+
+                  console.log('[InterceptPanel] Quick filter created:', pattern);
+                  toast.success('Smart filter created', `Pattern: ${pattern}`);
+                  setContextMenu(null);
+                } catch (error) {
+                  console.error('[InterceptPanel] Failed to create quick filter:', error);
+                  toast.error('Failed to create filter');
+                }
+              }}
+              className="w-full px-4 py-2 text-left text-sm text-white hover:bg-white/10 transition flex items-center gap-2"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+              Auto-forward similar
             </button>
             <div className="border-t border-white/10 my-1" />
             <button

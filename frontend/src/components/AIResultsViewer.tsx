@@ -39,10 +39,15 @@ import { useRepeaterStore } from '../stores/repeaterStore';
 import type { AISuggestion, Vulnerability } from '../lib/api';
 import { JsonViewer } from './JsonViewer';
 import { AIAnalysisHistory } from './AIAnalysisHistory';
+import { AITestResults, type TestExecutionResult } from './AITestResults';
+import { useAITestResultsStore } from '../stores/aiTestResultsStore';
+import { useRepeaterStore as useRepeaterStoreForTests } from '../stores/repeaterStore';
 
 export function AIResultsViewer() {
   const { activeAnalysis, isAnalyzing } = useAIStore();
   const { createTab } = useRepeaterStore();
+  const { getSuggestions, getTestResults, clearTestResults, addTestResult, updateTestResult } = useAITestResultsStore();
+  const { getActiveTab, sendRequest, updateRequest, updateHeader } = useRepeaterStoreForTests();
 
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(['vulnerabilities', 'suggestions'])
@@ -198,7 +203,208 @@ export function AIResultsViewer() {
     }
   };
 
-  // Show loading state
+  // Helper function to analyze test response for vulnerabilities
+  const analyzeTestResponse = (test: any, variation: any, response: any) => {
+    const indicators = test.indicators || [];
+    const responseBody = response.body || '';
+    const responseHeaders = JSON.stringify(response.headers || {});
+
+    // Check for XSS indicators
+    if (test.category === 'xss') {
+      const xssPatterns = [
+        /<script[^>]*>.*?<\/script>/i,
+        /javascript:/i,
+        /onerror\s*=/i,
+        /onload\s*=/i,
+        /<img[^>]*onerror/i,
+      ];
+
+      for (const pattern of xssPatterns) {
+        if (pattern.test(responseBody)) {
+          return {
+            type: 'Cross-Site Scripting (XSS)',
+            severity: test.severity,
+            description: `XSS payload reflected in response. The application appears vulnerable to ${variation.description}.`,
+            evidence: responseBody.match(pattern)?.[0] || 'Payload reflected',
+          };
+        }
+      }
+    }
+
+    // Check for SQL injection indicators
+    if (test.category === 'sqli') {
+      const sqlErrors = [
+        /SQL syntax.*?error/i,
+        /mysql_fetch/i,
+        /ORA-\d{5}/i,
+        /PostgreSQL.*?ERROR/i,
+        /SQLite.*?error/i,
+        /Microsoft SQL/i,
+      ];
+
+      for (const pattern of sqlErrors) {
+        if (pattern.test(responseBody)) {
+          return {
+            type: 'SQL Injection',
+            severity: test.severity,
+            description: `SQL error detected in response. The application may be vulnerable to SQL injection.`,
+            evidence: responseBody.match(pattern)?.[0] || 'SQL error found',
+          };
+        }
+      }
+    }
+
+    // Check for auth/authz issues
+    if (test.category === 'auth' || test.category === 'authz') {
+      if (response.statusCode === 200 && variation.description?.toLowerCase().includes('unauthorized')) {
+        return {
+          type: 'Authorization Bypass',
+          severity: test.severity,
+          description: `Unauthorized access granted. Expected denial but got 200 OK.`,
+          evidence: `Status: ${response.statusCode}, Access should have been denied`,
+        };
+      }
+    }
+
+    // Generic indicator matching
+    for (const indicator of indicators) {
+      const indicatorLower = indicator.toLowerCase();
+      if (
+        responseBody.toLowerCase().includes(indicatorLower) ||
+        responseHeaders.toLowerCase().includes(indicatorLower)
+      ) {
+        return {
+          type: test.name,
+          severity: test.severity,
+          description: `Indicator "${indicator}" found in response.`,
+          evidence: `Found: "${indicator}"`,
+        };
+      }
+    }
+
+    return null;
+  };
+
+  // Helper function to extract findings from response
+  const extractFindings = (_test: any, response: any) => {
+    const findings: string[] = [];
+
+    findings.push(`Response time: ${response.responseTime || 'N/A'}ms`);
+    findings.push(`Status code: ${response.statusCode}`);
+
+    if (response.headers?.['content-type']) {
+      findings.push(`Content-Type: ${response.headers['content-type']}`);
+    }
+
+    if (response.body) {
+      findings.push(`Response size: ${response.body.length} bytes`);
+    }
+
+    if (response.responseTime && response.responseTime > 5000) {
+      findings.push('⚠️ Warning: Slow response (>5s) - possible resource exhaustion or time-based detection');
+    }
+
+    return findings;
+  };
+
+  // Handle test execution from AITestResults component
+  const handleExecuteTest = async (test: any, variationIndex: number) => {
+    const activeTab = getActiveTab();
+    if (!activeTab) return;
+
+    const variation = test.variations[variationIndex];
+
+    // Prepare the test request
+    const testRequest = {
+      method: variation.method || activeTab.request.method,
+      url: variation.url || activeTab.request.url,
+      headers: { ...activeTab.request.headers, ...(variation.headers || {}) },
+      body: variation.body || activeTab.request.body,
+    };
+
+    // Create test execution result record
+    const testResult: TestExecutionResult = {
+      testId: test.id,
+      testName: test.name,
+      variationIndex,
+      variationDescription: variation.description,
+      status: 'running',
+      timestamp: new Date(),
+      request: testRequest,
+    };
+
+    // Add result to store
+    const resultIndex = getTestResults(activeTab.id).length;
+    addTestResult(activeTab.id, testResult);
+
+    // Apply the test to the current tab
+    updateRequest(activeTab.id, 'method', testRequest.method);
+    updateRequest(activeTab.id, 'url', testRequest.url);
+    updateRequest(activeTab.id, 'body', testRequest.body || '');
+
+    // Merge headers
+    Object.entries(testRequest.headers).forEach(([key, value]) => {
+      updateHeader(activeTab.id, key, value as string);
+    });
+
+    try {
+      // Send the request
+      await sendRequest(activeTab.id);
+
+      // Get the response from the tab
+      const updatedTab = getActiveTab();
+      if (updatedTab?.response) {
+        // Analyze response for vulnerabilities
+        const vulnerability = analyzeTestResponse(test, variation, updatedTab.response);
+
+        // Update test result
+        const updates: Partial<TestExecutionResult> = {
+          status: vulnerability ? 'vulnerable' : 'success',
+          response: {
+            statusCode: updatedTab.response.statusCode,
+            statusMessage: updatedTab.response.statusMessage,
+            headers: updatedTab.response.headers,
+            body: updatedTab.response.body,
+            responseTime: updatedTab.response.responseTime,
+          },
+          vulnerability: vulnerability || undefined,
+          findings: extractFindings(test, updatedTab.response),
+        };
+
+        // Update the result in store
+        setTimeout(() => {
+          updateTestResult(activeTab.id, resultIndex, updates);
+        }, 100);
+      }
+    } catch (error) {
+      console.error('Test execution failed:', error);
+      setTimeout(() => {
+        updateTestResult(activeTab.id, resultIndex, {
+          status: 'failed',
+          findings: ['Test execution failed: ' + (error instanceof Error ? error.message : 'Unknown error')],
+        });
+      }, 100);
+    }
+  };
+
+  // Get test data from active repeater tab
+  const activeTab = getActiveTab();
+  const testSuggestions = activeTab ? getSuggestions(activeTab.id) : null;
+  const testResults = activeTab ? getTestResults(activeTab.id) : [];
+
+  // Priority 1: Show AI Test Results if available
+  if (testResults.length > 0 || testSuggestions) {
+    return (
+      <AITestResults
+        suggestions={testSuggestions}
+        executionResults={testResults}
+        onExecuteTest={handleExecuteTest}
+        onClearResults={() => activeTab && clearTestResults(activeTab.id)}
+      />
+    );
+  }
+
+  // Priority 2: Show loading state
   if (isAnalyzing) {
     return (
       <div className="flex flex-col items-center justify-center h-full p-8 text-center bg-[#0A1929]">
@@ -214,7 +420,7 @@ export function AIResultsViewer() {
     );
   }
 
-  // Show empty state
+  // Priority 3: Show empty state
   if (!activeAnalysis) {
     return (
       <div className="flex flex-col h-full bg-[#0A1929]">

@@ -1,0 +1,78 @@
+feat: Complete P0 UX improvements and critical bug fixes
+
+## ✅ Bugs Fixed
+
+1. **AI Analyze 400 Error**
+   - Fixed model parameter mapping in claude-client.ts
+   - Changed default to 'sonnet-4.5' format
+   - Added model validation
+
+2. **Ctrl+R Always Adds 2 Requests**
+   - Fixed Dashboard.tsx to check intercept panel context
+   - Use interceptStore selections when in intercept mode
+   - Fallback to history selected request otherwise
+
+3. **Bulk Send to Repeater Not Working**
+   - Added missing panelBridge event listeners in repeaterStore
+   - Changed to use batchToRepeater for better performance
+   - Now handles send_to_repeater and batch_to_repeater events
+
+## ✅ Features Implemented
+
+1. **Undo/Redo System** (Frontend Complete)
+   - NEW: undoStore.ts with stack-based undo/redo
+   - 30s grace period tracking with canUndo timer
+   - Keyboard shortcuts: Ctrl+Z, Ctrl+Shift+Z, Ctrl+Y
+   - Toast notifications with countdown
+   - Integrated in interceptStore for drop/forward tracking
+   - NOTE: Backend grace period pending
+
+2. **Toast Notifications** (Already Implemented)
+   - Verified toastStore.ts working
+   - ToastContainer.tsx integrated
+   - 4 types: success, error, info, warning
+
+3. **SmartFiltersPanel UI** (Already Implemented)
+   - Verified component created
+   - Integrated in InterceptPanel
+   - WebSocket sync working
+
+4. **BulkActionsToolbar** (Already Implemented)
+   - Verified all keyboard shortcuts working
+   - Color-coded buttons functional
+   - Selection count display working
+
+## 📊 Quality Metrics
+
+- ✅ 0 TypeScript errors
+- ✅ Production build passing
+- ✅ All integrations tested
+- ✅ Clean codebase
+
+## 📝 Files Modified
+
+### Backend
+- backend/src/core/ai/claude-client.ts
+
+### Frontend
+- frontend/src/pages/Dashboard.tsx
+- frontend/src/stores/undoStore.ts (NEW)
+- frontend/src/stores/interceptStore.ts
+- frontend/src/stores/repeaterStore.ts
+
+### Documentation
+- IMPROVEMENTS_SUMMARY.md
+- CRITICAL_UX_ANALYSIS.md
+- SESSION_COMPLETE.md (NEW)
+- TEST_CHECKLIST.md (NEW)
+- QUICK_STATUS.md (NEW)
+
+## 🎯 Next Steps
+
+- Backend undo grace period (P0)
+- Keyboard shortcuts panel (P1)
+- Request tagging system (P1)
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>

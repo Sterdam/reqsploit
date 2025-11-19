@@ -2,18 +2,20 @@ import { Router, Request, Response } from 'express';
 import { aiAnalyzer } from '../../core/ai/analyzer.js';
 import { claudeClient } from '../../core/ai/claude-client.js';
 import { authenticateToken } from '../middlewares/auth.middleware.js';
-import { asyncHandler } from '../../utils/errors.js';
-import { prisma } from '../../server.js';
-import { NotFoundError } from '../../utils/errors.js';
+import { asyncHandler, NotFoundError, ValidationError, AIServiceError } from '../../utils/errors.js';
+import { prisma } from '../../lib/prisma.js';
+import { aiLogger } from '../../utils/logger.js';
 import { aiPricingService } from '../../services/ai-pricing.service.js';
 import { proxySessionManager } from '../../core/proxy/session-manager.js';
 import { RequestLogService } from '../../services/request-log.service.js';
 import pLimit from 'p-limit';
 import { falsePositiveService } from '../../services/false-positive.service.js';
 import { requestGrouperService } from '../../services/request-grouper.service.js';
+import Anthropic from '@anthropic-ai/sdk';
 
 const router = Router();
 const requestLogService = new RequestLogService(prisma);
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 // All routes require authentication
 router.use(authenticateToken);
@@ -1169,20 +1171,25 @@ Project Details:
 - Description: ${project.description || 'N/A'}
 - Total Requests Captured: ${requests.length}
 - AI Analyses Performed: ${analyses.length}
-- Scope: ${project.scope ? JSON.stringify(project.scope) : 'Not defined'}
+- Target: ${project.target || 'Not defined'}
 
 Request Summary:
 ${requests.slice(0, 50).map((req, i) => `${i + 1}. ${req.method} ${req.url} - Status: ${req.statusCode || 'N/A'}`).join('\n')}
 
 AI Analysis Findings:
 ${analyses.slice(0, 20).map((analysis, i) => {
-  const result = analysis.result as any;
+  let parsed;
+  try {
+    parsed = analysis.aiResponse ? JSON.parse(analysis.aiResponse as string) : null;
+  } catch {
+    parsed = null;
+  }
   return `
 Analysis ${i + 1}:
 - Request: ${analysis.requestLog.method} ${analysis.requestLog.url}
 - Mode: ${analysis.mode}
-- Findings: ${result?.vulnerabilities?.length || 0} vulnerabilities
-- Severity: ${result?.vulnerabilities?.[0]?.severity || 'N/A'}
+- Findings: ${parsed?.vulnerabilities?.length || 0} vulnerabilities
+- Severity: ${parsed?.vulnerabilities?.[0]?.severity || 'N/A'}
 `;
 }).join('\n')}
 
@@ -1268,7 +1275,7 @@ Provide a professional, actionable security report.`;
         },
         projectOverview: {
           name: project.name,
-          scope: project.scope || '',
+          target: project.target || '',
           testingPeriod: 'N/A',
           requestsAnalyzed: requests.length,
           aiAnalysesPerformed: analyses.length,

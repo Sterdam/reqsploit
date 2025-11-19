@@ -213,7 +213,7 @@ export class RepeaterService {
     requestId: string
   ): Promise<RepeaterRequest | null> {
     try {
-      const request = await prisma.hTTPRequest.findFirst({
+      const request = await prisma.requestLog.findFirst({
         where: {
           id: requestId,
           userId,
@@ -228,8 +228,8 @@ export class RepeaterService {
         userId,
         method: request.method,
         url: request.url,
-        headers: request.requestHeaders as Record<string, string>,
-        body: request.requestBody || undefined,
+        headers: request.headers as Record<string, string>,
+        body: request.body || undefined,
         originalRequestId: request.id,
       };
     } catch (error) {

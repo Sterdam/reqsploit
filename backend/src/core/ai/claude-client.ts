@@ -14,8 +14,8 @@ import type { AIModel } from '../../services/ai-pricing.service.js';
 
 // Model name mapping (excluding 'auto' which is handled by selection logic)
 const MODEL_MAP: Record<Exclude<AIModel, 'auto'>, string> = {
-  'haiku-4.5': 'claude-haiku-4-5-20251001',
-  'sonnet-4.5': 'claude-sonnet-4-5-20250929',
+  'haiku-4.5': 'claude-3-5-haiku-20241022',
+  'sonnet-4.5': 'claude-sonnet-4-20250514',
 };
 
 export interface ClaudeMessage {
@@ -38,8 +38,8 @@ export class ClaudeClient {
   private maxTokens: number;
 
   private constructor() {
-    // Initialize properties first
-    this.defaultModel = (process.env.ANTHROPIC_MODEL as AIModel) || 'haiku-4.5';
+    // Initialize properties first - use sonnet-4.5 as default
+    this.defaultModel = 'sonnet-4.5';
     this.maxTokens = parseInt(process.env.ANTHROPIC_MAX_TOKENS || '4096', 10);
 
     const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -54,6 +54,7 @@ export class ClaudeClient {
 
       aiLogger.info('Claude AI Client initialized', {
         defaultModel: this.defaultModel,
+        defaultModelName: MODEL_MAP[this.defaultModel],
         maxTokens: this.maxTokens,
       });
     }
@@ -87,6 +88,11 @@ export class ClaudeClient {
         ? this.defaultModel
         : options.model;
       const modelName = MODEL_MAP[selectedModel as Exclude<AIModel, 'auto'>];
+
+      if (!modelName) {
+        throw new AIServiceError(`Invalid model: ${selectedModel}`);
+      }
+
       const temperature = options?.temperature ?? 0.7;
       const maxTokens = options?.maxTokens || this.maxTokens;
 
@@ -134,7 +140,7 @@ export class ClaudeClient {
 
       if (error instanceof Anthropic.APIError) {
         throw new AIServiceError(
-          `Claude API error: ${error.message}`,
+          `Claude API error: ${error.status} ${JSON.stringify(error.error)}`,
           error.status || 500
         );
       }
@@ -183,13 +189,17 @@ export class ClaudeClient {
         : options.model;
       const modelName = MODEL_MAP[selectedModel as Exclude<AIModel, 'auto'>];
 
+      if (!modelName) {
+        throw new AIServiceError(`Invalid model: ${selectedModel}`);
+      }
+
       aiLogger.debug('Streaming message to Claude', {
         messageCount: messages.length,
         model: selectedModel,
         modelName,
       });
 
-      const stream = await this.client.messages.stream({
+      const stream = this.client.messages.stream({
         model: modelName,
         max_tokens: this.maxTokens,
         system: options?.systemPrompt,

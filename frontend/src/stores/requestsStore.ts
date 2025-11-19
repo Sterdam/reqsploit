@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { HTTPRequest } from '../lib/api';
+import { useTagStore } from './tagStore';
 
 /**
  * Requests Store
@@ -139,7 +140,13 @@ interface RequestsState {
   filter: {
     method?: string;
     search?: string;
+    searchScope?: 'url' | 'headers' | 'body' | 'all';
     statusCode?: number;
+    statusRange?: '2xx' | '3xx' | '4xx' | '5xx';
+    minDuration?: number;
+    maxDuration?: number;
+    minSize?: number;
+    maxSize?: number;
   };
   domainFilters: DomainFilter[];
   domainFiltersEnabled: boolean;
@@ -296,6 +303,7 @@ export const useRequestsStore = create<RequestsState>()(
       // Get filtered requests
       getFilteredRequests: () => {
         const { requests, filter, domainFilters, domainFiltersEnabled, aiAnalyses, aiFilter } = get();
+        const { selectedTags } = useTagStore.getState();
 
         return requests.filter((req) => {
           // Method filter
@@ -303,15 +311,82 @@ export const useRequestsStore = create<RequestsState>()(
             return false;
           }
 
-          // Status code filter
+          // Status code exact filter
           if (filter.statusCode && req.statusCode !== filter.statusCode) {
             return false;
           }
 
-          // Search filter (URL)
+          // Status code range filter
+          if (filter.statusRange && req.statusCode) {
+            const statusStr = req.statusCode.toString();
+            const rangePrefix = filter.statusRange.charAt(0);
+            if (!statusStr.startsWith(rangePrefix)) {
+              return false;
+            }
+          }
+
+          // Duration filter (response time)
+          if (filter.minDuration !== undefined && req.duration !== undefined) {
+            if (req.duration < filter.minDuration) {
+              return false;
+            }
+          }
+          if (filter.maxDuration !== undefined && req.duration !== undefined) {
+            if (req.duration > filter.maxDuration) {
+              return false;
+            }
+          }
+
+          // Size filter (body length)
+          if (filter.minSize !== undefined || filter.maxSize !== undefined) {
+            const bodySize = req.responseBody?.length || 0;
+            if (filter.minSize !== undefined && bodySize < filter.minSize) {
+              return false;
+            }
+            if (filter.maxSize !== undefined && bodySize > filter.maxSize) {
+              return false;
+            }
+          }
+
+          // Advanced search filter (URL, headers, body)
           if (filter.search) {
             const searchLower = filter.search.toLowerCase();
-            if (!req.url.toLowerCase().includes(searchLower)) {
+            const scope = filter.searchScope || 'all';
+
+            let found = false;
+
+            // Search in URL
+            if (scope === 'url' || scope === 'all') {
+              if (req.url.toLowerCase().includes(searchLower)) {
+                found = true;
+              }
+            }
+
+            // Search in headers
+            if (!found && (scope === 'headers' || scope === 'all')) {
+              const headersStr = JSON.stringify(req.headers).toLowerCase();
+              if (headersStr.includes(searchLower)) {
+                found = true;
+              }
+              if (req.responseHeaders) {
+                const respHeadersStr = JSON.stringify(req.responseHeaders).toLowerCase();
+                if (respHeadersStr.includes(searchLower)) {
+                  found = true;
+                }
+              }
+            }
+
+            // Search in body
+            if (!found && (scope === 'body' || scope === 'all')) {
+              if (req.body?.toLowerCase().includes(searchLower)) {
+                found = true;
+              }
+              if (req.responseBody?.toLowerCase().includes(searchLower)) {
+                found = true;
+              }
+            }
+
+            if (!found) {
               return false;
             }
           }
@@ -323,6 +398,16 @@ export const useRequestsStore = create<RequestsState>()(
               if (matchesDomainPattern(req.url, filter.pattern)) {
                 return false; // Filter out this request
               }
+            }
+          }
+
+          // Tag filters
+          if (selectedTags.length > 0) {
+            const requestTags = req.tags || [];
+            // Show request if it has ALL selected tags (AND logic)
+            const hasAllTags = selectedTags.every((tag) => requestTags.includes(tag));
+            if (!hasAllTags) {
+              return false;
             }
           }
 

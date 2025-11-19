@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client';
-import { prisma } from '../server.js';
+import { prisma } from '../lib/prisma.js';
 
 /**
  * Request Grouper Service (Module 3.3)

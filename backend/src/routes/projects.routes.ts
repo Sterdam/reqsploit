@@ -3,9 +3,9 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { ProjectService } from '../services/project.service';
-import { authenticateToken } from '../middleware/auth.middleware';
-import { prisma } from '../lib/prisma';
+import { ProjectService } from '../services/project.service.js';
+import { authenticateToken } from '../api/middlewares/auth.middleware.js';
+import { prisma } from '../lib/prisma.js';
 
 const router = Router();
 const projectService = new ProjectService(prisma);

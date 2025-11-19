@@ -4,8 +4,8 @@
 
 import { Router, Request, Response } from 'express';
 import { PrismaClient, AIMode } from '@prisma/client';
-import { AnalysisService } from '../services/analysis.service';
-import { authenticateToken } from '../middleware/auth.middleware';
+import { AnalysisService } from '../services/analysis.service.js';
+import { authenticateToken } from '../api/middlewares/auth.middleware.js';
 
 const router = Router();
 import { prisma } from '../lib/prisma.js';

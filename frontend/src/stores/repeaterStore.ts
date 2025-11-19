@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { useAuthStore } from './authStore';
+import { panelBridge } from '../lib/panel-bridge';
 
 /**
  * Repeater Request Structure
@@ -467,3 +468,24 @@ export const useRepeaterStore = create<RepeaterState>()(
     }
   )
 );
+
+// Listen to panel bridge events for send_to_repeater and batch_to_repeater
+if (typeof window !== 'undefined') {
+  panelBridge.on('send_to_repeater', (event) => {
+    const { request } = event.data;
+    if (request) {
+      useRepeaterStore.getState().createTab(undefined, request);
+      console.log('[RepeaterStore] Tab created from', event.source);
+    }
+  });
+
+  panelBridge.on('batch_to_repeater', (event) => {
+    const { requests } = event.data;
+    if (requests && Array.isArray(requests)) {
+      requests.forEach((request) => {
+        useRepeaterStore.getState().createTab(undefined, request);
+      });
+      console.log('[RepeaterStore] Created', requests.length, 'tabs from', event.source);
+    }
+  });
+}

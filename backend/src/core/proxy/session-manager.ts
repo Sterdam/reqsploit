@@ -337,7 +337,7 @@ export class ProxySessionManager {
 
     proxy.on('stopped', () => {
       // Emit proxy stopped event
-      wsServer.emitToUser(userId, 'proxy:stopped', {});
+      wsServer.emitToUser(userId, 'proxy:stopped');
     });
 
     proxy.on('error', (error) => {

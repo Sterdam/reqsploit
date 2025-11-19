@@ -157,6 +157,7 @@ export class AnalysisService {
       data: {
         userId: data.userId,
         requestLogId: data.requestLogId,
+        analysisType: 'FULL', // Full transaction analysis (request + response)
         mode: data.mode,
         userContext: data.userContext,
         aiResponse: aiResponse,
