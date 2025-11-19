@@ -38,6 +38,10 @@ export interface ClientToServerEvents {
   // AI Analysis
   'ai:analyze-request': (data: { requestId: string }) => void;
   'ai:apply-suggestion': (data: { requestId: string; suggestionId: string }) => void;
+
+  // Magic Scan
+  'scan:get-results': (data?: { severity?: string; category?: string; limit?: number }) => void;
+  'scan:get-stats': () => void;
 }
 
 // ============================================
@@ -79,6 +83,10 @@ export interface ServerToClientEvents {
   // Token Usage
   'tokens:updated': (data: TokenUsagePayload) => void;
   'tokens:limit-reached': (data: { message: string }) => void;
+
+  // Magic Scan
+  'scan:result': (data: ScanResultPayload) => void;
+  'scan:stats': (data: ScanStatsPayload) => void;
 
   // Generic Error
   error: (data: { message: string }) => void;
@@ -122,6 +130,32 @@ export interface TokenUsagePayload {
   limit: number;
   remaining: number;
   resetDate: Date;
+}
+
+export interface ScanResultPayload {
+  id: string;
+  requestId: string;
+  severity: string;
+  category: string;
+  type: string;
+  description: string;
+  value: string; // Masked value
+  location: {
+    source: 'request' | 'response';
+    part: 'url' | 'headers' | 'body' | 'cookies';
+    path?: string;
+  };
+  context: string;
+  confidence: number;
+  timestamp: Date;
+}
+
+export interface ScanStatsPayload {
+  total: number;
+  bySeverity: Record<string, number>;
+  byCategory: Record<string, number>;
+  criticalCount: number;
+  highCount: number;
 }
 
 // ============================================

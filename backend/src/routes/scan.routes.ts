@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { auth } from '../middleware/auth.js';
+import { authenticateToken } from '../api/middlewares/auth.middleware.js';
 import { scannerService } from '../core/scanner/scanner.service.js';
 import { Severity, AssetCategory } from '@prisma/client';
 import { scanLogger } from '../utils/logger.js';
@@ -10,9 +10,9 @@ const router = Router();
  * GET /api/scan/results
  * Get scan results with pagination and filtering
  */
-router.get('/results', auth, async (req: Request, res: Response) => {
+router.get('/results', authenticateToken, async (req: Request, res: Response) => {
   try {
-    const userId = req.userId!;
+    const userId = req.user!.id;
     const {
       limit = '50',
       offset = '0',
@@ -48,9 +48,9 @@ router.get('/results', auth, async (req: Request, res: Response) => {
  * GET /api/scan/stats
  * Get scan statistics
  */
-router.get('/stats', auth, async (req: Request, res: Response) => {
+router.get('/stats', authenticateToken, async (req: Request, res: Response) => {
   try {
-    const userId = req.userId!;
+    const userId = req.user!.id;
     const stats = await scannerService.getStats(userId);
 
     res.json({
@@ -70,9 +70,9 @@ router.get('/stats', auth, async (req: Request, res: Response) => {
  * POST /api/scan/mark-safe/:id
  * Mark a finding as safe
  */
-router.post('/mark-safe/:id', auth, async (req: Request, res: Response) => {
+router.post('/mark-safe/:id', authenticateToken, async (req: Request, res: Response) => {
   try {
-    const userId = req.userId!;
+    const userId = req.user!.id;
     const { id } = req.params;
 
     await scannerService.markAsSafe(userId, id);
@@ -94,9 +94,9 @@ router.post('/mark-safe/:id', auth, async (req: Request, res: Response) => {
  * POST /api/scan/mark-false-positive/:id
  * Mark a finding as false positive
  */
-router.post('/mark-false-positive/:id', auth, async (req: Request, res: Response) => {
+router.post('/mark-false-positive/:id', authenticateToken, async (req: Request, res: Response) => {
   try {
-    const userId = req.userId!;
+    const userId = req.user!.id;
     const { id } = req.params;
 
     await scannerService.markAsFalsePositive(userId, id);
@@ -118,9 +118,9 @@ router.post('/mark-false-positive/:id', auth, async (req: Request, res: Response
  * DELETE /api/scan/result/:id
  * Delete a finding
  */
-router.delete('/result/:id', auth, async (req: Request, res: Response) => {
+router.delete('/result/:id', authenticateToken, async (req: Request, res: Response) => {
   try {
-    const userId = req.userId!;
+    const userId = req.user!.id;
     const { id } = req.params;
 
     await scannerService.deleteResult(userId, id);
@@ -142,9 +142,9 @@ router.delete('/result/:id', auth, async (req: Request, res: Response) => {
  * POST /api/scan/rescan/:requestId
  * Rescan a specific request
  */
-router.post('/rescan/:requestId', auth, async (req: Request, res: Response) => {
+router.post('/rescan/:requestId', authenticateToken, async (req: Request, res: Response) => {
   try {
-    const userId = req.userId!;
+    const userId = req.user!.id;
     const { requestId } = req.params;
 
     const matches = await scannerService.rescanRequest(userId, requestId);
@@ -177,7 +177,7 @@ router.post('/rescan/:requestId', auth, async (req: Request, res: Response) => {
  * GET /api/scan/patterns
  * Get available scan patterns
  */
-router.get('/patterns', auth, async (req: Request, res: Response) => {
+router.get('/patterns', authenticateToken, async (req: Request, res: Response) => {
   try {
     const { SCAN_PATTERNS } = await import('../core/scanner/scan-patterns.js');
 

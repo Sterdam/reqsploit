@@ -7,6 +7,7 @@ import {
   maskValue,
 } from './scan-patterns.js';
 import { scanLogger } from '../../utils/logger.js';
+import { wsServer } from '../websocket/ws-server.js';
 
 /**
  * Magic Scan - Ultra-Intelligent Sensitive Data Scanner
@@ -450,7 +451,7 @@ export class ScannerService {
       const encryptedValue = this.encryptValue(match.value);
 
       try {
-        await this.prisma.scanResult.create({
+        const scanResult = await this.prisma.scanResult.create({
           data: {
             userId,
             requestId,
@@ -461,7 +462,7 @@ export class ScannerService {
             value: match.maskedValue,
             valueHash,
             fullValue: encryptedValue,
-            location: match.location,
+            location: match.location as any,
             context: match.context,
             confidence: match.confidence,
             isMarkedSafe: false,
@@ -470,6 +471,25 @@ export class ScannerService {
         });
 
         scanLogger.info(`Stored finding: ${match.pattern.type} (confidence: ${match.confidence}%)`);
+
+        // Emit WebSocket event for real-time notification
+        try {
+          wsServer.emitToUser(userId, 'scan:result', {
+            id: scanResult.id,
+            requestId: scanResult.requestId || '',
+            severity: scanResult.severity,
+            category: scanResult.category,
+            type: scanResult.type,
+            description: scanResult.description,
+            value: scanResult.value,
+            location: scanResult.location as any,
+            context: scanResult.context,
+            confidence: scanResult.confidence,
+            timestamp: scanResult.createdAt,
+          });
+        } catch (wsError) {
+          scanLogger.error('Failed to emit scan:result WebSocket event', { wsError });
+        }
       } catch (error) {
         scanLogger.error('Failed to store scan result', { error, type: match.pattern.type });
       }

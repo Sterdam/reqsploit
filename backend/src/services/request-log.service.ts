@@ -11,6 +11,8 @@
  */
 
 import { PrismaClient, RequestLog, Prisma } from '@prisma/client';
+import { scannerService } from '../core/scanner/scanner.service.js';
+import { scanLogger } from '../utils/logger.js';
 
 interface CreateRequestLogInput {
   userId: string;
@@ -118,7 +120,7 @@ export class RequestLogService {
     }
 
     // Create new request log
-    return this.prisma.requestLog.create({
+    const requestLog = await this.prisma.requestLog.create({
       data: {
         id: requestId,
         userId,
@@ -137,13 +139,20 @@ export class RequestLogService {
         aiAnalyses: true,
       },
     });
+
+    // Trigger automatic scan in background (non-blocking)
+    scannerService
+      .scanRequest(userId, requestId, data.method, data.url, data.headers, data.body)
+      .catch((err) => scanLogger.error('Auto-scan failed for request', { requestId, err }));
+
+    return requestLog;
   }
 
   /**
    * Create a new request log entry
    */
   async createRequestLog(data: CreateRequestLogInput): Promise<RequestLog> {
-    return this.prisma.requestLog.create({
+    const requestLog = await this.prisma.requestLog.create({
       data: {
         userId: data.userId,
         proxySessionId: data.proxySessionId,
@@ -165,6 +174,33 @@ export class RequestLogService {
         aiAnalyses: true,
       },
     });
+
+    // Trigger automatic scan for request in background (non-blocking)
+    scannerService
+      .scanRequest(
+        data.userId,
+        requestLog.id,
+        data.method,
+        data.url,
+        data.headers,
+        data.body
+      )
+      .catch((err) => scanLogger.error('Auto-scan failed for request', { requestId: requestLog.id, err }));
+
+    // Trigger automatic scan for response if available (non-blocking)
+    if (data.statusCode !== undefined && (data.responseHeaders || data.responseBody)) {
+      scannerService
+        .scanResponse(
+          data.userId,
+          requestLog.id,
+          data.statusCode,
+          data.responseHeaders || {},
+          data.responseBody
+        )
+        .catch((err) => scanLogger.error('Auto-scan failed for response', { requestId: requestLog.id, err }));
+    }
+
+    return requestLog;
   }
 
   /**
