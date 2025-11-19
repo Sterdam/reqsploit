@@ -65,6 +65,7 @@ export const aiLogger = logger.child({ context: 'ai' });
 export const authLogger = logger.child({ context: 'auth' });
 export const wsLogger = logger.child({ context: 'websocket' });
 export const certLogger = logger.child({ context: 'certificate' });
+export const scanLogger = logger.child({ context: 'magic-scan' });
 
 // Sanitize sensitive data from logs
 export function sanitize(obj: Record<string, unknown>): Record<string, unknown> {

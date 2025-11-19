@@ -111,6 +111,8 @@ model User {
   repeaterTemplates        RepeaterTemplate[]
   dismissedVulnerabilities Vulnerability[]         @relation("DismissedVulnerabilities")
   falsePositivePatterns    FalsePositivePattern[]  @relation("FalsePositivePatterns")
+  scanResults              ScanResult[]            @relation("UserScanResults")
+  scanPatterns             ScanPattern[]           @relation("UserScanPatterns")
 
   @@index([email])
   @@index([plan])
@@ -201,6 +203,7 @@ model RequestLog {
   proxySession ProxySession  @relation(fields: [proxySessionId], references: [id], onDelete: Cascade)
   project      Project?      @relation(fields: [projectId], references: [id], onDelete: SetNull)
   aiAnalyses   AIAnalysis[]
+  scanResults  ScanResult[]
 
   @@index([userId])
   @@index([proxySessionId])
@@ -449,4 +452,82 @@ model RepeaterTemplate {
   @@index([userId])
   @@index([createdAt])
   @@map("repeater_templates")
+}
+
+// ============================================
+// MAGIC SCAN - Sensitive Data Discovery
+// ============================================
+
+enum AssetCategory {
+  API_KEYS
+  PRIVATE_KEYS
+  DATABASE_CREDS
+  AUTH_DATA
+  NETWORK_INFO
+  PII
+  SENSITIVE_FILES
+  ERROR_INFO
+  BUSINESS_LOGIC
+}
+
+model ScanResult {
+  id       String   @id @default(uuid())
+  userId   String
+  user     User     @relation("UserScanResults", fields: [userId], references: [id], onDelete: Cascade)
+
+  // Request reference
+  requestId String?
+  request   RequestLog? @relation(fields: [requestId], references: [id], onDelete: SetNull)
+
+  // Finding details
+  severity     Severity
+  category     AssetCategory
+  type         String       // AWS_ACCESS_KEY, JWT_TOKEN, etc.
+  description  String
+
+  // Value storage
+  value         String       // Masked value for display
+  valueHash     String       // SHA256 hash for deduplication
+  fullValue     String?      // Encrypted full value (optional)
+
+  // Location information
+  location      Json         // {source: 'request'|'response', part: 'headers'|'body'|'url', path: string}
+  context       String       @db.Text // Surrounding text (50 chars before/after)
+
+  // Metadata
+  confidence    Int          // 0-100 confidence score
+  isMarkedSafe  Boolean      @default(false)
+  isFalsePositive Boolean    @default(false)
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, severity])
+  @@index([userId, category])
+  @@index([userId, isMarkedSafe])
+  @@index([valueHash]) // For deduplication
+  @@index([requestId])
+  @@index([createdAt])
+  @@map("scan_results")
+}
+
+model ScanPattern {
+  id          String   @id @default(uuid())
+  userId      String?  // Null = global pattern, User ID = user-specific override
+  user        User?    @relation("UserScanPatterns", fields: [userId], references: [id], onDelete: Cascade)
+
+  category    AssetCategory
+  type        String
+  severity    Severity
+  pattern     String   @db.Text // Regex pattern as string
+  description String
+  enabled     Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, enabled])
+  @@index([category])
+  @@map("scan_patterns")
 }
