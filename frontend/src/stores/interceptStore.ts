@@ -14,6 +14,21 @@ export interface EditableRequest {
 }
 
 /**
+ * Pending response in the response interception queue (CDP)
+ */
+export interface PendingResponse {
+  id: string;
+  statusCode: number;
+  headers: Record<string, string>;
+  body?: string;
+  originalRequestUrl: string;
+  originalRequestMethod: string;
+  tabId?: number;
+  timestamp: string;
+  queuedAt: string;
+}
+
+/**
  * Smart Filter Pattern (synced with backend)
  */
 export interface SmartFilterPattern {
@@ -36,6 +51,10 @@ interface InterceptState {
   queueSize: number;
   selectedRequestIds: Set<string>;
   smartFilters: SmartFilterPattern[];
+
+  // Response interception state (CDP)
+  responseQueue: PendingResponse[];
+  selectedResponse: PendingResponse | null;
 
   // Single-select actions
   addRequest: (request: PendingRequest) => void;
@@ -73,6 +92,14 @@ interface InterceptState {
   loadSmartFilters: () => void;
   updateSmartFilters: (filters: SmartFilterPattern[]) => void;
 
+  // Response interception actions (CDP)
+  addResponse: (response: PendingResponse) => void;
+  removeResponse: (responseId: string) => void;
+  selectResponse: (responseId: string) => void;
+  deselectResponse: () => void;
+  forwardResponse: (responseId: string, modifications?: { statusCode?: number; headers?: Record<string, string>; body?: string }) => void;
+  dropResponse: (responseId: string) => void;
+
   // Utility
   clearQueue: () => void;
 }
@@ -86,6 +113,10 @@ export const useInterceptStore = create<InterceptState>((set, get) => ({
   queueSize: 0,
   selectedRequestIds: new Set<string>(),
   smartFilters: [],
+
+  // Response interception initial state
+  responseQueue: [],
+  selectedResponse: null,
 
   // Add request to queue
   addRequest: (request: PendingRequest) => {
@@ -352,6 +383,44 @@ export const useInterceptStore = create<InterceptState>((set, get) => ({
     set({ smartFilters: filters });
   },
 
+  // Response interception actions (CDP)
+  addResponse: (response: PendingResponse) => {
+    set((state) => {
+      if (state.responseQueue.some((r) => r.id === response.id)) {
+        return state;
+      }
+      return {
+        responseQueue: [...state.responseQueue, response],
+      };
+    });
+  },
+
+  removeResponse: (responseId: string) => {
+    set((state) => ({
+      responseQueue: state.responseQueue.filter((r) => r.id !== responseId),
+      selectedResponse: state.selectedResponse?.id === responseId ? null : state.selectedResponse,
+    }));
+  },
+
+  selectResponse: (responseId: string) => {
+    const response = get().responseQueue.find((r) => r.id === responseId);
+    if (response) {
+      set({ selectedResponse: response });
+    }
+  },
+
+  deselectResponse: () => {
+    set({ selectedResponse: null });
+  },
+
+  forwardResponse: (responseId: string, modifications?) => {
+    wsService.forwardResponse(responseId, modifications);
+  },
+
+  dropResponse: (responseId: string) => {
+    wsService.dropResponse(responseId);
+  },
+
   // Clear entire queue (forward all)
   clearQueue: () => {
     const { queuedRequests } = get();
@@ -398,5 +467,21 @@ wsService.setHandlers({
   onSmartFiltersConfig: (data) => {
     console.log('[InterceptStore] Smart filters config received:', data.filters.length, 'filters');
     useInterceptStore.getState().updateSmartFilters(data.filters);
+  },
+
+  // Response interception events (CDP)
+  onResponseHeld: (data) => {
+    console.log('[InterceptStore] Response held:', data.response.originalRequestUrl);
+    useInterceptStore.getState().addResponse(data.response);
+  },
+
+  onResponseForwarded: (data) => {
+    console.log('[InterceptStore] Response forwarded:', data.requestId);
+    useInterceptStore.getState().removeResponse(data.requestId);
+  },
+
+  onResponseDropped: (data) => {
+    console.log('[InterceptStore] Response dropped:', data.requestId);
+    useInterceptStore.getState().removeResponse(data.requestId);
   },
 });

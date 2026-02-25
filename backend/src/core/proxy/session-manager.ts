@@ -1,14 +1,24 @@
 import { PrismaClient } from '@prisma/client';
-import { MITMProxy } from './mitm-proxy.js';
 import { ProxyConfig, ProxySession, RequestFilters } from '../../types/proxy.types.js';
 import { ProxyError, NotFoundError } from '../../utils/errors.js';
 import { proxyLogger } from '../../utils/logger.js';
 import { wsServer } from '../websocket/ws-server.js';
+import { extensionManager } from '../websocket/extension-manager.js';
 
 const prisma = new PrismaClient();
 
+// Legacy proxy support (will be fully removed in future)
+let MITMProxy: any;
+try {
+  const mod = await import('./mitm-proxy.js');
+  MITMProxy = mod.MITMProxy;
+} catch {
+  // MITM proxy module not available - CDP mode only
+  proxyLogger.info('MITM proxy module not available, running in CDP-only mode');
+}
+
 interface ActiveProxySession {
-  proxy: MITMProxy;
+  proxy: any; // MITMProxy | null
   config: ProxyConfig;
   sessionData: ProxySession;
 }
@@ -54,13 +64,16 @@ export class ProxySessionManager {
 
   /**
    * Create a new proxy session for a user
+   * In CDP mode: lightweight session, no port allocation or proxy instance
+   * In legacy mode: full MITM proxy with port allocation
    */
   async createSession(
     userId: string,
     interceptMode: boolean = false,
-    filters?: RequestFilters
+    filters?: RequestFilters,
+    mode: 'cdp' | 'proxy' = 'cdp'
   ): Promise<ProxySession> {
-    proxyLogger.info('Creating proxy session', { userId });
+    proxyLogger.info('Creating proxy session', { userId, mode });
 
     // Check if user already has an active session
     const existingSession = this.getSessionByUserId(userId);
@@ -70,13 +83,50 @@ export class ProxySessionManager {
     }
 
     try {
-      // Allocate port
-      const port = this.allocatePort();
-
-      // Create session ID
       const sessionId = crypto.randomUUID();
 
-      // Create proxy config
+      // CDP mode: lightweight session
+      if (mode === 'cdp' || !MITMProxy) {
+        const sessionData = await prisma.proxySession.create({
+          data: {
+            userId,
+            sessionId,
+            proxyPort: 0,
+            isActive: true,
+            interceptMode,
+            mode: 'cdp',
+            extensionVersion: extensionManager.getConnection(userId)?.version,
+          },
+        });
+
+        // Store in active sessions (no proxy instance)
+        const config: ProxyConfig = {
+          host: '0.0.0.0',
+          port: 0,
+          userId,
+          interceptMode,
+          filters,
+        };
+
+        this.activeSessions.set(userId, {
+          proxy: null,
+          config,
+          sessionData,
+        });
+
+        proxyLogger.info('CDP proxy session created', { userId, sessionId });
+
+        // Notify extension to toggle intercept if connected
+        if (extensionManager.isConnected(userId)) {
+          extensionManager.toggleIntercept(userId, { enabled: interceptMode });
+        }
+
+        return sessionData;
+      }
+
+      // Legacy mode: full MITM proxy
+      const port = this.allocatePort();
+
       const config: ProxyConfig = {
         host: '0.0.0.0',
         port,
@@ -85,10 +135,8 @@ export class ProxySessionManager {
         filters,
       };
 
-      // Create MITM proxy instance
       const proxy = new MITMProxy(config);
 
-      // Create session in database FIRST
       const sessionData = await prisma.proxySession.create({
         data: {
           userId,
@@ -96,27 +144,20 @@ export class ProxySessionManager {
           proxyPort: port,
           isActive: true,
           interceptMode,
+          mode: 'proxy',
         },
       });
 
-      // Set up event listeners BEFORE starting proxy
       this.setupProxyEventListeners(proxy, userId, sessionId, sessionData.id);
-
-      // Start proxy
       await proxy.start();
 
-      // Store in active sessions
       this.activeSessions.set(userId, {
         proxy,
         config,
         sessionData,
       });
 
-      proxyLogger.info('Proxy session created', {
-        userId,
-        sessionId,
-        port,
-      });
+      proxyLogger.info('Legacy proxy session created', { userId, sessionId, port });
 
       return sessionData;
     } catch (error) {
@@ -163,11 +204,16 @@ export class ProxySessionManager {
     }
 
     try {
-      // Stop proxy
-      await session.proxy.stop();
+      // Stop proxy if it exists (legacy mode)
+      if (session.proxy && typeof session.proxy.stop === 'function') {
+        await session.proxy.stop();
+        this.releasePort(session.config.port);
+      }
 
-      // Release port
-      this.releasePort(session.config.port);
+      // For CDP mode: notify extension to detach
+      if (extensionManager.isConnected(userId)) {
+        extensionManager.toggleIntercept(userId, { enabled: false });
+      }
 
       // Update database
       await prisma.proxySession.update({
@@ -201,9 +247,17 @@ export class ProxySessionManager {
       throw new NotFoundError('Proxy session not found');
     }
 
-    // Update proxy settings
     if (settings.interceptMode !== undefined) {
-      session.proxy.setInterceptMode(settings.interceptMode);
+      // CDP mode: relay to extension
+      if (extensionManager.isConnected(userId)) {
+        extensionManager.toggleIntercept(userId, { enabled: settings.interceptMode });
+      }
+
+      // Legacy mode: update proxy directly
+      if (session.proxy && typeof session.proxy.setInterceptMode === 'function') {
+        session.proxy.setInterceptMode(settings.interceptMode);
+      }
+
       await prisma.proxySession.update({
         where: { id: session.sessionData.id },
         data: { interceptMode: settings.interceptMode },
@@ -211,7 +265,9 @@ export class ProxySessionManager {
     }
 
     if (settings.filters) {
-      session.proxy.setFilters(settings.filters);
+      if (session.proxy && typeof session.proxy.setFilters === 'function') {
+        session.proxy.setFilters(settings.filters);
+      }
     }
 
     proxyLogger.info('Session settings updated', { userId, settings });
@@ -255,12 +311,12 @@ export class ProxySessionManager {
    * Setup event listeners for proxy
    */
   private setupProxyEventListeners(
-    proxy: MITMProxy,
+    proxy: any,
     userId: string,
     sessionId: string,
     proxySessionDbId: string
   ): void {
-    proxy.on('request:intercepted', async (request) => {
+    proxy.on('request:intercepted', async (request: any) => {
       // Log request to database (now receives all requests with isIntercepted flag)
       try {
         await prisma.requestLog.create({
@@ -293,7 +349,7 @@ export class ProxySessionManager {
       }
     });
 
-    proxy.on('response:received', async ({ request, response }) => {
+    proxy.on('response:received', async ({ request, response }: { request: any; response: any }) => {
       // Update request log with response
       try {
         const log = await prisma.requestLog.findFirst({
@@ -327,7 +383,7 @@ export class ProxySessionManager {
       }
     });
 
-    proxy.on('started', ({ port }) => {
+    proxy.on('started', ({ port }: { port: number }) => {
       // Emit proxy started event
       wsServer.emitToUser(userId, 'proxy:started', {
         sessionId,
@@ -340,7 +396,7 @@ export class ProxySessionManager {
       wsServer.emitToUser(userId, 'proxy:stopped');
     });
 
-    proxy.on('error', (error) => {
+    proxy.on('error', (error: any) => {
       proxyLogger.error('Proxy error', { userId, sessionId, error });
 
       // Emit error to user
@@ -350,28 +406,28 @@ export class ProxySessionManager {
     });
 
     // Request queue events
-    proxy.on('request:held', (data) => {
+    proxy.on('request:held', (data: any) => {
       wsServer.emitToUser(userId, 'request:held', {
         sessionId,
         ...data,
       });
     });
 
-    proxy.on('request:forwarded', (data) => {
+    proxy.on('request:forwarded', (data: any) => {
       wsServer.emitToUser(userId, 'request:forwarded', {
         sessionId,
         ...data,
       });
     });
 
-    proxy.on('request:dropped', (data) => {
+    proxy.on('request:dropped', (data: any) => {
       wsServer.emitToUser(userId, 'request:dropped', {
         sessionId,
         ...data,
       });
     });
 
-    proxy.on('queue:changed', (data) => {
+    proxy.on('queue:changed', (data: any) => {
       wsServer.emitToUser(userId, 'queue:changed', {
         sessionId,
         ...data,

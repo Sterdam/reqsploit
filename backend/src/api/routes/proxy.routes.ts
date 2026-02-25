@@ -1,6 +1,8 @@
 import { Router, Request, Response } from 'express';
 import { proxySessionManager } from '../../core/proxy/session-manager.js';
 import { certificateManager } from '../../core/proxy/certificate-manager.js';
+import { extensionManager } from '../../core/websocket/extension-manager.js';
+import { cdpRequestQueue } from '../../core/proxy/cdp-request-queue.js';
 import { authenticateToken } from '../middlewares/auth.middleware.js';
 import { asyncHandler } from '../../utils/errors.js';
 import { validate } from '../../utils/validators.js';
@@ -45,38 +47,41 @@ router.get(
 /**
  * POST /proxy/session/start
  * Start a new proxy session for the authenticated user
+ * CDP mode: lightweight session, no port allocation
+ * Legacy mode: full MITM proxy (fallback)
  */
 router.post(
   '/session/start',
   asyncHandler(async (req: Request, res: Response) => {
     const userId = req.user!.id;
-    const { interceptMode, filters } = req.body;
+    const { interceptMode, filters, mode } = req.body;
 
     const session = await proxySessionManager.createSession(
       userId,
       interceptMode || false,
-      filters
+      filters,
+      mode || 'cdp'
     );
 
-    // Check if Root CA exists
-    const rootCA = await certificateManager.getRootCAForUser(userId);
+    const extConnection = extensionManager.getConnection(userId);
 
     res.json({
       success: true,
       data: {
         session: {
           sessionId: session.sessionId,
-          proxyPort: session.proxyPort,
+          mode: (session as any).mode || 'cdp',
           interceptMode: session.interceptMode,
           isActive: session.isActive,
           createdAt: session.createdAt,
         },
-        certificateStatus: {
-          hasRootCA: !!rootCA,
-          needsInstallation: !rootCA,
+        extension: {
+          isConnected: !!extConnection,
+          version: extConnection?.version || null,
+          attachedTabs: extConnection?.attachedTabs || [],
         },
       },
-      message: 'Proxy session started successfully',
+      message: 'Session started successfully',
     });
   })
 );
@@ -101,7 +106,7 @@ router.delete(
 
 /**
  * GET /proxy/session/status
- * Get current proxy session status
+ * Get current proxy session status + extension connection info
  */
 router.get(
   '/session/status',
@@ -110,17 +115,27 @@ router.get(
 
     const session = await proxySessionManager.getSessionInfo(userId);
     const activeSession = proxySessionManager.getSessionByUserId(userId);
+    const extConnection = extensionManager.getConnection(userId);
 
     if (!session) {
       return res.json({
         success: true,
         data: {
           hasActiveSession: false,
+          extension: {
+            isConnected: !!extConnection,
+            version: extConnection?.version || null,
+            attachedTabs: extConnection?.attachedTabs || [],
+          },
         },
       });
     }
 
-    const stats = activeSession?.proxy.getStats();
+    // CDP mode: get queue stats; Legacy mode: get proxy stats
+    const isCDP = !activeSession?.proxy;
+    const stats = isCDP
+      ? cdpRequestQueue.getStats()
+      : activeSession?.proxy?.getStats?.() || null;
 
     res.json({
       success: true,
@@ -128,13 +143,18 @@ router.get(
         hasActiveSession: true,
         session: {
           sessionId: session.sessionId,
-          proxyPort: session.proxyPort,
+          mode: (session as any).mode || 'cdp',
           interceptMode: session.interceptMode,
           isActive: session.isActive,
           createdAt: session.createdAt,
           updatedAt: session.updatedAt,
         },
-        stats: stats || null,
+        extension: {
+          isConnected: !!extConnection,
+          version: extConnection?.version || null,
+          attachedTabs: extConnection?.attachedTabs || [],
+        },
+        stats,
       },
     });
   })
@@ -218,6 +238,7 @@ router.delete(
 /**
  * POST /proxy/intercept/undo
  * Undo drop for one or more requests (within grace period)
+ * Supports both CDP queue and legacy proxy queue
  */
 router.post(
   '/intercept/undo',
@@ -225,10 +246,42 @@ router.post(
     const userId = req.user!.id;
     const { requestId, requestIds } = req.body;
 
-    // Get user's proxy session
-    const session = proxySessionManager.getSessionByUserId(userId);
+    // Try CDP queue first (extension connected)
+    if (extensionManager.isConnected(userId)) {
+      // Single undo
+      if (requestId) {
+        const success = cdpRequestQueue.undoDrop(requestId);
+        return res.json({
+          success,
+          requestId,
+          message: success
+            ? 'Request restored to queue'
+            : 'Cannot undo: grace period expired or request not found',
+        });
+      }
 
-    if (!session) {
+      // Bulk undo
+      if (requestIds && Array.isArray(requestIds)) {
+        const results = { success: [] as string[], failed: [] as string[] };
+        for (const id of requestIds) {
+          if (cdpRequestQueue.undoDrop(id)) {
+            results.success.push(id);
+          } else {
+            results.failed.push(id);
+          }
+        }
+        return res.json({
+          success: results.success.length > 0,
+          restored: results.success,
+          failed: results.failed,
+          message: `Restored ${results.success.length}/${requestIds.length} requests`,
+        });
+      }
+    }
+
+    // Fallback: legacy proxy queue
+    const session = proxySessionManager.getSessionByUserId(userId);
+    if (!session || !session.proxy) {
       return res.status(404).json({
         success: false,
         message: 'No active proxy session found',
@@ -237,10 +290,8 @@ router.post(
 
     const queue = session.proxy.getRequestQueue();
 
-    // Single undo
     if (requestId) {
       const success = queue.undoDrop(requestId);
-
       return res.json({
         success,
         requestId,
@@ -250,10 +301,8 @@ router.post(
       });
     }
 
-    // Bulk undo
     if (requestIds && Array.isArray(requestIds)) {
       const results = queue.bulkUndoDrop(requestIds);
-
       return res.json({
         success: results.success.length > 0,
         restored: results.success,

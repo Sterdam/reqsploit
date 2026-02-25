@@ -68,6 +68,28 @@ export interface RequestHeldPayload {
   request: PendingRequest;
 }
 
+// Response held payload (CDP response interception)
+export interface ResponseHeldPayload {
+  userId: string;
+  response: {
+    id: string;
+    statusCode: number;
+    headers: Record<string, string>;
+    body?: string;
+    originalRequestUrl: string;
+    originalRequestMethod: string;
+    tabId?: number;
+    timestamp: string;
+    queuedAt: string;
+  };
+}
+
+// Extension connection payload
+export interface ExtensionConnectedPayload {
+  version: string;
+  attachedTabs: Array<{ tabId: number; url: string }>;
+}
+
 export interface WebSocketEventHandlers {
   // Connection events
   onAuthenticated?: (data: { userId: string; sessionId: string }) => void;
@@ -94,6 +116,17 @@ export interface WebSocketEventHandlers {
   onBulkResult?: (data: { action: 'forward' | 'drop'; success: string[]; failed: string[] }) => void;
   onSmartFiltersConfig?: (data: { filters: any[] }) => void;
 
+  // Response queue events (CDP response interception)
+  onResponseHeld?: (data: ResponseHeldPayload) => void;
+  onResponseForwarded?: (data: { userId: string; requestId: string }) => void;
+  onResponseDropped?: (data: { userId: string; requestId: string }) => void;
+
+  // Extension events
+  onExtensionConnected?: (data: ExtensionConnectedPayload) => void;
+  onExtensionDisconnected?: () => void;
+  onTabAttached?: (data: { tabId: number; url: string }) => void;
+  onTabDetached?: (data: { tabId: number; reason: string }) => void;
+
   // AI events
   onAIAnalysisStarted?: (data: { requestId: string }) => void;
   onAIAnalysisComplete?: (data: AIAnalysisPayload) => void;
@@ -102,6 +135,10 @@ export interface WebSocketEventHandlers {
   // Token events
   onTokensUpdated?: (data: TokenUsage) => void;
   onTokensLimitReached?: (data: { message: string }) => void;
+
+  // Magic Scan events
+  onScanResult?: (data: any) => void;
+  onScanStats?: (data: any) => void;
 }
 
 // ============================================
@@ -271,6 +308,43 @@ export class WebSocketService {
       this.handlers.onSmartFiltersConfig?.(data);
     });
 
+    // Response queue events (CDP response interception)
+    this.socket.on('response:held', (data: ResponseHeldPayload) => {
+      console.log('[WS] Response held:', data.response.originalRequestUrl);
+      this.handlers.onResponseHeld?.(data);
+    });
+
+    this.socket.on('response:forwarded', (data: { userId: string; requestId: string }) => {
+      console.log('[WS] Response forwarded:', data.requestId);
+      this.handlers.onResponseForwarded?.(data);
+    });
+
+    this.socket.on('response:dropped', (data: { userId: string; requestId: string }) => {
+      console.log('[WS] Response dropped:', data.requestId);
+      this.handlers.onResponseDropped?.(data);
+    });
+
+    // Extension events
+    this.socket.on('ext:connected', (data: ExtensionConnectedPayload) => {
+      console.log('[WS] Extension connected:', data.version);
+      this.handlers.onExtensionConnected?.(data);
+    });
+
+    this.socket.on('ext:disconnected', () => {
+      console.log('[WS] Extension disconnected');
+      this.handlers.onExtensionDisconnected?.();
+    });
+
+    this.socket.on('ext:tab-attached', (data: { tabId: number; url: string }) => {
+      console.log('[WS] Tab attached:', data.tabId, data.url);
+      this.handlers.onTabAttached?.(data);
+    });
+
+    this.socket.on('ext:tab-detached', (data: { tabId: number; reason: string }) => {
+      console.log('[WS] Tab detached:', data.tabId);
+      this.handlers.onTabDetached?.(data);
+    });
+
     // AI events
     this.socket.on('ai:analysis-started', (data: { requestId: string }) => {
       console.log('[WS] AI analysis started:', data);
@@ -295,6 +369,17 @@ export class WebSocketService {
     this.socket.on('tokens:limit-reached', (data: { message: string }) => {
       console.warn('[WS] Token limit reached:', data);
       this.handlers.onTokensLimitReached?.(data);
+    });
+
+    // Magic Scan events
+    this.socket.on('scan:result', (data: any) => {
+      console.log('[WS] Scan result received:', data);
+      this.handlers.onScanResult?.(data);
+    });
+
+    this.socket.on('scan:stats', (data: any) => {
+      console.log('[WS] Scan stats received:', data);
+      this.handlers.onScanStats?.(data);
     });
   }
 
@@ -410,6 +495,28 @@ export class WebSocketService {
    */
   updateSmartFilters(filters: any[]): void {
     this.socket?.emit('smart-filters:update', { filters });
+  }
+
+  // ============================================
+  // Response Interception (CDP)
+  // ============================================
+
+  /**
+   * Forward a response (with optional modifications)
+   */
+  forwardResponse(requestId: string, modifications?: {
+    statusCode?: number;
+    headers?: Record<string, string>;
+    body?: string;
+  }): void {
+    this.socket?.emit('response:forward', { requestId, modifications });
+  }
+
+  /**
+   * Drop a response
+   */
+  dropResponse(requestId: string): void {
+    this.socket?.emit('response:drop', { requestId });
   }
 }
 

@@ -1,12 +1,16 @@
 /**
  * Repeater Service
  * Handles manual request resending with modifications (like Burp Repeater)
+ * CDP mode: delegates to extension (requests originate from client IP)
+ * Fallback: server-side HTTP execution
  */
 
 import http from 'http';
 import https from 'https';
 import { URL } from 'url';
 import { prisma } from '../lib/prisma.js';
+import { extensionManager } from '../core/websocket/extension-manager.js';
+import { cdpRequestQueue } from '../core/proxy/cdp-request-queue.js';
 import logger from '../utils/logger.js';
 
 const repeaterLogger = logger.child({ service: 'repeater' });
@@ -42,8 +46,66 @@ export interface RepeaterHistoryEntry {
 export class RepeaterService {
   /**
    * Send a request and measure response time
+   * Delegates to extension if connected (client IP), falls back to server-side
    */
   async sendRequest(request: RepeaterRequest): Promise<RepeaterResponse> {
+    // CDP mode: delegate to extension (requests originate from client IP)
+    if (extensionManager.isConnected(request.userId)) {
+      return this.sendViaExtension(request);
+    }
+
+    // Fallback: server-side execution
+    return this.sendFromServer(request);
+  }
+
+  /**
+   * Send request via extension (CDP mode - client IP)
+   */
+  private async sendViaExtension(request: RepeaterRequest): Promise<RepeaterResponse> {
+    const requestId = crypto.randomUUID();
+
+    repeaterLogger.info('Delegating request to extension', {
+      userId: request.userId,
+      url: request.url,
+      method: request.method,
+      requestId,
+    });
+
+    // Send to extension and wait for result
+    extensionManager.sendRepeaterRequest(request.userId, {
+      requestId,
+      method: request.method,
+      url: request.url,
+      headers: request.headers,
+      body: request.body,
+    });
+
+    // Wait for extension to execute and return result
+    const result = await cdpRequestQueue.waitForRepeaterResult(requestId, 30000);
+
+    const response: RepeaterResponse = {
+      statusCode: result.statusCode,
+      statusMessage: result.statusMessage || '',
+      headers: result.headers,
+      body: result.body,
+      responseTime: result.responseTime,
+      timestamp: new Date(),
+    };
+
+    repeaterLogger.info('Extension request completed', {
+      url: request.url,
+      method: request.method,
+      statusCode: response.statusCode,
+      responseTime: response.responseTime,
+    });
+
+    return response;
+  }
+
+  /**
+   * Send request from server (fallback when no extension connected)
+   */
+  private async sendFromServer(request: RepeaterRequest): Promise<RepeaterResponse> {
     const startTime = Date.now();
 
     try {
@@ -82,7 +144,7 @@ export class RepeaterService {
               timestamp: new Date(),
             };
 
-            repeaterLogger.info('Request sent successfully', {
+            repeaterLogger.info('Server-side request sent', {
               url: request.url,
               method: request.method,
               statusCode: response.statusCode,

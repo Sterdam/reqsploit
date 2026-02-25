@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { useProxyStore } from '../stores/proxyStore';
+import { useProxyStore } from '../stores/extensionStore';
 import { useInterceptStore } from '../stores/interceptStore';
 import { useRepeaterStore } from '../stores/repeaterStore';
 import { useRequestsStore } from '../stores/requestsStore';

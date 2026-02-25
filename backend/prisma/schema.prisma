@@ -29,9 +29,17 @@ enum AIMode {
 }
 
 enum AnalysisType {
+  // Analyses de requêtes/réponses
   REQUEST      // Analyse de la requête uniquement
   RESPONSE     // Analyse de la réponse uniquement
   FULL         // Analyse complète (requête + réponse)
+
+  // Rapports et générations AI
+  TEST_SUGGESTIONS      // Suggestions de tests pour Repeater
+  PAYLOAD_GENERATION    // Payloads de fuzzing générés
+  DORK_GENERATION       // Dorks OSINT/reconnaissance
+  ATTACK_CHAIN          // Chaînes d'attaque multi-étapes
+  SECURITY_REPORT       // Rapports de sécurité complets
 }
 
 enum VulnerabilityType {
@@ -104,6 +112,7 @@ model User {
   certificates             Certificate[]
   requestLogs              RequestLog[]
   aiAnalyses               AIAnalysis[]
+  aiJobs                   AIJob[]
   tokenUsage               TokenUsage[]
   subscription             Subscription?
   projects                 Project[]
@@ -113,6 +122,7 @@ model User {
   falsePositivePatterns    FalsePositivePattern[]  @relation("FalsePositivePatterns")
   scanResults              ScanResult[]            @relation("UserScanResults")
   scanPatterns             ScanPattern[]           @relation("UserScanPatterns")
+  workSessions             WorkSession[]
 
   @@index([email])
   @@index([plan])
@@ -140,14 +150,16 @@ model Session {
 
 // Proxy Session
 model ProxySession {
-  id            String   @id @default(uuid())
-  userId        String
-  sessionId     String   @unique
-  proxyPort     Int
-  isActive      Boolean  @default(true)
-  interceptMode Boolean  @default(false)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id               String   @id @default(uuid())
+  userId           String
+  sessionId        String   @unique
+  proxyPort        Int?     // Nullable: CDP mode doesn't use ports
+  isActive         Boolean  @default(true)
+  interceptMode    Boolean  @default(false)
+  mode             String   @default("cdp") // "proxy" | "cdp"
+  extensionVersion String?  // Chrome extension version
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   // Relations
   user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -197,6 +209,8 @@ model RequestLog {
   isIntercepted    Boolean   @default(false)
   tags             String[]  @default([])
   starred          Boolean   @default(false)
+  tabId            Int?      // Browser tab ID (CDP mode)
+  resourceType     String?   // "Document", "XHR", "Fetch", etc. (CDP mode)
 
   // Relations
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -217,10 +231,18 @@ model RequestLog {
 // AI Analysis Results
 model AIAnalysis {
   id               String             @id @default(uuid())
-  requestLogId     String
-  analysisType     AnalysisType       // Type d'analyse: REQUEST, RESPONSE, FULL
+  requestLogId     String?            // Nullable: reports/attack chains not tied to single request
+  projectId        String?            // For security reports and attack chains
+  workSessionId    String?            // Link to work session
+  analysisType     AnalysisType       // Extended types: REQUEST, RESPONSE, FULL, TEST_SUGGESTIONS, etc.
   mode             AIMode             @default(DEFAULT)
+
+  // Metadata
+  title            String?            // "Security Report" / "XSS Test Suite" / etc.
+  category         String?            // "sqli" / "xss" / "recon" / "auth" / etc.
   userContext      String?            @db.Text
+
+  // AI Response
   aiResponse       String             @db.Text
   suggestions      Json
   tokensUsed       Int
@@ -230,12 +252,18 @@ model AIAnalysis {
   userId           String
 
   // Relations
-  requestLog      RequestLog         @relation(fields: [requestLogId], references: [id], onDelete: Cascade)
+  requestLog      RequestLog?        @relation(fields: [requestLogId], references: [id], onDelete: Cascade)
+  project         Project?           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  workSession     WorkSession?       @relation(fields: [workSessionId], references: [id], onDelete: SetNull)
   user            User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   vulnerabilities Vulnerability[]
+  jobs            AIJob[]            // Jobs that resulted in this analysis
 
   @@index([requestLogId])
+  @@index([projectId])
+  @@index([workSessionId])
   @@index([userId])
+  @@index([analysisType])
   @@index([mode])
   @@index([createdAt])
   @@map("ai_analyses")
@@ -307,9 +335,11 @@ model Project {
   updatedAt   DateTime    @updatedAt
 
   // Relations
-  user     User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  requests RequestLog[]
-  findings Finding[]
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  requests     RequestLog[]
+  findings     Finding[]
+  aiAnalyses   AIAnalysis[] // Security reports and attack chains
+  workSessions WorkSession[]
 
   @@index([userId])
   @@index([target])
@@ -530,4 +560,104 @@ model ScanPattern {
   @@index([userId, enabled])
   @@index([category])
   @@map("scan_patterns")
+}
+
+// ============================================
+// AI JOB QUEUE - Persistent background AI jobs
+// ============================================
+
+enum AIJobStatus {
+  PENDING      // Waiting to be processed
+  PROCESSING   // Currently being processed
+  COMPLETED    // Successfully completed
+  FAILED       // Failed with error
+  CANCELLED    // Cancelled by user
+}
+
+enum AIJobType {
+  SUGGEST_TESTS      // Test suggestions for Repeater
+  GENERATE_PAYLOADS  // Payload generation for fuzzing
+  GENERATE_DORKS     // OSINT/recon dork generation
+  ATTACK_CHAIN       // Multi-step attack chain
+  SECURITY_REPORT    // Security report generation
+  ANALYZE_REQUEST    // Request analysis
+  ANALYZE_RESPONSE   // Response analysis
+}
+
+// AI Job Queue - Persistent background AI processing
+model AIJob {
+  id          String      @id @default(uuid())
+  userId      String
+  type        AIJobType
+  status      AIJobStatus @default(PENDING)
+
+  // Job data
+  requestData Json        // Original request to process (method, url, headers, body, etc.)
+  model       String?     // Preferred model (haiku-4.5, sonnet-4.5, auto)
+  mode        AIMode      @default(DEFAULT)
+
+  // Result reference
+  resultId    String?     // Links to AIAnalysis when completed
+  errorMessage String?    @db.Text // Error details if failed
+
+  // Progress tracking
+  progress    Int         @default(0) // 0-100 percentage
+
+  // Timestamps
+  createdAt   DateTime    @default(now())
+  startedAt   DateTime?   // When processing started
+  completedAt DateTime?   // When processing finished
+
+  // Retry logic
+  attempts    Int         @default(0)
+  maxAttempts Int         @default(3)
+  lastError   String?     @db.Text
+
+  // Relations
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  result      AIAnalysis? @relation(fields: [resultId], references: [id], onDelete: SetNull)
+
+  @@index([userId, status])
+  @@index([status, createdAt])
+  @@index([type])
+  @@index([resultId])
+  @@map("ai_jobs")
+}
+
+// ============================================
+// WORK SESSIONS - Session-based organization
+// ============================================
+
+// Work Sessions for organizing testing activities and AI analyses
+model WorkSession {
+  id           String   @id @default(uuid())
+  userId       String
+  projectId    String?  // Optional project association
+
+  // Session info
+  name         String   // "API Payment Testing" / "Recon Phase 1" / etc.
+  description  String?  @db.Text
+
+  // Session lifecycle
+  startedAt    DateTime @default(now())
+  endedAt      DateTime?
+  isActive     Boolean  @default(true)
+
+  // Statistics
+  totalRequests   Int @default(0)
+  totalAnalyses   Int @default(0)
+  tokensConsumed  Int @default(0)
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project     Project?      @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  aiAnalyses  AIAnalysis[]  // All AI reports from this session
+
+  @@index([userId, isActive])
+  @@index([projectId])
+  @@index([startedAt])
+  @@map("work_sessions")
 }

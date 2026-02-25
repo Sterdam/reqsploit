@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import { useAuthStore } from '../stores/authStore';
-import { useProxyStore } from '../stores/proxyStore';
+import { useProxyStore } from '../stores/extensionStore';
 import { useApiRequestsStore } from '../stores/apiRequestsStore';
 import { useRepeaterStore } from '../stores/repeaterStore';
 import { useIntruderStore } from '../stores/intruderStore';
@@ -10,12 +10,15 @@ import { useAIStore } from '../stores/aiStore';
 import { useLayoutPersistence } from '../hooks/useLayoutPersistence';
 import { toast } from '../stores/toastStore';
 import { useWorkflowStore } from '../stores/workflowStore';
-import { ProxyControls } from '../components/ProxyControls';
+import { useMagicScanStore } from '../stores/magicScanStore';
+import { ExtensionControls } from '../components/ExtensionControls';
 import { RequestList } from '../components/RequestList';
 import { RequestViewer } from '../components/RequestViewer';
 import { AIResultsViewer } from '../components/AIResultsViewer';
 import { ProjectManager } from '../components/ProjectManager';
 import { InterceptPanel } from '../components/InterceptPanel';
+import { MagicScan } from './MagicScan';
+import { MagicScanNotification } from '../components/MagicScanNotification';
 import { RepeaterPanel } from '../components/RepeaterPanel';
 import { DecoderPanel } from '../components/DecoderPanel';
 import { IntruderPanel } from '../components/IntruderPanel';
@@ -37,6 +40,7 @@ export function Dashboard() {
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const { activePanel } = useWorkflowStore();
   const { selectedRequestIds, bulkSendToRepeater: interceptBulkSendToRepeater } = useInterceptStore();
+  const { stats: scanStats } = useMagicScanStore();
 
   // Layout persistence
   const { layout, isLoaded, updatePanelVisibility, updateCenterTab } = useLayoutPersistence();
@@ -46,8 +50,8 @@ export function Dashboard() {
   const [showRequests, setShowRequests] = useState(layout.panelVisibility.showRequests);
   const [showAI, setShowAI] = useState(layout.panelVisibility.showAI);
   const [isMobile, setIsMobile] = useState(false);
-  const [mobileMenu, setMobileMenu] = useState<'projects' | 'requests' | 'viewer' | 'ai' | 'intercept' | 'repeater' | 'decoder' | 'intruder'>('viewer');
-  const [centerTab, setCenterTab] = useState<'history' | 'intercept' | 'repeater' | 'decoder' | 'intruder'>(layout.centerTab);
+  const [mobileMenu, setMobileMenu] = useState<'projects' | 'requests' | 'viewer' | 'ai' | 'magic-scan' | 'intercept' | 'repeater' | 'decoder' | 'intruder'>('viewer');
+  const [centerTab, setCenterTab] = useState<'history' | 'magic-scan' | 'intercept' | 'repeater' | 'decoder' | 'intruder'>(layout.centerTab);
   const [showDorkGenerator, setShowDorkGenerator] = useState(false);
   const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
 
@@ -231,6 +235,7 @@ export function Dashboard() {
       <div className="min-h-screen bg-deep-navy flex flex-col">
         <Header />
         <ToastContainer />
+        <MagicScanNotification />
         <KeyboardShortcutHelp />
         <KeyboardShortcutsModal isOpen={showKeyboardShortcuts} onClose={() => setShowKeyboardShortcuts(false)} />
 
@@ -315,7 +320,7 @@ export function Dashboard() {
           {mobileMenu === 'requests' && (
             <div className="flex flex-col h-full">
               <ErrorBoundary>
-                <ProxyControls />
+                <ExtensionControls />
               </ErrorBoundary>
               <ErrorBoundary>
                 <RequestList />
@@ -362,6 +367,7 @@ export function Dashboard() {
     <div className="min-h-screen bg-deep-navy flex flex-col">
       <Header />
       <ToastContainer />
+      <MagicScanNotification />
       <KeyboardShortcutHelp />
       <KeyboardShortcutsModal isOpen={showKeyboardShortcuts} onClose={() => setShowKeyboardShortcuts(false)} />
 
@@ -410,7 +416,7 @@ export function Dashboard() {
                     </button>
                   )}
                   <ErrorBoundary>
-                    <ProxyControls />
+                    <ExtensionControls />
                   </ErrorBoundary>
                   <ErrorBoundary>
                     <RequestList />
@@ -515,6 +521,22 @@ export function Dashboard() {
                     <span className="text-[#10B981] ml-1">({intruderCampaigns.length})</span>
                   )}
                 </button>
+                <button
+                  onClick={() => setCenterTab('magic-scan')}
+                  className={`px-4 py-2.5 text-xs font-medium transition whitespace-nowrap flex-shrink-0 ${
+                    centerTab === 'magic-scan'
+                      ? 'text-purple-400 border-b-2 border-purple-600 bg-[#0D1F2D]'
+                      : 'text-gray-400 hover:text-gray-300 hover:bg-white/5'
+                  }`}
+                >
+                  🎣 Magic Scan
+                  {scanStats && scanStats.criticalCount > 0 && (
+                    <span className="text-red-400 ml-1 animate-pulse">({scanStats.criticalCount})</span>
+                  )}
+                  {scanStats && scanStats.total > 0 && scanStats.criticalCount === 0 && (
+                    <span className="text-[#10B981] ml-1">({scanStats.total})</span>
+                  )}
+                </button>
               </div>
 
               {/* Tab Content */}
@@ -522,6 +544,11 @@ export function Dashboard() {
                 {centerTab === 'history' && (
                   <ErrorBoundary>
                     <RequestViewer />
+                  </ErrorBoundary>
+                )}
+                {centerTab === 'magic-scan' && (
+                  <ErrorBoundary>
+                    <MagicScan />
                   </ErrorBoundary>
                 )}
                 {centerTab === 'intercept' && (

@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { wsService, type WebSocketEventHandlers } from '../lib/websocket';
 import { useAuthStore } from '../stores/authStore';
-import { useProxyStore } from '../stores/proxyStore';
+import { useProxyStore } from '../stores/extensionStore';
 import { useRequestsStore } from '../stores/requestsStore';
 import { useAIStore } from '../stores/aiStore';
 

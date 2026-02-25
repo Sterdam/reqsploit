@@ -60,9 +60,11 @@ export interface ProxySession {
   id: string;
   sessionId: string;
   userId: string;
-  proxyPort: number;
+  proxyPort: number | null;
   isActive: boolean;
   interceptMode: boolean;
+  mode?: string;
+  extensionVersion?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }

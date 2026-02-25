@@ -15,6 +15,7 @@ import aiRoutes from './api/routes/ai.routes.js';
 import repeaterRoutes from './api/routes/repeater.routes.js';
 import decoderRoutes from './api/routes/decoder.routes.js';
 import intruderRoutes from './api/routes/intruder.routes.js';
+import workSessionRoutes from './api/routes/work-session.routes.js';
 import requestsRoutes from './routes/requests.routes.js';
 import projectsRoutes from './routes/projects.routes.js';
 import analysisRoutes from './routes/analysis.routes.js';
@@ -123,6 +124,7 @@ app.use('/api/ai', aiRoutes);
 app.use('/api/repeater', repeaterRoutes);
 app.use('/api/decoder', decoderRoutes);
 app.use('/api/intruder', intruderRoutes);
+app.use('/api/work-sessions', workSessionRoutes);
 
 // New comprehensive routes
 app.use('/api/requests', requestsRoutes);
@@ -227,8 +229,10 @@ async function startServer(): Promise<void> {
     // Connect to database
     await connectDatabase();
 
-    // Initialize default certificate for extension
-    await initializeDefaultCertificate();
+    // Initialize default certificate (optional, not required for CDP mode)
+    if (process.env.ENABLE_LEGACY_CERTS !== 'false') {
+      await initializeDefaultCertificate();
+    }
 
     // Initialize WebSocket server
     wsServer.initialize(server);
@@ -236,15 +240,16 @@ async function startServer(): Promise<void> {
 
     // Start HTTP server
     server.listen(PORT, HOST, () => {
-      logger.info(`🚀 ReqSploit Backend Server started`, {
+      logger.info(`ReqSploit Backend Server started`, {
         port: PORT,
         host: HOST,
+        mode: 'CDP',
         environment: process.env.NODE_ENV,
         pid: process.pid,
       });
-      logger.info(`📡 Health check: http://${HOST}:${PORT}/health`);
-      logger.info(`🔐 API endpoint: http://${HOST}:${PORT}/api`);
-      logger.info(`🔌 WebSocket endpoint: ws://${HOST}:${PORT}`);
+      logger.info(`Health check: http://${HOST}:${PORT}/health`);
+      logger.info(`API endpoint: http://${HOST}:${PORT}/api`);
+      logger.info(`WebSocket endpoint: ws://${HOST}:${PORT}`);
     });
 
     // Graceful shutdown handlers

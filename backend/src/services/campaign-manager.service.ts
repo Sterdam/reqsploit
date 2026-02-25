@@ -1,12 +1,15 @@
 /**
  * Campaign Manager Service
  * Manages fuzzing campaign execution with concurrency control
+ * CDP mode: delegates request execution to extension (client IP)
+ * Fallback: server-side HTTP execution
  */
 
 import { EventEmitter } from 'events';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { PayloadEngine, type AttackType, type PayloadSet, type PayloadPosition } from './payload-engine.service.js';
+import { extensionManager } from '../core/websocket/extension-manager.js';
 import http from 'http';
 import https from 'https';
 import logger from '../utils/logger.js';
@@ -47,9 +50,10 @@ export class CampaignManager extends EventEmitter {
 
   /**
    * Start a fuzzing campaign
+   * Delegates to extension (CDP) if connected, otherwise executes server-side
    */
   async startCampaign(config: CampaignConfig): Promise<void> {
-    const { id, attackType, payloadSets, concurrency, delayMs } = config;
+    const { id, userId, attackType, payloadSets, concurrency, delayMs } = config;
 
     // Check if already running
     if (this.activeCampaigns.get(id)) {
@@ -78,18 +82,25 @@ export class CampaignManager extends EventEmitter {
       data: { totalRequests: combinations.length },
     });
 
-    // Execute campaign with concurrency control
-    await this.executeCampaign(config, combinations);
+    // CDP mode: delegate to extension (requests originate from client IP)
+    if (extensionManager.isConnected(userId)) {
+      await this.executeCampaignViaExtension(config, combinations);
+    } else {
+      // Fallback: server-side execution
+      await this.executeCampaign(config, combinations);
+    }
 
-    // Mark as completed
-    this.activeCampaigns.delete(id);
-    await prisma.fuzzingCampaign.update({
-      where: { id },
-      data: {
-        status: 'completed',
-        completedAt: new Date(),
-      },
-    });
+    // Mark as completed (unless stopped)
+    if (this.activeCampaigns.has(id)) {
+      this.activeCampaigns.delete(id);
+      await prisma.fuzzingCampaign.update({
+        where: { id },
+        data: {
+          status: 'completed',
+          completedAt: new Date(),
+        },
+      });
+    }
 
     logger.info('Campaign completed', { campaignId: id, totalRequests: combinations.length });
   }
@@ -155,6 +166,89 @@ export class CampaignManager extends EventEmitter {
         await this.delay(delayMs);
       }
     }
+  }
+
+  /**
+   * Execute campaign via extension (CDP mode)
+   * Builds all request variants and sends batch to extension
+   */
+  private async executeCampaignViaExtension(config: CampaignConfig, combinations: string[][]): Promise<void> {
+    const { id, userId, requestTemplate, payloadPositions, concurrency, delayMs } = config;
+
+    // Build all request variants
+    const requests = combinations.map((payloads, index) => {
+      let url = requestTemplate.url;
+      let body = requestTemplate.body || '';
+
+      payloadPositions.forEach((position, pIndex) => {
+        const marker = `§${position.id}§`;
+        url = url.replace(marker, payloads[pIndex] || '');
+        body = body.replace(marker, payloads[pIndex] || '');
+      });
+
+      return {
+        index,
+        method: requestTemplate.method,
+        url,
+        headers: requestTemplate.headers,
+        body: body || undefined,
+        payloads,
+      };
+    });
+
+    logger.info('Delegating campaign to extension', {
+      campaignId: id,
+      userId,
+      totalRequests: requests.length,
+      concurrency,
+    });
+
+    // Send batch to extension for execution
+    extensionManager.sendIntruderBatch(userId, {
+      campaignId: id,
+      requests,
+      concurrency,
+      delayMs,
+    });
+
+    // Results stream back via ext:intruder-result events (handled in extension-handler.ts)
+    // Wait for completion by polling campaign status
+    await new Promise<void>((resolve) => {
+      const checkInterval = setInterval(async () => {
+        // Check if stopped
+        if (!this.activeCampaigns.has(id)) {
+          clearInterval(checkInterval);
+          extensionManager.stopIntruder(userId, id);
+          resolve();
+          return;
+        }
+
+        // Check progress
+        const campaign = await prisma.fuzzingCampaign.findUnique({
+          where: { id },
+          select: { completedRequests: true, failedRequests: true, totalRequests: true },
+        });
+
+        if (campaign) {
+          const total = campaign.completedRequests + campaign.failedRequests;
+          if (total >= campaign.totalRequests) {
+            clearInterval(checkInterval);
+            resolve();
+          }
+
+          // Emit progress
+          this.emit('progress', {
+            campaignId: id,
+            totalRequests: campaign.totalRequests,
+            completedRequests: campaign.completedRequests,
+            failedRequests: campaign.failedRequests,
+            currentProgress: campaign.totalRequests > 0
+              ? Math.round((campaign.completedRequests / campaign.totalRequests) * 100)
+              : 0,
+          });
+        }
+      }, 1000);
+    });
   }
 
   /**
@@ -322,9 +416,14 @@ export class CampaignManager extends EventEmitter {
   /**
    * Stop a campaign
    */
-  async stopCampaign(campaignId: string): Promise<void> {
+  async stopCampaign(campaignId: string, userId?: string): Promise<void> {
     this.activeCampaigns.delete(campaignId);
     this.pausedCampaigns.delete(campaignId);
+
+    // Notify extension to stop if connected
+    if (userId && extensionManager.isConnected(userId)) {
+      extensionManager.stopIntruder(userId, campaignId);
+    }
 
     await prisma.fuzzingCampaign.update({
       where: { id: campaignId },

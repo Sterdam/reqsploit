@@ -11,6 +11,9 @@ import { wsLogger } from '../../utils/logger.js';
 import { UnauthorizedError } from '../../utils/errors.js';
 import { proxySessionManager } from '../proxy/session-manager.js';
 import { RequestModification } from '../../types/proxy.types.js';
+import { setupExtensionHandlers } from './extension-handler.js';
+import { extensionManager } from './extension-manager.js';
+import { cdpRequestQueue } from '../proxy/cdp-request-queue.js';
 
 /**
  * WebSocket Server (Singleton)
@@ -107,12 +110,19 @@ export class WebSocketServer {
    * Setup connection event handler
    */
   private setupConnectionHandler(): void {
+    // Provide emit function to ExtensionManager
+    extensionManager.setEmitFunction((socketId: string, event: string, data: any) => {
+      this.io?.to(socketId).emit(event as any, data);
+    });
+
     this.io!.on('connection', (socket: TypedSocket) => {
       const userId = socket.data.userId;
+      const isExtension = socket.handshake.query.client === 'extension';
 
       wsLogger.info('Client connected', {
         socketId: socket.id,
         userId,
+        clientType: isExtension ? 'extension' : 'dashboard',
       });
 
       // Track connection
@@ -127,11 +137,21 @@ export class WebSocketServer {
         sessionId: socket.id,
       });
 
-      // Setup event handlers
+      if (isExtension) {
+        // Setup extension-specific event handlers
+        setupExtensionHandlers(socket as any, userId);
+      }
+
+      // Setup standard event handlers (dashboard)
       this.setupEventHandlers(socket);
 
       // Handle disconnection
       socket.on('disconnect', () => {
+        if (isExtension) {
+          extensionManager.unregister(userId);
+          // Notify dashboard that extension disconnected
+          this.emitToUser(userId, 'ext:disconnected' as any);
+        }
         this.handleDisconnect(userId, socket.id);
       });
     });
@@ -160,21 +180,29 @@ export class WebSocketServer {
     });
 
     // Request Management Events
+    // CDP mode: use cdpRequestQueue; Legacy: use proxySessionManager
     socket.on('request:forward', async (data) => {
       wsLogger.debug('Request forward', { userId, requestId: data.requestId });
 
       try {
+        // Try CDP queue first (extension-based)
+        const cdpPending = cdpRequestQueue.getQueue(userId).find((r) => r.requestId === data.requestId);
+        if (cdpPending) {
+          cdpRequestQueue.forward(userId, data.requestId, data.modifications);
+          wsLogger.info('Request forwarded via CDP', { userId, requestId: data.requestId });
+          return;
+        }
+
+        // Fallback: legacy proxy session
         const session = proxySessionManager.getSessionByUserId(userId);
         if (!session) {
-          wsLogger.error('No active proxy session for user', { userId });
           socket.emit('error', { message: 'No active proxy session' });
           return;
         }
 
         const queue = session.proxy.getRequestQueue();
         await queue.forward(data.requestId, data.modifications);
-
-        wsLogger.info('Request forwarded successfully', { userId, requestId: data.requestId });
+        wsLogger.info('Request forwarded via proxy', { userId, requestId: data.requestId });
       } catch (error) {
         wsLogger.error('Failed to forward request', { userId, requestId: data.requestId, error });
         socket.emit('error', { message: 'Failed to forward request' });
@@ -185,17 +213,24 @@ export class WebSocketServer {
       wsLogger.debug('Request drop', { userId, requestId: data.requestId });
 
       try {
+        // Try CDP queue first
+        const cdpPending = cdpRequestQueue.getQueue(userId).find((r) => r.requestId === data.requestId);
+        if (cdpPending) {
+          cdpRequestQueue.drop(userId, data.requestId);
+          wsLogger.info('Request dropped via CDP', { userId, requestId: data.requestId });
+          return;
+        }
+
+        // Fallback: legacy
         const session = proxySessionManager.getSessionByUserId(userId);
         if (!session) {
-          wsLogger.error('No active proxy session for user', { userId });
           socket.emit('error', { message: 'No active proxy session' });
           return;
         }
 
         const queue = session.proxy.getRequestQueue();
         queue.drop(data.requestId);
-
-        wsLogger.info('Request dropped successfully', { userId, requestId: data.requestId });
+        wsLogger.info('Request dropped via proxy', { userId, requestId: data.requestId });
       } catch (error) {
         wsLogger.error('Failed to drop request', { userId, requestId: data.requestId, error });
         socket.emit('error', { message: 'Failed to drop request' });
@@ -206,9 +241,27 @@ export class WebSocketServer {
       wsLogger.debug('Request modify', { userId, requestId: data.requestId });
 
       try {
+        // Try CDP queue first
+        const cdpPending = cdpRequestQueue.getQueue(userId).find((r) => r.requestId === data.requestId);
+        if (cdpPending) {
+          // Convert dashboard modifications to CDP format
+          const mods = data.modifications ? {
+            method: data.modifications.method,
+            url: data.modifications.url,
+            headers: data.modifications.headers
+              ? Object.entries(data.modifications.headers).map(([name, value]) => ({ name, value: value as string }))
+              : undefined,
+            postData: data.modifications.body,
+          } : undefined;
+
+          cdpRequestQueue.forward(userId, data.requestId, mods);
+          wsLogger.info('Request modified and forwarded via CDP', { userId, requestId: data.requestId });
+          return;
+        }
+
+        // Fallback: legacy
         const session = proxySessionManager.getSessionByUserId(userId);
         if (!session) {
-          wsLogger.error('No active proxy session for user', { userId });
           socket.emit('error', { message: 'No active proxy session' });
           return;
         }
@@ -220,11 +273,31 @@ export class WebSocketServer {
         };
 
         await queue.forward(data.requestId, modifications);
-
-        wsLogger.info('Request modified and forwarded', { userId, requestId: data.requestId });
+        wsLogger.info('Request modified and forwarded via proxy', { userId, requestId: data.requestId });
       } catch (error) {
         wsLogger.error('Failed to modify request', { userId, requestId: data.requestId, error });
         socket.emit('error', { message: 'Failed to modify request' });
+      }
+    });
+
+    // Response Management Events (CDP only)
+    socket.on('response:forward' as any, async (data: { requestId: string; modifications?: any }) => {
+      wsLogger.debug('Response forward', { userId, requestId: data.requestId });
+      try {
+        cdpRequestQueue.forward(userId, data.requestId, data.modifications);
+      } catch (error) {
+        wsLogger.error('Failed to forward response', { userId, error });
+        socket.emit('error', { message: 'Failed to forward response' });
+      }
+    });
+
+    socket.on('response:drop' as any, async (data: { requestId: string }) => {
+      wsLogger.debug('Response drop', { userId, requestId: data.requestId });
+      try {
+        cdpRequestQueue.drop(userId, data.requestId);
+      } catch (error) {
+        wsLogger.error('Failed to drop response', { userId, error });
+        socket.emit('error', { message: 'Failed to drop response' });
       }
     });
 
@@ -233,6 +306,14 @@ export class WebSocketServer {
       wsLogger.debug('Get request queue', { userId });
 
       try {
+        // Try CDP queue first
+        const cdpQueue = cdpRequestQueue.getQueue(userId);
+        if (cdpQueue.length > 0 || extensionManager.isConnected(userId)) {
+          socket.emit('request:queue', { queue: cdpQueue });
+          return;
+        }
+
+        // Fallback: legacy proxy session
         const session = proxySessionManager.getSessionByUserId(userId);
         if (!session) {
           socket.emit('request:queue', { queue: [] });
@@ -254,6 +335,13 @@ export class WebSocketServer {
       wsLogger.info('Bulk forward requested', { userId, count: data.requestIds.length });
 
       try {
+        // Try CDP queue first
+        if (extensionManager.isConnected(userId)) {
+          const result = await cdpRequestQueue.bulkForward(userId, data.requestIds);
+          socket.emit('bulk:result', { action: 'forward', ...result });
+          return;
+        }
+
         const session = proxySessionManager.getSessionByUserId(userId);
         if (!session) {
           socket.emit('error', { message: 'No active proxy session' });
@@ -262,9 +350,7 @@ export class WebSocketServer {
 
         const queue = session.proxy.getRequestQueue();
         const result = await queue.bulkForward(data.requestIds);
-
         socket.emit('bulk:result', { action: 'forward', ...result });
-        wsLogger.info('Bulk forward completed', { userId, success: result.success.length, failed: result.failed.length });
       } catch (error) {
         wsLogger.error('Bulk forward failed', { userId, error });
         socket.emit('error', { message: 'Bulk forward failed' });
@@ -275,6 +361,12 @@ export class WebSocketServer {
       wsLogger.info('Bulk drop requested', { userId, count: data.requestIds.length });
 
       try {
+        if (extensionManager.isConnected(userId)) {
+          const result = cdpRequestQueue.bulkDrop(userId, data.requestIds);
+          socket.emit('bulk:result', { action: 'drop', ...result });
+          return;
+        }
+
         const session = proxySessionManager.getSessionByUserId(userId);
         if (!session) {
           socket.emit('error', { message: 'No active proxy session' });
@@ -283,9 +375,7 @@ export class WebSocketServer {
 
         const queue = session.proxy.getRequestQueue();
         const result = queue.bulkDrop(data.requestIds);
-
         socket.emit('bulk:result', { action: 'drop', ...result });
-        wsLogger.info('Bulk drop completed', { userId, success: result.success.length, failed: result.failed.length });
       } catch (error) {
         wsLogger.error('Bulk drop failed', { userId, error });
         socket.emit('error', { message: 'Bulk drop failed' });
@@ -296,6 +386,12 @@ export class WebSocketServer {
       wsLogger.info('Pattern-based forward requested', { userId, pattern: data.urlPattern });
 
       try {
+        if (extensionManager.isConnected(userId)) {
+          const result = cdpRequestQueue.forwardByPattern(userId, data.urlPattern);
+          socket.emit('bulk:result', { action: 'forward', ...result });
+          return;
+        }
+
         const session = proxySessionManager.getSessionByUserId(userId);
         if (!session) {
           socket.emit('error', { message: 'No active proxy session' });
@@ -304,9 +400,7 @@ export class WebSocketServer {
 
         const queue = session.proxy.getRequestQueue();
         const result = await queue.forwardByPattern(data.urlPattern);
-
         socket.emit('bulk:result', { action: 'forward', ...result });
-        wsLogger.info('Pattern forward completed', { userId, pattern: data.urlPattern, matches: result.success.length });
       } catch (error) {
         wsLogger.error('Pattern forward failed', { userId, error });
         socket.emit('error', { message: 'Pattern forward failed' });
@@ -317,6 +411,12 @@ export class WebSocketServer {
       wsLogger.info('Pattern-based drop requested', { userId, pattern: data.urlPattern });
 
       try {
+        if (extensionManager.isConnected(userId)) {
+          const result = cdpRequestQueue.dropByPattern(userId, data.urlPattern);
+          socket.emit('bulk:result', { action: 'drop', ...result });
+          return;
+        }
+
         const session = proxySessionManager.getSessionByUserId(userId);
         if (!session) {
           socket.emit('error', { message: 'No active proxy session' });
@@ -325,9 +425,7 @@ export class WebSocketServer {
 
         const queue = session.proxy.getRequestQueue();
         const result = queue.dropByPattern(data.urlPattern);
-
         socket.emit('bulk:result', { action: 'drop', ...result });
-        wsLogger.info('Pattern drop completed', { userId, pattern: data.urlPattern, matches: result.success.length });
       } catch (error) {
         wsLogger.error('Pattern drop failed', { userId, error });
         socket.emit('error', { message: 'Pattern drop failed' });
@@ -339,6 +437,13 @@ export class WebSocketServer {
       wsLogger.debug('Get smart filters', { userId });
 
       try {
+        // CDP mode: relay to extension
+        if (extensionManager.isConnected(userId)) {
+          // Extension manages its own filters, return default
+          socket.emit('smart-filters:config', { filters: [] });
+          return;
+        }
+
         const session = proxySessionManager.getSessionByUserId(userId);
         if (!session) {
           socket.emit('smart-filters:config', { filters: [] });
@@ -347,7 +452,6 @@ export class WebSocketServer {
 
         const queue = session.proxy.getRequestQueue();
         const filters = queue.getSmartFilters();
-
         socket.emit('smart-filters:config', { filters });
       } catch (error) {
         wsLogger.error('Failed to get smart filters', { userId, error });
@@ -359,6 +463,13 @@ export class WebSocketServer {
       wsLogger.info('Update smart filters', { userId, count: data.filters.length });
 
       try {
+        // CDP mode: relay to extension
+        if (extensionManager.isConnected(userId)) {
+          extensionManager.updateFilters(userId, { filters: data.filters });
+          socket.emit('smart-filters:config', { filters: data.filters });
+          return;
+        }
+
         const session = proxySessionManager.getSessionByUserId(userId);
         if (!session) {
           socket.emit('error', { message: 'No active proxy session' });
@@ -367,9 +478,7 @@ export class WebSocketServer {
 
         const queue = session.proxy.getRequestQueue();
         queue.setSmartFilters(data.filters);
-
         socket.emit('smart-filters:config', { filters: data.filters });
-        wsLogger.info('Smart filters updated', { userId });
       } catch (error) {
         wsLogger.error('Failed to update smart filters', { userId, error });
         socket.emit('error', { message: 'Failed to update smart filters' });

@@ -51,7 +51,6 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-4-5-20250929}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173}
-      PROXY_PORT_START: ${PROXY_PORT_START:-8000}
       SSL_CERT_DIR: /data/certs
     volumes:
       - ./backend/src:/app/src
@@ -60,7 +59,6 @@ services:
       - /app/node_modules
     ports:
       - "3000:3000"
-      - "8000-8100:8000-8100"
     depends_on:
       postgres:
         condition: service_healthy
