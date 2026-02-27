@@ -13,6 +13,7 @@ import { BillingSettings } from './pages/BillingSettings';
 import { BillingSuccess } from './pages/BillingSuccess';
 import { BillingCanceled } from './pages/BillingCanceled';
 import { MagicScan } from './pages/MagicScan';
+import { Extension } from './pages/Extension';
 
 // Protected Route Component
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -159,6 +160,7 @@ export function App() {
 
         {/* Public Routes (no auth redirect) */}
         <Route path="/pricing" element={<Pricing />} />
+        <Route path="/extension" element={<Extension />} />
 
         {/* Default Route */}
         <Route path="/" element={<Landing />} />

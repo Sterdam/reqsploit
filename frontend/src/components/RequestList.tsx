@@ -683,7 +683,7 @@ export function RequestList() {
                 <div>
                   <p className="text-xs text-gray-300 font-medium">Install the Chrome extension</p>
                   <p className="text-xs text-gray-500">
-                    <a href="/reqsploit-extension-v2.1.0.zip" download className="text-blue-400 hover:text-blue-300 underline">Download the extension</a>, unzip, then load unpacked in <span className="text-gray-400">chrome://extensions</span>
+                    <a href="/extension" className="text-blue-400 hover:text-blue-300 underline">Get the Chrome extension</a> — download, unzip, load unpacked in chrome://extensions
                   </p>
                 </div>
               </div>
