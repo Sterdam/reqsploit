@@ -1,5 +1,5 @@
 import { useExtensionStore } from '../stores/extensionStore';
-import { Wifi, WifiOff, Play, Square, Monitor, Loader2 } from 'lucide-react';
+import { Wifi, WifiOff, Play, Square, Monitor, Loader2, Chrome, Download } from 'lucide-react';
 import { wsService } from '../lib/websocket';
 
 /**
@@ -112,11 +112,25 @@ export function ExtensionControls() {
             : 'Start Intercepting'}
       </button>
 
-      {/* Not connected hint */}
+      {/* Not connected - Get Extension CTA */}
       {!isConnected && (
-        <p className="text-xs text-gray-500 text-center">
-          Install and enable the ReqSploit browser extension to begin intercepting.
-        </p>
+        <div className="space-y-3">
+          <a
+            href="/extension"
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600/20 hover:bg-blue-600/30 border border-blue-600/30 text-blue-400 rounded-md transition text-sm font-medium"
+          >
+            <Chrome className="w-4 h-4" />
+            Get Chrome Extension
+          </a>
+          <a
+            href="/reqsploit-extension-v2.1.0.zip"
+            download
+            className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300 rounded-md transition text-xs"
+          >
+            <Download className="w-3.5 h-3.5" />
+            Direct Download (.zip)
+          </a>
+        </div>
       )}
 
       {/* Active Session Controls */}

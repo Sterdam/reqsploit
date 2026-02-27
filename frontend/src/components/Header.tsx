@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { useAIStore } from '../stores/aiStore';
 import { useExtensionStore } from '../stores/extensionStore';
-import { LogOut, User, Menu, X, BookOpen, Wifi, WifiOff } from 'lucide-react';
+import { LogOut, User, Menu, X, BookOpen, Wifi, Chrome } from 'lucide-react';
 import { AIModelSelector } from './AIModelSelector';
 
 export function Header() {
@@ -54,44 +54,43 @@ export function Header() {
 
           {/* Extension Connection Indicator */}
           <div className="hidden md:block h-6 w-px bg-white/20" />
-          <div
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all ${
-              isConnected
-                ? interceptEnabled && attachedTabs.length > 0
+          {isConnected ? (
+            <div
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all ${
+                interceptEnabled && attachedTabs.length > 0
                   ? 'bg-cyber-green/15 text-cyber-green border border-cyber-green/30'
                   : 'bg-blue-500/15 text-blue-400 border border-blue-500/30'
-                : 'bg-red-500/15 text-red-400 border border-red-500/30'
-            }`}
-            title={
-              isConnected
-                ? interceptEnabled && attachedTabs.length > 0
+              }`}
+              title={
+                interceptEnabled && attachedTabs.length > 0
                   ? `Intercepting ${attachedTabs.length} tab${attachedTabs.length > 1 ? 's' : ''}`
                   : 'Extension connected'
-                : 'Extension not connected'
-            }
-          >
-            {isConnected ? (
+              }
+            >
               <Wifi className="w-3 h-3" />
-            ) : (
-              <WifiOff className="w-3 h-3" />
-            )}
-            <span className="hidden sm:inline">
-              {isConnected
-                ? interceptEnabled && attachedTabs.length > 0
+              <span className="hidden sm:inline">
+                {interceptEnabled && attachedTabs.length > 0
                   ? `Intercepting (${attachedTabs.length})`
-                  : 'Connected'
-                : 'Ext. Offline'}
-            </span>
-            <div
-              className={`w-1.5 h-1.5 rounded-full ${
-                isConnected
-                  ? interceptEnabled && attachedTabs.length > 0
+                  : 'Connected'}
+              </span>
+              <div
+                className={`w-1.5 h-1.5 rounded-full ${
+                  interceptEnabled && attachedTabs.length > 0
                     ? 'bg-cyber-green animate-pulse'
                     : 'bg-blue-400'
-                  : 'bg-red-400'
-              }`}
-            />
-          </div>
+                }`}
+              />
+            </div>
+          ) : (
+            <button
+              onClick={() => navigate('/extension')}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-600/20 text-blue-400 border border-blue-600/30 hover:bg-blue-600/30 transition-all cursor-pointer"
+              title="Install the Chrome extension to start intercepting"
+            >
+              <Chrome className="w-3 h-3" />
+              <span className="hidden sm:inline">Get Extension</span>
+            </button>
+          )}
         </div>
 
         {/* Desktop User Info */}
@@ -170,34 +169,32 @@ export function Header() {
       {showMobileMenu && (
         <div className="lg:hidden mt-4 pt-4 border-t border-white/10 space-y-3">
           {/* Extension Status (Mobile) */}
-          <div
-            className={`flex items-center gap-2 p-3 rounded-lg ${
-              isConnected
-                ? interceptEnabled && attachedTabs.length > 0
+          {isConnected ? (
+            <div
+              className={`flex items-center gap-2 p-3 rounded-lg ${
+                interceptEnabled && attachedTabs.length > 0
                   ? 'bg-cyber-green/10 border border-cyber-green/20'
                   : 'bg-blue-500/10 border border-blue-500/20'
-                : 'bg-red-500/10 border border-red-500/20'
-            }`}
-          >
-            {isConnected ? (
+              }`}
+            >
               <Wifi className={`w-4 h-4 ${interceptEnabled && attachedTabs.length > 0 ? 'text-cyber-green' : 'text-blue-400'}`} />
-            ) : (
-              <WifiOff className="w-4 h-4 text-red-400" />
-            )}
-            <span className={`text-sm font-medium ${
-              isConnected
-                ? interceptEnabled && attachedTabs.length > 0
-                  ? 'text-cyber-green'
-                  : 'text-blue-400'
-                : 'text-red-400'
-            }`}>
-              {isConnected
-                ? interceptEnabled && attachedTabs.length > 0
+              <span className={`text-sm font-medium ${
+                interceptEnabled && attachedTabs.length > 0 ? 'text-cyber-green' : 'text-blue-400'
+              }`}>
+                {interceptEnabled && attachedTabs.length > 0
                   ? `Intercepting ${attachedTabs.length} tab${attachedTabs.length > 1 ? 's' : ''}`
-                  : 'Extension Connected'
-                : 'Extension Offline'}
-            </span>
-          </div>
+                  : 'Extension Connected'}
+              </span>
+            </div>
+          ) : (
+            <button
+              onClick={() => { navigate('/extension'); setShowMobileMenu(false); }}
+              className="w-full flex items-center gap-2 p-3 rounded-lg bg-blue-600/10 border border-blue-600/20 hover:bg-blue-600/20 transition"
+            >
+              <Chrome className="w-4 h-4 text-blue-400" />
+              <span className="text-sm font-medium text-blue-400">Get Chrome Extension</span>
+            </button>
+          )}
 
           {/* User Info */}
           {user && (
