@@ -118,8 +118,6 @@ export const useAIStore = create<AIState>()(
       const { model } = get(); // Get current model selection
       let analysis: AIAnalysis;
 
-      console.log(`🎯 Analyzing with model: ${model}`);
-
       switch (type) {
         case 'request':
           analysis = await aiAPI.analyzeRequest(requestId, model);
@@ -217,9 +215,7 @@ export const useAIStore = create<AIState>()(
 
   // New AI actions
   setModel: (model) => {
-    console.log('🔧 aiStore.setModel called with:', model);
     set({ model });
-    console.log('✅ aiStore.model updated to:', model);
   },
   setMode: (mode) => set({ mode }),
   setCredits: (credits) => set({ credits }),

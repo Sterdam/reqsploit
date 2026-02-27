@@ -6,6 +6,7 @@ import { Router, Request, Response } from 'express';
 import { RequestLogService } from '../services/request-log.service.js';
 import { authenticateToken } from '../api/middlewares/auth.middleware.js';
 import { prisma } from '../lib/prisma.js';
+import logger from '../utils/logger.js';
 
 const router = Router();
 
@@ -36,8 +37,8 @@ router.get('/', async (req: Request, res: Response) => {
       isIntercepted: req.query.isIntercepted === 'true' ? true : req.query.isIntercepted === 'false' ? false : undefined,
       startDate: req.query.startDate ? new Date(req.query.startDate as string) : undefined,
       endDate: req.query.endDate ? new Date(req.query.endDate as string) : undefined,
-      limit: req.query.limit ? parseInt(req.query.limit as string) : undefined,
-      offset: req.query.offset ? parseInt(req.query.offset as string) : undefined,
+      limit: req.query.limit ? Math.min(parseInt(req.query.limit as string) || 100, 500) : 100,
+      offset: req.query.offset ? parseInt(req.query.offset as string) || 0 : 0,
       sortBy: req.query.sortBy as 'timestamp' | 'duration' | 'statusCode' | undefined,
       sortOrder: req.query.sortOrder as 'asc' | 'desc' | undefined,
     };
@@ -55,7 +56,7 @@ router.get('/', async (req: Request, res: Response) => {
       },
     });
   } catch (error: any) {
-    console.error('Error fetching requests:', error);
+    logger.error('Error fetching requests:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -77,7 +78,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 
     res.json({ success: true, data: requestLog });
   } catch (error: any) {
-    console.error('Error fetching request:', error);
+    logger.error('Error fetching request:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -100,7 +101,7 @@ router.patch('/:id/tags', async (req: Request, res: Response) => {
 
     res.json({ success: true, data: requestLog });
   } catch (error: any) {
-    console.error('Error updating tags:', error);
+    logger.error('Error updating tags:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -123,7 +124,7 @@ router.post('/:id/tags', async (req: Request, res: Response) => {
 
     res.json({ success: true, data: requestLog });
   } catch (error: any) {
-    console.error('Error adding tag:', error);
+    logger.error('Error adding tag:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -141,7 +142,7 @@ router.delete('/:id/tags/:tag', async (req: Request, res: Response) => {
 
     res.json({ success: true, data: requestLog });
   } catch (error: any) {
-    console.error('Error removing tag:', error);
+    logger.error('Error removing tag:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -159,7 +160,7 @@ router.patch('/:id/starred', async (req: Request, res: Response) => {
 
     res.json({ success: true, data: requestLog });
   } catch (error: any) {
-    console.error('Error toggling starred:', error);
+    logger.error('Error toggling starred:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -182,7 +183,7 @@ router.patch('/:id/project', async (req: Request, res: Response) => {
 
     res.json({ success: true, data: requestLog });
   } catch (error: any) {
-    console.error('Error assigning to project:', error);
+    logger.error('Error assigning to project:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -205,7 +206,7 @@ router.get('/stats/summary', async (req: Request, res: Response) => {
 
     res.json({ success: true, data: stats });
   } catch (error: any) {
-    console.error('Error fetching stats:', error);
+    logger.error('Error fetching stats:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -224,7 +225,7 @@ router.get('/:id/related', async (req: Request, res: Response) => {
 
     res.json({ success: true, data: relatedRequests });
   } catch (error: any) {
-    console.error('Error fetching related requests:', error);
+    logger.error('Error fetching related requests:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -250,7 +251,7 @@ router.get('/export/json', async (req: Request, res: Response) => {
     res.setHeader('Content-Disposition', `attachment; filename=requests-${Date.now()}.json`);
     res.send(jsonData);
   } catch (error: any) {
-    console.error('Error exporting JSON:', error);
+    logger.error('Error exporting JSON:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -276,7 +277,7 @@ router.get('/export/csv', async (req: Request, res: Response) => {
     res.setHeader('Content-Disposition', `attachment; filename=requests-${Date.now()}.csv`);
     res.send(csvData);
   } catch (error: any) {
-    console.error('Error exporting CSV:', error);
+    logger.error('Error exporting CSV:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -298,7 +299,7 @@ router.delete('/cleanup', async (req: Request, res: Response) => {
 
     res.json({ success: true, data: { deletedCount } });
   } catch (error: any) {
-    console.error('Error cleaning up requests:', error);
+    logger.error('Error cleaning up requests:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

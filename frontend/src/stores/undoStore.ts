@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { wsService } from '../lib/websocket';
 import { toast } from './toastStore';
+import api from '../lib/api';
 
 export interface UndoableAction {
   id: string;
@@ -99,32 +100,9 @@ export const useUndoStore = create<UndoStore>((set, get) => ({
         // Re-queue dropped requests via backend API
         if (actionToUndo.data.requestIds && actionToUndo.data.requestIds.length > 0) {
           try {
-            const response = await fetch('/api/proxy/intercept/undo', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
-              },
-              body: JSON.stringify({
-                requestIds: actionToUndo.data.requestIds,
-              }),
+            const { data } = await api.post('/proxy/intercept/undo', {
+              requestIds: actionToUndo.data.requestIds,
             });
-
-            // Check if response is OK before parsing JSON
-            if (!response.ok) {
-              let errorMessage = 'Request failed';
-              try {
-                const errorData = await response.json();
-                errorMessage = errorData.message || errorMessage;
-              } catch {
-                // Response is not JSON (might be HTML error page)
-                errorMessage = `Server error (${response.status})`;
-              }
-              toast.error('Undo failed', errorMessage);
-              return;
-            }
-
-            const data = await response.json();
 
             if (data.success) {
               const count = data.restored?.length || actionToUndo.data.requestIds.length;
@@ -135,9 +113,9 @@ export const useUndoStore = create<UndoStore>((set, get) => ({
             } else {
               toast.error('Undo failed', data.message || 'Grace period may have expired');
             }
-          } catch (error) {
-            console.error('Undo drop failed:', error);
-            toast.error('Undo failed', 'Network error or session expired');
+          } catch (error: any) {
+            const message = error.response?.data?.message || 'Network error or session expired';
+            toast.error('Undo failed', message);
           }
         }
         break;

@@ -8,6 +8,11 @@ import { Register } from './pages/Register';
 import { Dashboard } from './pages/Dashboard';
 import { Settings } from './pages/Settings';
 import { Documentation } from './pages/Documentation';
+import { Pricing } from './pages/Pricing';
+import { BillingSettings } from './pages/BillingSettings';
+import { BillingSuccess } from './pages/BillingSuccess';
+import { BillingCanceled } from './pages/BillingCanceled';
+import { MagicScan } from './pages/MagicScan';
 
 // Protected Route Component
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -39,6 +44,26 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
   }
 
   return <>{children}</>;
+}
+
+// Smart 404 page - redirects authenticated users to dashboard
+function NotFoundPage() {
+  const { isAuthenticated } = useAuthStore();
+
+  return (
+    <div className="min-h-screen bg-deep-navy flex items-center justify-center px-4">
+      <div className="text-center">
+        <h1 className="text-4xl md:text-6xl font-bold text-white mb-4">404</h1>
+        <p className="text-gray-400 mb-8">Page not found</p>
+        <a
+          href={isAuthenticated ? '/dashboard' : '/'}
+          className="inline-block px-6 py-3 bg-electric-blue hover:bg-electric-blue/90 text-white rounded-md transition-colors font-medium"
+        >
+          {isAuthenticated ? 'Go to Dashboard' : 'Go Home'}
+        </a>
+      </div>
+    </div>
+  );
 }
 
 export function App() {
@@ -99,26 +124,49 @@ export function App() {
           }
         />
 
+        <Route
+          path="/billing"
+          element={
+            <ProtectedRoute>
+              <BillingSettings />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/billing/success"
+          element={
+            <ProtectedRoute>
+              <BillingSuccess />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/billing/canceled"
+          element={
+            <ProtectedRoute>
+              <BillingCanceled />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/magic-scan"
+          element={
+            <ProtectedRoute>
+              <MagicScan />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Public Routes (no auth redirect) */}
+        <Route path="/pricing" element={<Pricing />} />
+
         {/* Default Route */}
         <Route path="/" element={<Landing />} />
 
         {/* 404 */}
         <Route
           path="*"
-          element={
-            <div className="min-h-screen bg-deep-navy flex items-center justify-center px-4">
-              <div className="text-center">
-                <h1 className="text-4xl md:text-6xl font-bold text-white mb-4">404</h1>
-                <p className="text-gray-400 mb-8">Page not found</p>
-                <a
-                  href="/"
-                  className="inline-block px-6 py-3 bg-electric-blue hover:bg-electric-blue/90 text-white rounded-md transition-colors font-medium"
-                >
-                  Go Home
-                </a>
-              </div>
-            </div>
-          }
+          element={<NotFoundPage />}
         />
       </Routes>
     </BrowserRouter>

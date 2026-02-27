@@ -671,12 +671,35 @@ export function RequestList() {
       {/* Request List */}
       <div ref={listRef} className="overflow-y-auto" style={{ maxHeight: 'calc(100vh - 350px)' }}>
         {filteredRequests.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 text-center" style={{ minHeight: '400px' }}>
+          <div className="flex flex-col items-center justify-center py-8 px-4 text-center" style={{ minHeight: '400px' }}>
             <svg className="w-10 h-10 text-gray-600 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 013 12c0-1.605.42-3.113 1.157-4.418" />
             </svg>
-            <p className="text-sm text-gray-400 mb-1">No requests captured yet</p>
-            <p className="text-xs text-gray-500 max-w-xs">Start intercepting to capture HTTP traffic from your browser</p>
+            <p className="text-sm text-white font-medium mb-1">No requests captured yet</p>
+            <p className="text-xs text-gray-500 max-w-xs mb-6">Follow these steps to start capturing HTTP traffic</p>
+            <div className="text-left space-y-3 max-w-xs w-full">
+              <div className="flex items-start gap-3">
+                <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-600/20 text-blue-400 text-xs font-bold flex items-center justify-center border border-blue-600/30">1</span>
+                <div>
+                  <p className="text-xs text-gray-300 font-medium">Install the Chrome extension</p>
+                  <p className="text-xs text-gray-500">Load the extension from the /extension folder</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3">
+                <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-600/20 text-blue-400 text-xs font-bold flex items-center justify-center border border-blue-600/30">2</span>
+                <div>
+                  <p className="text-xs text-gray-300 font-medium">Start a session</p>
+                  <p className="text-xs text-gray-500">Click "Start Session" in the controls above</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3">
+                <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-600/20 text-blue-400 text-xs font-bold flex items-center justify-center border border-blue-600/30">3</span>
+                <div>
+                  <p className="text-xs text-gray-300 font-medium">Browse your target</p>
+                  <p className="text-xs text-gray-500">Requests will appear here automatically</p>
+                </div>
+              </div>
+            </div>
           </div>
         ) : (
           <div className="p-2">

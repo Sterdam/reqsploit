@@ -322,7 +322,6 @@ export const useInterceptStore = create<InterceptState>((set, get) => ({
     if (ids.length === 0) return;
 
     wsService.bulkForward(ids);
-    console.log('[InterceptStore] Bulk forward requested:', ids.length, 'requests');
   },
 
   // Bulk drop (use selected if not provided) with undo tracking
@@ -331,7 +330,6 @@ export const useInterceptStore = create<InterceptState>((set, get) => ({
     if (ids.length === 0) return;
 
     wsService.bulkDrop(ids);
-    console.log('[InterceptStore] Bulk drop requested:', ids.length, 'requests');
 
     // Track for undo
     useUndoStore.getState().addUndoableAction({
@@ -356,20 +354,16 @@ export const useInterceptStore = create<InterceptState>((set, get) => ({
     }));
 
     batchToRepeater(repeaterRequests, 'intercept');
-
-    console.log('[InterceptStore] Bulk sent to Repeater:', requests.length, 'requests');
   },
 
   // Forward by URL pattern
   forwardByPattern: (pattern: string) => {
     wsService.forwardByPattern(pattern);
-    console.log('[InterceptStore] Forward by pattern:', pattern);
   },
 
   // Drop by URL pattern
   dropByPattern: (pattern: string) => {
     wsService.dropByPattern(pattern);
-    console.log('[InterceptStore] Drop by pattern:', pattern);
   },
 
   // Load smart filters from backend
@@ -434,54 +428,44 @@ export const useInterceptStore = create<InterceptState>((set, get) => ({
 // Setup WebSocket event handlers for intercept store
 wsService.setHandlers({
   onRequestHeld: (data) => {
-    console.log('[InterceptStore] Request held:', data.request.url);
     useInterceptStore.getState().addRequest(data.request);
   },
 
   onRequestForwarded: (data) => {
-    console.log('[InterceptStore] Request forwarded:', data.requestId);
     useInterceptStore.getState().removeRequest(data.requestId);
   },
 
   onRequestDropped: (data) => {
-    console.log('[InterceptStore] Request dropped:', data.requestId);
     useInterceptStore.getState().removeRequest(data.requestId);
   },
 
   onQueueChanged: (data) => {
-    console.log('[InterceptStore] Queue changed:', data);
     useInterceptStore.getState().updateQueueSize(data.queueSize);
   },
 
   onRequestQueue: (data) => {
-    console.log('[InterceptStore] Queue received:', data.queue.length, 'requests');
     useInterceptStore.getState().setQueue(data.queue);
   },
 
-  onBulkResult: (data) => {
-    console.log('[InterceptStore] Bulk result:', data.action, data.success.length, 'success', data.failed.length, 'failed');
+  onBulkResult: () => {
     // Requests already removed by individual forward/drop events
     useInterceptStore.getState().deselectAll();
   },
 
   onSmartFiltersConfig: (data) => {
-    console.log('[InterceptStore] Smart filters config received:', data.filters.length, 'filters');
     useInterceptStore.getState().updateSmartFilters(data.filters);
   },
 
   // Response interception events (CDP)
   onResponseHeld: (data) => {
-    console.log('[InterceptStore] Response held:', data.response.originalRequestUrl);
     useInterceptStore.getState().addResponse(data.response);
   },
 
   onResponseForwarded: (data) => {
-    console.log('[InterceptStore] Response forwarded:', data.requestId);
     useInterceptStore.getState().removeResponse(data.requestId);
   },
 
   onResponseDropped: (data) => {
-    console.log('[InterceptStore] Response dropped:', data.requestId);
     useInterceptStore.getState().removeResponse(data.requestId);
   },
 });

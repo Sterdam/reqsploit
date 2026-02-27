@@ -73,13 +73,10 @@ const refreshTokenInterceptor = async (error: AxiosError) => {
 
       const { accessToken, refreshToken: newRefreshToken } = response.data.data;
 
-      // Update Zustand storage
-      const updatedState = {
-        ...state,
-        accessToken,
-        refreshToken: newRefreshToken || state.refreshToken,
-      };
-      localStorage.setItem('auth-storage', JSON.stringify({ state: updatedState }));
+      // Update Zustand state (persist middleware auto-syncs localStorage)
+      // Lazy import to avoid circular dependency (authStore imports api)
+      const { useAuthStore } = await import('../stores/authStore');
+      useAuthStore.getState().setTokens(accessToken, newRefreshToken || state.refreshToken);
 
       // Retry original request with new token
       if (originalRequest.headers) {
@@ -87,7 +84,7 @@ const refreshTokenInterceptor = async (error: AxiosError) => {
       }
       return api(originalRequest);
     } catch (refreshError) {
-      // Refresh failed - clear auth storage and redirect to login
+      // Refresh failed - clear auth state and redirect to login
       localStorage.removeItem('auth-storage');
       window.location.href = '/login';
       return Promise.reject(refreshError);
@@ -141,8 +138,8 @@ export const authAPI = {
     return response.data.data;
   },
 
-  logout: async (): Promise<void> => {
-    await api.post('/auth/logout');
+  logout: async (refreshToken: string): Promise<void> => {
+    await api.post('/auth/logout', { refreshToken });
   },
 
   refresh: async (refreshToken: string): Promise<{ accessToken: string }> => {

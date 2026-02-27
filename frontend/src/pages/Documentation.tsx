@@ -40,14 +40,24 @@ export function Documentation() {
   const [markdown, setMarkdown] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [showSidebar, setShowSidebar] = useState(true);
 
   // Load documentation index
   useEffect(() => {
     fetch('/docs/index.json')
-      .then((res) => res.json())
-      .then((data) => setIndex(data))
-      .catch((err) => console.error('Failed to load docs index:', err));
+      .then((res) => {
+        if (!res.ok) throw new Error('Failed to load documentation index');
+        return res.json();
+      })
+      .then((data) => {
+        setIndex(data);
+        setError(null);
+      })
+      .catch((err) => {
+        console.error('Failed to load docs index:', err);
+        setError('Unable to load documentation. Please try again later.');
+      });
   }, []);
 
   // Load markdown content when page selected
@@ -225,7 +235,17 @@ export function Documentation() {
         {/* Main Content */}
         <div className="flex-1 overflow-auto">
           <div className="max-w-4xl mx-auto px-6 py-8">
-            {isLoading ? (
+            {error ? (
+              <div className="py-12 text-center">
+                <p className="text-red-400 text-lg mb-4">{error}</p>
+                <button
+                  onClick={() => window.location.reload()}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition"
+                >
+                  Retry
+                </button>
+              </div>
+            ) : isLoading ? (
               <div className="space-y-6 py-12 animate-pulse">
                 <div className="h-8 bg-white/5 rounded w-2/3" />
                 <div className="h-4 bg-white/5 rounded w-full" />

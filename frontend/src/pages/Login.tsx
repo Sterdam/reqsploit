@@ -91,7 +91,7 @@ export function Login() {
           <h1 className="text-4xl font-bold text-white mb-2">
             Req<span className="text-cyber-green">Sploit</span>
           </h1>
-          <p className="text-gray-400">Modern MITM Proxy & Security Testing</p>
+          <p className="text-gray-400">Web Security Testing & AI Analysis</p>
         </div>
 
         {/* Login Card */}
@@ -128,7 +128,7 @@ export function Login() {
             const Icon = style.icon;
 
             return (
-              <div className={`mb-4 p-3 ${style.bg} border ${style.border} rounded-md flex items-start gap-3`}>
+              <div role="alert" className={`mb-4 p-3 ${style.bg} border ${style.border} rounded-md flex items-start gap-3`}>
                 <Icon className={`w-5 h-5 ${style.iconColor} flex-shrink-0 mt-0.5`} />
                 <div className="flex-1">
                   <p className={`${style.text} text-sm font-medium`}>{message}</p>
@@ -179,9 +179,16 @@ export function Login() {
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition"
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
               </div>
+            </div>
+
+            {/* Forgot Password */}
+            <div className="text-right">
+              <span className="text-sm text-gray-500 cursor-default" title="Password reset coming soon">
+                Forgot password?
+              </span>
             </div>
 
             {/* Submit Button */}
@@ -202,25 +209,24 @@ export function Login() {
             </Link>
           </p>
 
-          {/* Test Account Info */}
-          <div className="mt-6 p-4 bg-blue-500/10 border border-blue-500/30 rounded-md">
-            <div className="flex items-start gap-2">
-              <Info className="w-4 h-4 text-blue-400 flex-shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <p className="text-xs text-blue-200 font-medium mb-2">Demo Account:</p>
-                <div className="space-y-1 text-xs text-gray-300 font-mono">
-                  <p className="flex items-center gap-2">
-                    <span className="text-blue-300">test@test.com</span>
-                    <span className="text-gray-400">/</span>
-                    <span className="text-blue-300">Test1234</span>
-                  </p>
+          {/* Test Account Info - dev only */}
+          {import.meta.env.DEV && (
+            <div className="mt-6 p-4 bg-blue-500/10 border border-blue-500/30 rounded-md">
+              <div className="flex items-start gap-2">
+                <Info className="w-4 h-4 text-blue-400 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-xs text-blue-200 font-medium mb-2">Demo Account (dev only):</p>
+                  <div className="space-y-1 text-xs text-gray-300 font-mono">
+                    <p className="flex items-center gap-2">
+                      <span className="text-blue-300">test@test.com</span>
+                      <span className="text-gray-400">/</span>
+                      <span className="text-blue-300">Test1234</span>
+                    </p>
+                  </div>
                 </div>
-                <p className="text-xs text-gray-400 mt-2">
-                  Password must be at least 8 characters with one uppercase letter
-                </p>
               </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
     </div>

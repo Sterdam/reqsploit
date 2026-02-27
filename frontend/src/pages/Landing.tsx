@@ -13,7 +13,7 @@ export function Landing() {
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-2">
               <Shield className="w-8 h-8 text-blue-500" />
-              <span className="text-xl font-bold text-white">Req<span className="text-green-400">Sploit</span></span>
+              <span className="text-xl font-bold text-white">Req<span className="text-cyber-green">Sploit</span></span>
             </div>
             <div className="hidden md:flex items-center space-x-8">
               <a href="#features" className="text-gray-300 hover:text-white transition">Features</a>
@@ -69,7 +69,7 @@ export function Landing() {
             </h1>
 
             <p className="text-xl text-gray-300 mb-12 max-w-2xl mx-auto leading-relaxed">
-              Professional MITM proxy with Claude AI assistant. Detect vulnerabilities, suggest exploits,
+              Professional web security toolkit with Claude AI assistant. Intercept traffic, detect vulnerabilities,
               and guide your pentesting in real-time.
             </p>
 
@@ -82,10 +82,10 @@ export function Landing() {
                 <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition" />
               </Link>
               <a
-                href="#demo"
+                href="#features"
                 className="bg-white/5 hover:bg-white/10 border border-white/10 text-white px-8 py-4 rounded-lg transition font-semibold text-lg"
               >
-                Watch Demo
+                Learn More
               </a>
             </div>
 
@@ -173,11 +173,11 @@ export function Landing() {
             {/* Feature 3 */}
             <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-8 hover:bg-white/10 transition">
               <div className="w-12 h-12 bg-green-500/20 rounded-lg flex items-center justify-center mb-6">
-                <Code className="w-6 h-6 text-green-400" />
+                <Code className="w-6 h-6 text-cyber-green" />
               </div>
               <h3 className="text-2xl font-bold text-white mb-4">Professional Grade</h3>
               <p className="text-gray-400 leading-relaxed mb-4">
-                Full MITM capabilities with request modification, repeater, history, and real-time
+                Full interception capabilities with request modification, repeater, history, and real-time
                 WebSocket communication. Everything you need for serious pentesting.
               </p>
               <ul className="space-y-2 text-sm text-gray-400">
@@ -376,10 +376,10 @@ export function Landing() {
             <div>
               <div className="flex items-center space-x-2 mb-4">
                 <Shield className="w-6 h-6 text-blue-500" />
-                <span className="text-lg font-bold text-white">Req<span className="text-green-400">Sploit</span></span>
+                <span className="text-lg font-bold text-white">Req<span className="text-cyber-green">Sploit</span></span>
               </div>
               <p className="text-gray-400 text-sm">
-                Modern MITM proxy with AI assistant for professional penetration testing.
+                Web security testing platform with AI assistant for professional penetration testing.
               </p>
             </div>
             <div>
@@ -388,24 +388,22 @@ export function Landing() {
                 <li><a href="#features" className="hover:text-white transition">Features</a></li>
                 <li><a href="#pricing" className="hover:text-white transition">Pricing</a></li>
                 <li><Link to="/docs" className="hover:text-white transition">Documentation</Link></li>
-                <li><a href="#changelog" className="hover:text-white transition">Changelog</a></li>
               </ul>
             </div>
             <div>
-              <h4 className="text-white font-semibold mb-4">Company</h4>
+              <h4 className="text-white font-semibold mb-4">Get Started</h4>
               <ul className="space-y-2 text-sm text-gray-400">
-                <li><a href="#about" className="hover:text-white transition">About</a></li>
-                <li><a href="#blog" className="hover:text-white transition">Blog</a></li>
-                <li><a href="#careers" className="hover:text-white transition">Careers</a></li>
-                <li><a href="#contact" className="hover:text-white transition">Contact</a></li>
+                <li><Link to="/register" className="hover:text-white transition">Create Account</Link></li>
+                <li><Link to="/login" className="hover:text-white transition">Sign In</Link></li>
+                <li><Link to="/pricing" className="hover:text-white transition">View Plans</Link></li>
               </ul>
             </div>
             <div>
               <h4 className="text-white font-semibold mb-4">Legal</h4>
               <ul className="space-y-2 text-sm text-gray-400">
-                <li><a href="#privacy" className="hover:text-white transition">Privacy</a></li>
-                <li><a href="#terms" className="hover:text-white transition">Terms</a></li>
-                <li><a href="#security" className="hover:text-white transition">Security</a></li>
+                <li><span className="text-gray-500 cursor-default">Privacy Policy</span></li>
+                <li><span className="text-gray-500 cursor-default">Terms of Service</span></li>
+                <li><span className="text-gray-500 cursor-default">Security</span></li>
               </ul>
             </div>
           </div>

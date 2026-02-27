@@ -3,9 +3,9 @@
  */
 
 import { useState, useEffect } from 'react';
-import { Check, Zap, Sparkles, Crown } from 'lucide-react';
+import { Check, Zap, Sparkles, Crown, ArrowLeft } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { toast } from '../stores/toastStore';
 
 interface Plan {
@@ -34,15 +34,43 @@ export function Pricing() {
     fetchPlans();
   }, []);
 
+  const fallbackPlans: Plan[] = [
+    {
+      id: 'FREE', name: 'Free', price: 0, currency: 'USD', interval: 'month',
+      features: ['10,000 AI tokens/month', 'Basic security analysis', 'HTTP/HTTPS interception', 'Request history (7 days)', 'Community support'],
+      limits: { aiTokens: 10000, requestHistory: 7, projects: 3 },
+    },
+    {
+      id: 'PRO', name: 'Professional', price: 29, currency: 'USD', interval: 'month',
+      features: ['200,000 AI tokens/month', 'Advanced AI analysis (3 modes)', 'Unlimited projects', 'Request history (90 days)', 'Export reports (PDF, JSON, CSV)', 'Priority support', 'Chrome extension'],
+      limits: { aiTokens: 200000, requestHistory: 90, projects: -1 }, popular: true,
+    },
+    {
+      id: 'ENTERPRISE', name: 'Enterprise', price: 99, currency: 'USD', interval: 'month',
+      features: ['1,000,000 AI tokens/month', 'All PRO features', 'Team collaboration', 'Custom AI training', 'SSO integration', 'Advanced compliance reports', 'Dedicated support'],
+      limits: { aiTokens: 1000000, requestHistory: 365, projects: -1 },
+    },
+  ];
+
   const fetchPlans = async () => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/billing/plans`);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/billing/plans`, {
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
       const data = await response.json();
       if (data.success) {
         setPlans(data.data);
+      } else {
+        setPlans(fallbackPlans);
       }
     } catch (error) {
       console.error('Error fetching plans:', error);
+      setPlans(fallbackPlans);
     } finally {
       setLoading(false);
     }
@@ -113,14 +141,33 @@ export function Pricing() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-deep-navy flex items-center justify-center">
-        <div className="text-white text-lg">Loading plans...</div>
+      <div className="min-h-screen bg-deep-navy flex flex-col items-center justify-center gap-4">
+        <div className="w-8 h-8 border-2 border-electric-blue border-t-transparent rounded-full animate-spin" />
+        <p className="text-gray-400 text-sm">Loading plans...</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-deep-navy py-12 px-4">
+    <div className="min-h-screen bg-deep-navy">
+      {/* Top Navigation Bar */}
+      <nav className="border-b border-white/10 bg-[#0A1929]/80 backdrop-blur-sm sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center h-14 gap-4">
+            <Link
+              to={user ? '/dashboard' : '/'}
+              className="flex items-center gap-2 text-gray-400 hover:text-white transition text-sm"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>{user ? 'Dashboard' : 'Home'}</span>
+            </Link>
+            <div className="h-5 w-px bg-white/20" />
+            <span className="text-white font-semibold">Pricing</span>
+          </div>
+        </div>
+      </nav>
+
+      <div className="py-12 px-4">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="text-center mb-12">
@@ -233,6 +280,7 @@ export function Pricing() {
             </div>
           </div>
         </div>
+      </div>
       </div>
     </div>
   );

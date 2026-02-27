@@ -6,6 +6,7 @@ import { Router, Request, Response } from 'express';
 import { ProjectService } from '../services/project.service.js';
 import { authenticateToken } from '../api/middlewares/auth.middleware.js';
 import { prisma } from '../lib/prisma.js';
+import logger from '../utils/logger.js';
 
 const router = Router();
 const projectService = new ProjectService(prisma);
@@ -22,23 +23,35 @@ router.post('/', async (req: Request, res: Response) => {
     const userId = (req as any).user.id;
     const { name, description, target } = req.body;
 
-    if (!name || !target) {
+    if (!name || typeof name !== 'string' || !target || typeof target !== 'string') {
       return res.status(400).json({
         success: false,
-        error: 'Name and target are required',
+        error: 'Name and target are required and must be strings',
       });
+    }
+
+    if (name.length > 200) {
+      return res.status(400).json({ success: false, error: 'Name must be 200 characters or less' });
+    }
+
+    if (description && typeof description !== 'string') {
+      return res.status(400).json({ success: false, error: 'Description must be a string' });
+    }
+
+    if (target.length > 2000) {
+      return res.status(400).json({ success: false, error: 'Target must be 2000 characters or less' });
     }
 
     const project = await projectService.createProject({
       userId,
-      name,
-      description,
-      target,
+      name: name.trim(),
+      description: description?.trim(),
+      target: target.trim(),
     });
 
     res.status(201).json({ success: true, data: project });
   } catch (error: any) {
-    console.error('Error creating project:', error);
+    logger.error('Error creating project:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -71,7 +84,7 @@ router.get('/', async (req: Request, res: Response) => {
       },
     });
   } catch (error: any) {
-    console.error('Error listing projects:', error);
+    logger.error('Error listing projects:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -93,7 +106,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 
     res.json({ success: true, data: project });
   } catch (error: any) {
-    console.error('Error fetching project:', error);
+    logger.error('Error fetching project:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -116,7 +129,7 @@ router.patch('/:id', async (req: Request, res: Response) => {
 
     res.json({ success: true, data: project });
   } catch (error: any) {
-    console.error('Error updating project:', error);
+    logger.error('Error updating project:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -134,7 +147,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
 
     res.json({ success: true, message: 'Project deleted successfully' });
   } catch (error: any) {
-    console.error('Error deleting project:', error);
+    logger.error('Error deleting project:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -152,7 +165,7 @@ router.get('/:id/stats', async (req: Request, res: Response) => {
 
     res.json({ success: true, data: stats });
   } catch (error: any) {
-    console.error('Error fetching project stats:', error);
+    logger.error('Error fetching project stats:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -172,7 +185,7 @@ router.get('/:id/export', async (req: Request, res: Response) => {
     res.setHeader('Content-Disposition', `attachment; filename=project-${id}-${Date.now()}.json`);
     res.json(report);
   } catch (error: any) {
-    console.error('Error exporting project:', error);
+    logger.error('Error exporting project:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -207,7 +220,7 @@ router.post('/:projectId/findings', async (req: Request, res: Response) => {
 
     res.status(201).json({ success: true, data: finding });
   } catch (error: any) {
-    console.error('Error creating finding:', error);
+    logger.error('Error creating finding:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -240,7 +253,7 @@ router.get('/:projectId/findings', async (req: Request, res: Response) => {
       },
     });
   } catch (error: any) {
-    console.error('Error listing findings:', error);
+    logger.error('Error listing findings:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -262,7 +275,7 @@ router.get('/:projectId/findings/:findingId', async (req: Request, res: Response
 
     res.json({ success: true, data: finding });
   } catch (error: any) {
-    console.error('Error fetching finding:', error);
+    logger.error('Error fetching finding:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -287,7 +300,7 @@ router.patch('/:projectId/findings/:findingId', async (req: Request, res: Respon
 
     res.json({ success: true, data: finding });
   } catch (error: any) {
-    console.error('Error updating finding:', error);
+    logger.error('Error updating finding:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -305,7 +318,7 @@ router.delete('/:projectId/findings/:findingId', async (req: Request, res: Respo
 
     res.json({ success: true, message: 'Finding deleted successfully' });
   } catch (error: any) {
-    console.error('Error deleting finding:', error);
+    logger.error('Error deleting finding:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

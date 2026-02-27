@@ -8,11 +8,11 @@ import { wsService } from '../lib/websocket';
  * Replaces proxyStore - backward-compatible API surface.
  */
 
-interface ExtensionStats {
+export interface ExtensionStats {
   totalRequests: number;
   interceptedRequests: number;
-  forwarded: number;
-  dropped: number;
+  forwarded?: number;
+  dropped?: number;
 }
 
 interface AttachedTab {
@@ -47,7 +47,7 @@ interface ExtensionState {
   setExtensionConnected: (connected: boolean, version?: string, tabs?: AttachedTab[]) => void;
   addTab: (tabId: number, url: string) => void;
   removeTab: (tabId: number) => void;
-  updateStats: (stats: any) => void;
+  updateStats: (stats: ExtensionStats) => void;
   clearError: () => void;
 }
 
@@ -219,7 +219,7 @@ export const useExtensionStore = create<ExtensionState>((set, get) => ({
   },
 
   // Update stats (from WebSocket)
-  updateStats: (stats: any) => {
+  updateStats: (stats: ExtensionStats) => {
     set({
       stats: {
         totalRequests: stats.totalRequests ?? 0,
@@ -243,7 +243,7 @@ export const useProxyStore = useExtensionStore;
 
 wsService.setHandlers({
   onConnect: () => {
-    console.log('[ExtensionStore] WebSocket connected');
+    // WebSocket connected
   },
 
   onDisconnect: () => {
@@ -252,12 +252,10 @@ wsService.setHandlers({
 
   // Extension connection events
   onExtensionConnected: (data) => {
-    console.log('[ExtensionStore] Extension connected:', data.version);
     useExtensionStore.getState().setExtensionConnected(true, data.version, data.attachedTabs);
   },
 
   onExtensionDisconnected: () => {
-    console.log('[ExtensionStore] Extension disconnected');
     useExtensionStore.getState().setExtensionConnected(false);
   },
 

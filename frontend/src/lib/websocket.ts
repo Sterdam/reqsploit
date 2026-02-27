@@ -156,11 +156,8 @@ export class WebSocketService {
    */
   connect(token: string): void {
     if (this.socket?.connected) {
-      console.log('[WS] Already connected');
       return;
     }
-
-    console.log('[WS] Connecting to', WS_URL);
 
     this.socket = io(WS_URL, {
       auth: {
@@ -181,7 +178,6 @@ export class WebSocketService {
    */
   disconnect(): void {
     if (this.socket) {
-      console.log('[WS] Disconnecting');
       this.socket.disconnect();
       this.socket = null;
       this.reconnectAttempts = 0;
@@ -210,50 +206,41 @@ export class WebSocketService {
 
     // Connection events
     this.socket.on('connect', () => {
-      console.log('[WS] Connected');
       this.reconnectAttempts = 0;
       this.handlers.onConnect?.();
     });
 
-    this.socket.on('disconnect', (reason) => {
-      console.log('[WS] Disconnected:', reason);
+    this.socket.on('disconnect', () => {
       this.handlers.onDisconnect?.();
     });
 
-    this.socket.on('connect_error', (error) => {
-      console.error('[WS] Connection error:', error);
+    this.socket.on('connect_error', () => {
       this.reconnectAttempts++;
 
       if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-        console.error('[WS] Max reconnection attempts reached');
         this.disconnect();
       }
     });
 
     // Server events
     this.socket.on('authenticated', (data: { userId: string; sessionId: string }) => {
-      console.log('[WS] Authenticated:', data);
       this.handlers.onAuthenticated?.(data);
     });
 
     this.socket.on('auth:error', (data: { message: string }) => {
-      console.error('[WS] Auth error:', data);
       this.handlers.onAuthError?.(data);
     });
 
     // Proxy events
     this.socket.on('proxy:started', (data: { sessionId: string; proxyPort: number }) => {
-      console.log('[WS] Proxy started:', data);
       this.handlers.onProxyStarted?.(data);
     });
 
     this.socket.on('proxy:stopped', () => {
-      console.log('[WS] Proxy stopped');
       this.handlers.onProxyStopped?.();
     });
 
     this.socket.on('proxy:error', (data: { message: string }) => {
-      console.error('[WS] Proxy error:', data);
       this.handlers.onProxyError?.(data);
     });
 
@@ -263,101 +250,82 @@ export class WebSocketService {
 
     // Request events
     this.socket.on('request:intercepted', (data: RequestInterceptedPayload) => {
-      console.log('[WS] Request intercepted:', data.request.url);
       this.handlers.onRequestIntercepted?.(data);
     });
 
     this.socket.on('response:received', (data: ResponseReceivedPayload) => {
-      console.log('[WS] Response received:', data.request.url);
       this.handlers.onResponseReceived?.(data);
     });
 
     // Request queue events
     this.socket.on('request:held', (data: RequestHeldPayload) => {
-      console.log('[WS] Request held in queue:', data.request.url);
       this.handlers.onRequestHeld?.(data);
     });
 
     this.socket.on('request:forwarded', (data: { sessionId: string; userId: string; requestId: string; wasModified: boolean }) => {
-      console.log('[WS] Request forwarded:', data.requestId, 'wasModified:', data.wasModified);
       this.handlers.onRequestForwarded?.(data);
     });
 
     this.socket.on('request:dropped', (data: { sessionId: string; userId: string; requestId: string }) => {
-      console.log('[WS] Request dropped:', data.requestId);
       this.handlers.onRequestDropped?.(data);
     });
 
     this.socket.on('queue:changed', (data: QueueChangedPayload) => {
-      console.log('[WS] Queue changed:', data.action, 'queueSize:', data.queueSize);
       this.handlers.onQueueChanged?.(data);
     });
 
     this.socket.on('request:queue', (data: { queue: PendingRequest[] }) => {
-      console.log('[WS] Request queue received:', data.queue.length, 'requests');
       this.handlers.onRequestQueue?.(data);
     });
 
     this.socket.on('bulk:result', (data: { action: 'forward' | 'drop'; success: string[]; failed: string[] }) => {
-      console.log('[WS] Bulk result:', data.action, data.success.length, 'success', data.failed.length, 'failed');
       this.handlers.onBulkResult?.(data);
     });
 
     this.socket.on('smart-filters:config', (data: { filters: any[] }) => {
-      console.log('[WS] Smart filters config received:', data.filters.length, 'filters');
       this.handlers.onSmartFiltersConfig?.(data);
     });
 
     // Response queue events (CDP response interception)
     this.socket.on('response:held', (data: ResponseHeldPayload) => {
-      console.log('[WS] Response held:', data.response.originalRequestUrl);
       this.handlers.onResponseHeld?.(data);
     });
 
     this.socket.on('response:forwarded', (data: { userId: string; requestId: string }) => {
-      console.log('[WS] Response forwarded:', data.requestId);
       this.handlers.onResponseForwarded?.(data);
     });
 
     this.socket.on('response:dropped', (data: { userId: string; requestId: string }) => {
-      console.log('[WS] Response dropped:', data.requestId);
       this.handlers.onResponseDropped?.(data);
     });
 
     // Extension events
     this.socket.on('ext:connected', (data: ExtensionConnectedPayload) => {
-      console.log('[WS] Extension connected:', data.version);
       this.handlers.onExtensionConnected?.(data);
     });
 
     this.socket.on('ext:disconnected', () => {
-      console.log('[WS] Extension disconnected');
       this.handlers.onExtensionDisconnected?.();
     });
 
     this.socket.on('ext:tab-attached', (data: { tabId: number; url: string }) => {
-      console.log('[WS] Tab attached:', data.tabId, data.url);
       this.handlers.onTabAttached?.(data);
     });
 
     this.socket.on('ext:tab-detached', (data: { tabId: number; reason: string }) => {
-      console.log('[WS] Tab detached:', data.tabId);
       this.handlers.onTabDetached?.(data);
     });
 
     // AI events
     this.socket.on('ai:analysis-started', (data: { requestId: string }) => {
-      console.log('[WS] AI analysis started:', data);
       this.handlers.onAIAnalysisStarted?.(data);
     });
 
     this.socket.on('ai:analysis-complete', (data: AIAnalysisPayload) => {
-      console.log('[WS] AI analysis complete:', data);
       this.handlers.onAIAnalysisComplete?.(data);
     });
 
     this.socket.on('ai:analysis-error', (data: { requestId: string; message: string }) => {
-      console.error('[WS] AI analysis error:', data);
       this.handlers.onAIAnalysisError?.(data);
     });
 
@@ -367,18 +335,15 @@ export class WebSocketService {
     });
 
     this.socket.on('tokens:limit-reached', (data: { message: string }) => {
-      console.warn('[WS] Token limit reached:', data);
       this.handlers.onTokensLimitReached?.(data);
     });
 
     // Magic Scan events
     this.socket.on('scan:result', (data: any) => {
-      console.log('[WS] Scan result received:', data);
       this.handlers.onScanResult?.(data);
     });
 
     this.socket.on('scan:stats', (data: any) => {
-      console.log('[WS] Scan stats received:', data);
       this.handlers.onScanStats?.(data);
     });
   }

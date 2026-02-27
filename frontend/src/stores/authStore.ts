@@ -102,10 +102,13 @@ export const useAuthStore = create<AuthState>()(
 
       // Logout action
       logout: async () => {
+        const refreshToken = get().refreshToken;
         try {
-          await authAPI.logout();
+          if (refreshToken) {
+            await authAPI.logout(refreshToken);
+          }
         } catch (error) {
-          console.error('Logout error:', error);
+          // Logout API failure is non-blocking — always clear local state
         } finally {
           // Disconnect WebSocket
           wsService.disconnect();

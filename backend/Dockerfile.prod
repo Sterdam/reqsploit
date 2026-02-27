@@ -20,7 +20,7 @@ COPY tsconfig.json ./
 COPY src ./src
 
 # Build TypeScript
-RUN npx tsc --outDir dist || true
+RUN npx tsc --outDir dist
 
 # Production stage
 FROM node:20-slim

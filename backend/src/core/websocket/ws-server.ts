@@ -64,6 +64,7 @@ export class WebSocketServer {
 
     this.setupMiddleware();
     this.setupConnectionHandler();
+    this.bridgeCDPQueueEvents();
 
     wsLogger.info('WebSocket server initialized', {
       allowedOrigins,
@@ -499,6 +500,60 @@ export class WebSocketServer {
       });
       // Apply AI suggestion to request
     });
+  }
+
+  /**
+   * Bridge CDPRequestQueue events to WebSocket so the dashboard
+   * receives confirmation when requests are forwarded/dropped.
+   */
+  private bridgeCDPQueueEvents(): void {
+    // Forward confirmation → dashboard removes from queue UI
+    cdpRequestQueue.on('request:forwarded', (data: { userId: string; requestId: string; wasModified: boolean }) => {
+      this.emitToUser(data.userId, 'request:forwarded' as any, {
+        requestId: data.requestId,
+        wasModified: data.wasModified,
+      });
+    });
+
+    cdpRequestQueue.on('response:forwarded', (data: { userId: string; requestId: string; wasModified: boolean }) => {
+      this.emitToUser(data.userId, 'response:forwarded' as any, {
+        requestId: data.requestId,
+        wasModified: data.wasModified,
+      });
+    });
+
+    // Drop confirmation → dashboard shows undo option
+    cdpRequestQueue.on('request:dropped', (data: { userId: string; requestId: string; canUndo: boolean; graceSeconds: number }) => {
+      this.emitToUser(data.userId, 'request:dropped' as any, {
+        requestId: data.requestId,
+        canUndo: data.canUndo,
+        graceSeconds: data.graceSeconds,
+      });
+    });
+
+    cdpRequestQueue.on('response:dropped', (data: { userId: string; requestId: string; canUndo: boolean; graceSeconds: number }) => {
+      this.emitToUser(data.userId, 'response:dropped' as any, {
+        requestId: data.requestId,
+        canUndo: data.canUndo,
+        graceSeconds: data.graceSeconds,
+      });
+    });
+
+    // Final drop after grace period → dashboard removes undo option
+    cdpRequestQueue.on('request:final-drop', (data: { userId: string; requestId: string }) => {
+      this.emitToUser(data.userId, 'request:final-drop' as any, {
+        requestId: data.requestId,
+      });
+    });
+
+    // Undo success → dashboard re-adds request to queue
+    cdpRequestQueue.on('request:undo-success', (data: { userId: string; requestId: string }) => {
+      this.emitToUser(data.userId, 'request:undo-success' as any, {
+        requestId: data.requestId,
+      });
+    });
+
+    wsLogger.info('CDP queue events bridged to WebSocket');
   }
 
   /**

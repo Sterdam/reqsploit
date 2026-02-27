@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { User, Shield, CreditCard, Bell, Key, LogOut } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
+import { useAIStore } from '../stores/aiStore';
 import { toast } from '../stores/toastStore';
 import api from '../lib/api';
 
@@ -9,6 +11,12 @@ type Tab = 'profile' | 'security' | 'billing' | 'notifications' | 'api';
 export function Settings() {
   const [activeTab, setActiveTab] = useState<Tab>('profile');
   const { user, logout } = useAuthStore();
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login');
+  };
 
   const tabs = [
     { id: 'profile' as Tab, label: 'Profile', icon: User },
@@ -29,7 +37,7 @@ export function Settings() {
               <p className="text-gray-400 mt-1">Manage your account and preferences</p>
             </div>
             <button
-              onClick={logout}
+              onClick={handleLogout}
               className="flex items-center gap-2 px-4 py-2 bg-red-600/10 hover:bg-red-600/20 text-red-400 rounded-lg transition border border-red-600/20"
             >
               <LogOut className="w-4 h-4" />
@@ -142,7 +150,7 @@ function ProfileTab({ user }: { user: any }) {
             <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-600/20 text-blue-400 border border-blue-600/30">
               {user?.plan || 'FREE'}
             </span>
-            <a href="#" className="text-sm text-blue-400 hover:text-blue-300">
+            <a href="/pricing" className="text-sm text-blue-400 hover:text-blue-300">
               Upgrade Plan →
             </a>
           </div>
@@ -287,6 +295,16 @@ function SecurityTab() {
 }
 
 function BillingTab({ user }: { user: any }) {
+  const { tokenUsage, loadTokenUsage } = useAIStore();
+
+  useEffect(() => {
+    loadTokenUsage();
+  }, [loadTokenUsage]);
+
+  const used = tokenUsage?.used ?? 0;
+  const limit = tokenUsage?.limit ?? 10000;
+  const percentage = limit > 0 ? Math.min((used / limit) * 100, 100) : 0;
+
   return (
     <div className="space-y-6">
       <div>
@@ -300,14 +318,14 @@ function BillingTab({ user }: { user: any }) {
             <h3 className="text-xl font-bold text-white">{user?.plan || 'FREE'} Plan</h3>
             <p className="text-gray-300 text-sm mt-1">
               {user?.plan === 'FREE' && 'Basic features with 10,000 AI tokens/month'}
-              {user?.plan === 'PRO' && '$29/month • 100,000 AI tokens/month'}
-              {user?.plan === 'ENTERPRISE' && '$99/month • 500,000 AI tokens/month'}
+              {user?.plan === 'PRO' && '$29/month • 200,000 AI tokens/month'}
+              {user?.plan === 'ENTERPRISE' && '$99/month • 1,000,000 AI tokens/month'}
             </p>
           </div>
           {user?.plan !== 'ENTERPRISE' && (
-            <button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition font-medium flex-shrink-0">
+            <a href="/pricing" className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition font-medium flex-shrink-0 text-center">
               Upgrade
-            </button>
+            </a>
           )}
         </div>
 
@@ -315,10 +333,10 @@ function BillingTab({ user }: { user: any }) {
         <div className="mt-6">
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm text-gray-300">AI Tokens Used</span>
-            <span className="text-sm text-white font-medium">0 / 10,000</span>
+            <span className="text-sm text-white font-medium">{used.toLocaleString()} / {limit.toLocaleString()}</span>
           </div>
-          <div className="w-full bg-white/10 rounded-full h-2" role="progressbar" aria-valuenow={0} aria-valuemin={0} aria-valuemax={10000}>
-            <div className="bg-blue-500 h-2 rounded-full" style={{ width: '0%' }}></div>
+          <div className="w-full bg-white/10 rounded-full h-2" role="progressbar" aria-valuenow={used} aria-valuemin={0} aria-valuemax={limit}>
+            <div className="bg-blue-500 h-2 rounded-full" style={{ width: `${percentage}%` }}></div>
           </div>
           <p className="text-xs text-gray-400 mt-2">Resets on the 1st of each month</p>
         </div>
@@ -330,24 +348,19 @@ function BillingTab({ user }: { user: any }) {
         {user?.plan === 'FREE' ? (
           <div className="bg-white/5 border border-white/10 rounded-lg p-6 text-center">
             <p className="text-gray-400 mb-4">No payment method on file</p>
-            <button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition font-medium">
-              Add Payment Method
-            </button>
+            <a href="/pricing" className="inline-block bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition font-medium">
+              Upgrade to add a payment method
+            </a>
           </div>
         ) : (
-          <div className="bg-white/5 border border-white/10 rounded-lg p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-8 bg-gradient-to-r from-blue-600 to-purple-600 rounded flex items-center justify-center text-white text-xs font-bold">
-                  VISA
-                </div>
-                <div>
-                  <p className="text-white font-medium">•••• •••• •••• 4242</p>
-                  <p className="text-sm text-gray-400">Expires 12/2025</p>
-                </div>
-              </div>
-              <button className="text-sm text-blue-400 hover:text-blue-300">Update</button>
-            </div>
+          <div className="bg-white/5 border border-white/10 rounded-lg p-6 text-center">
+            <p className="text-gray-400 mb-4">Payment method managed by Stripe</p>
+            <a
+              href="/billing"
+              className="inline-block bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition font-medium"
+            >
+              Manage Billing
+            </a>
           </div>
         )}
       </div>
@@ -355,25 +368,20 @@ function BillingTab({ user }: { user: any }) {
       {/* Billing History */}
       <div>
         <h3 className="text-lg font-semibold text-white mb-4">Billing History</h3>
-        <div className="bg-white/5 border border-white/10 rounded-lg overflow-hidden overflow-x-auto">
-          <table className="w-full min-w-[500px]">
-            <thead className="bg-white/5">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Date</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Description</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Amount</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Invoice</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-white/10">
-              <tr>
-                <td colSpan={5} className="px-6 py-8 text-center text-gray-400">
-                  No billing history yet
-                </td>
-              </tr>
-            </tbody>
-          </table>
+        <div className="bg-white/5 border border-white/10 rounded-lg p-6 text-center">
+          <p className="text-gray-400 mb-4">
+            {user?.plan === 'FREE'
+              ? 'No billing history — you are on the Free plan'
+              : 'View your invoices and billing history in the billing portal'}
+          </p>
+          {user?.plan !== 'FREE' && (
+            <a
+              href="/billing"
+              className="inline-block text-sm text-blue-400 hover:text-blue-300"
+            >
+              Open Billing Portal →
+            </a>
+          )}
         </div>
       </div>
     </div>
@@ -447,6 +455,9 @@ function NotificationsTab() {
 }
 
 function APIKeysTab() {
+  const { user } = useAuthStore();
+  const isPaidPlan = user?.plan === 'PRO' || user?.plan === 'ENTERPRISE';
+
   return (
     <div className="space-y-6">
       <div>
@@ -454,21 +465,29 @@ function APIKeysTab() {
         <p className="text-gray-400">Manage API keys for programmatic access to ReqSploit</p>
       </div>
 
-      <div className="bg-blue-600/10 border border-blue-600/30 rounded-lg p-4">
-        <p className="text-blue-400 text-sm">
-          API access is available on Pro and Enterprise plans only
-        </p>
-      </div>
-
-      <div>
-        <button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition font-medium">
-          Generate New API Key
-        </button>
-      </div>
-
-      <div className="bg-white/5 border border-white/10 rounded-lg p-6 text-center text-gray-400">
-        No API keys created yet
-      </div>
+      {!isPaidPlan ? (
+        <div className="bg-white/5 border border-white/10 rounded-lg p-8 text-center">
+          <Key className="w-10 h-10 text-gray-500 mx-auto mb-4" />
+          <h3 className="text-white font-semibold mb-2">API Access Requires a Paid Plan</h3>
+          <p className="text-gray-400 text-sm mb-4">
+            Upgrade to Pro or Enterprise to generate API keys and access ReqSploit programmatically.
+          </p>
+          <a href="/pricing" className="inline-block bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition font-medium">
+            View Plans
+          </a>
+        </div>
+      ) : (
+        <>
+          <div>
+            <button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition font-medium">
+              Generate New API Key
+            </button>
+          </div>
+          <div className="bg-white/5 border border-white/10 rounded-lg p-6 text-center text-gray-400">
+            No API keys created yet
+          </div>
+        </>
+      )}
     </div>
   );
 }

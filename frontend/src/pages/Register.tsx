@@ -50,6 +50,16 @@ export function Register() {
       return;
     }
 
+    if (!/[a-z]/.test(formData.password)) {
+      setValidationError('Password must contain at least one lowercase letter');
+      return;
+    }
+
+    if (!/[0-9]/.test(formData.password)) {
+      setValidationError('Password must contain at least one number');
+      return;
+    }
+
     try {
       await register({
         name: formData.name,
@@ -94,6 +104,20 @@ export function Register() {
       return {
         type: 'error',
         message: 'Password must contain at least one uppercase letter (A-Z).'
+      };
+    }
+
+    if (lowerError.includes('lowercase letter')) {
+      return {
+        type: 'error',
+        message: 'Password must contain at least one lowercase letter (a-z).'
+      };
+    }
+
+    if (lowerError.includes('one number')) {
+      return {
+        type: 'error',
+        message: 'Password must contain at least one number (0-9).'
       };
     }
 
@@ -144,7 +168,7 @@ export function Register() {
           <h1 className="text-4xl font-bold text-white mb-2">
             Req<span className="text-cyber-green">Sploit</span>
           </h1>
-          <p className="text-gray-400">Modern MITM Proxy & Security Testing</p>
+          <p className="text-gray-400">Web Security Testing & AI Analysis</p>
         </div>
 
         {/* Register Card */}
@@ -181,7 +205,7 @@ export function Register() {
             const Icon = style.icon;
 
             return (
-              <div className={`mb-4 p-3 ${style.bg} border ${style.border} rounded-md flex items-start gap-3`}>
+              <div role="alert" className={`mb-4 p-3 ${style.bg} border ${style.border} rounded-md flex items-start gap-3`}>
                 <Icon className={`w-5 h-5 ${style.iconColor} flex-shrink-0 mt-0.5`} />
                 <div className="flex-1">
                   <p className={`${style.text} text-sm font-medium`}>{message}</p>
@@ -319,6 +343,14 @@ export function Register() {
                   <li className="flex items-center gap-2">
                     <span className="text-blue-400">•</span>
                     <span>Contains at least one uppercase letter (A-Z)</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="text-blue-400">•</span>
+                    <span>Contains at least one lowercase letter (a-z)</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="text-blue-400">•</span>
+                    <span>Contains at least one number (0-9)</span>
                   </li>
                   <li className="flex items-center gap-2">
                     <span className="text-blue-400">•</span>

@@ -3,21 +3,34 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { PrismaClient, Plan } from '@prisma/client';
+import { Plan } from '@prisma/client';
 import Stripe from 'stripe';
 import { BillingService } from '../services/billing.service.js';
 import { authenticateToken } from '../api/middlewares/auth.middleware.js';
 import { asyncHandler } from '../utils/errors.js';
+import logger from '../utils/logger.js';
 
 const router = Router();
 import { prisma } from '../lib/prisma.js';
 
-let billingService: BillingService;
+let billingService: BillingService | null = null;
 try {
   billingService = new BillingService(prisma);
 } catch (e) {
   console.warn('[billing] BillingService initialization failed:', (e as Error).message);
-  billingService = null as any;
+}
+
+/**
+ * Middleware guard: returns 503 if billing is not configured
+ */
+function requireBilling(req: Request, res: Response, next: Function) {
+  if (!billingService) {
+    return res.status(503).json({
+      success: false,
+      error: 'Billing service is not configured. Stripe keys may be missing.',
+    });
+  }
+  next();
 }
 
 /**
@@ -27,6 +40,7 @@ try {
 router.post(
   '/checkout',
   authenticateToken,
+  requireBilling,
   asyncHandler(async (req: Request, res: Response) => {
     const userId = req.user!.id;
     const { plan } = req.body;
@@ -39,7 +53,7 @@ router.post(
     }
 
     // Create checkout session
-    const checkoutUrl = await billingService.createCheckoutSession({
+    const checkoutUrl = await billingService!.createCheckoutSession({
       userId,
       plan: plan as Plan,
       successUrl: `${process.env.FRONTEND_URL}/billing/success?session_id={CHECKOUT_SESSION_ID}`,
@@ -62,10 +76,11 @@ router.post(
 router.post(
   '/portal',
   authenticateToken,
+  requireBilling,
   asyncHandler(async (req: Request, res: Response) => {
     const userId = req.user!.id;
 
-    const portalUrl = await billingService.createPortalSession({
+    const portalUrl = await billingService!.createPortalSession({
       userId,
       returnUrl: `${process.env.FRONTEND_URL}/settings/billing`,
     });
@@ -118,10 +133,11 @@ router.get(
 router.post(
   '/cancel',
   authenticateToken,
+  requireBilling,
   asyncHandler(async (req: Request, res: Response) => {
     const userId = req.user!.id;
 
-    await billingService.cancelSubscription(userId);
+    await billingService!.cancelSubscription(userId);
 
     res.json({
       success: true,
@@ -137,10 +153,11 @@ router.post(
 router.post(
   '/reactivate',
   authenticateToken,
+  requireBilling,
   asyncHandler(async (req: Request, res: Response) => {
     const userId = req.user!.id;
 
-    await billingService.reactivateSubscription(userId);
+    await billingService!.reactivateSubscription(userId);
 
     res.json({
       success: true,
@@ -161,10 +178,25 @@ router.post(
     const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
     if (!webhookSecret) {
-      console.error('STRIPE_WEBHOOK_SECRET not configured');
+      logger.error('STRIPE_WEBHOOK_SECRET not configured');
       return res.status(500).json({
         success: false,
         error: 'Webhook secret not configured',
+      });
+    }
+
+    if (!process.env.STRIPE_SECRET_KEY) {
+      logger.error('STRIPE_SECRET_KEY not configured');
+      return res.status(500).json({
+        success: false,
+        error: 'Stripe not configured',
+      });
+    }
+
+    if (!billingService) {
+      return res.status(503).json({
+        success: false,
+        error: 'Billing service not available',
       });
     }
 
@@ -172,7 +204,7 @@ router.post(
 
     try {
       // Verify webhook signature
-      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
         apiVersion: '2023-10-16',
       });
 
@@ -182,7 +214,7 @@ router.post(
         webhookSecret
       );
     } catch (err: any) {
-      console.error('Webhook signature verification failed:', err.message);
+      logger.error('Webhook signature verification failed:', err.message);
       return res.status(400).json({
         success: false,
         error: 'Invalid signature',
@@ -198,7 +230,7 @@ router.post(
         received: true,
       });
     } catch (error: any) {
-      console.error('Webhook handler error:', error);
+      logger.error('Webhook handler error:', error);
       res.status(500).json({
         success: false,
         error: 'Webhook processing failed',

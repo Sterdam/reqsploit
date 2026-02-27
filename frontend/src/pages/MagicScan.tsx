@@ -80,8 +80,8 @@ export const MagicScan: React.FC = () => {
   };
 
   const handleViewRequest = (requestId: string) => {
-    // Navigate to History tab with this request selected
-    navigate('/history', { state: { requestId } });
+    // Navigate to Dashboard with this request selected
+    navigate('/dashboard', { state: { requestId } });
   };
 
   const handleExport = () => {

@@ -92,9 +92,9 @@ function cleanMalformedJSON(jsonString: string): string {
   // Remove trailing commas before closing braces/brackets
   let cleaned = jsonString.replace(/,(\s*[}\]])/g, '$1');
 
-  // Fix single quotes to double quotes (common in AI responses)
-  // Only for keys and string values, not within strings
-  cleaned = cleaned.replace(/'([^']*)':/g, '"$1":');
+  // Fix single-quoted JSON keys to double quotes (common in AI responses)
+  // Only replace single quotes used as key delimiters, not apostrophes in values
+  cleaned = cleaned.replace(/'([a-zA-Z_][a-zA-Z0-9_]*)'(\s*:)/g, '"$1"$2');
 
   // Remove newlines within strings (can break JSON)
   // This is a simple approach, more sophisticated parsing might be needed
