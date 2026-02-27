@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Shield, Zap, Brain, Code, CheckCircle, ArrowRight, Menu, X } from 'lucide-react';
+import { Shield, Zap, Brain, Code, CheckCircle, ArrowRight, Menu, X, Chrome, Download } from 'lucide-react';
 
 export function Landing() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -18,6 +18,7 @@ export function Landing() {
             <div className="hidden md:flex items-center space-x-8">
               <a href="#features" className="text-gray-300 hover:text-white transition">Features</a>
               <a href="#pricing" className="text-gray-300 hover:text-white transition">Pricing</a>
+              <a href="#extension" className="text-gray-300 hover:text-white transition">Extension</a>
               <Link to="/docs" className="text-gray-300 hover:text-white transition">Docs</Link>
               <Link to="/login" className="text-gray-300 hover:text-white transition">Login</Link>
               <Link
@@ -39,6 +40,7 @@ export function Landing() {
             <div className="md:hidden border-t border-white/10 py-4 space-y-3">
               <a href="#features" onClick={() => setMobileMenuOpen(false)} className="block text-gray-300 hover:text-white transition px-2 py-2">Features</a>
               <a href="#pricing" onClick={() => setMobileMenuOpen(false)} className="block text-gray-300 hover:text-white transition px-2 py-2">Pricing</a>
+              <a href="#extension" onClick={() => setMobileMenuOpen(false)} className="block text-gray-300 hover:text-white transition px-2 py-2">Extension</a>
               <Link to="/docs" onClick={() => setMobileMenuOpen(false)} className="block text-gray-300 hover:text-white transition px-2 py-2">Docs</Link>
               <Link to="/login" onClick={() => setMobileMenuOpen(false)} className="block text-gray-300 hover:text-white transition px-2 py-2">Login</Link>
               <Link
@@ -194,6 +196,69 @@ export function Landing() {
                   History & export
                 </li>
               </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Chrome Extension Section */}
+      <section id="extension" className="py-24">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="bg-gradient-to-r from-blue-600/10 to-purple-600/10 border border-white/10 rounded-3xl p-8 md:p-12">
+            <div className="grid md:grid-cols-2 gap-8 items-center">
+              <div>
+                <div className="inline-flex items-center gap-2 bg-blue-500/10 border border-blue-500/20 rounded-full px-4 py-2 mb-6">
+                  <Chrome className="w-4 h-4 text-blue-400" />
+                  <span className="text-blue-300 text-sm font-medium">Chrome Extension</span>
+                </div>
+                <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
+                  Get the ReqSploit Extension
+                </h2>
+                <p className="text-gray-300 mb-6 leading-relaxed">
+                  The Chrome extension captures all HTTP traffic directly from your browser using Chrome DevTools Protocol.
+                  No proxy setup, no certificate installation — just install and start pentesting.
+                </p>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <a
+                    href="/reqsploit-extension-v2.1.0.zip"
+                    download
+                    className="inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg transition font-semibold group"
+                  >
+                    <Download className="w-5 h-5" />
+                    Download Extension v2.1
+                  </a>
+                  <Link
+                    to="/docs"
+                    className="inline-flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white px-6 py-3 rounded-lg transition font-semibold"
+                  >
+                    Installation Guide
+                    <ArrowRight className="w-4 h-4" />
+                  </Link>
+                </div>
+              </div>
+              <div className="space-y-4">
+                <div className="flex items-start gap-4 bg-white/5 rounded-xl p-4 border border-white/10">
+                  <span className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-600/20 text-blue-400 text-sm font-bold flex items-center justify-center border border-blue-600/30">1</span>
+                  <div>
+                    <p className="text-white font-medium">Download & Unzip</p>
+                    <p className="text-gray-400 text-sm">Download the zip file and extract it to a folder</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-4 bg-white/5 rounded-xl p-4 border border-white/10">
+                  <span className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-600/20 text-blue-400 text-sm font-bold flex items-center justify-center border border-blue-600/30">2</span>
+                  <div>
+                    <p className="text-white font-medium">Load in Chrome</p>
+                    <p className="text-gray-400 text-sm">Go to <code className="text-blue-300 bg-white/10 px-1 rounded">chrome://extensions</code>, enable Developer mode, click "Load unpacked"</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-4 bg-white/5 rounded-xl p-4 border border-white/10">
+                  <span className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-600/20 text-blue-400 text-sm font-bold flex items-center justify-center border border-blue-600/30">3</span>
+                  <div>
+                    <p className="text-white font-medium">Start Pentesting</p>
+                    <p className="text-gray-400 text-sm">Log in on the dashboard, start a session, and browse your target</p>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -387,6 +452,7 @@ export function Landing() {
               <ul className="space-y-2 text-sm text-gray-400">
                 <li><a href="#features" className="hover:text-white transition">Features</a></li>
                 <li><a href="#pricing" className="hover:text-white transition">Pricing</a></li>
+                <li><a href="#extension" className="hover:text-white transition">Chrome Extension</a></li>
                 <li><Link to="/docs" className="hover:text-white transition">Documentation</Link></li>
               </ul>
             </div>
