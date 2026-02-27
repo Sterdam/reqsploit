@@ -92,10 +92,16 @@ export async function syncTokenToExtension(token: string): Promise<boolean> {
     return false;
   }
 
+  // Send token along with backend/dashboard URLs so the extension knows where to connect
+  const apiUrl = import.meta.env.VITE_API_URL || window.location.origin;
+  const dashboardUrl = window.location.origin;
+
   try {
     const response = await sendMessageToExtension({
       action: 'setAuthToken',
       token,
+      backendUrl: apiUrl,
+      dashboardUrl,
     });
 
     if (response.success) {

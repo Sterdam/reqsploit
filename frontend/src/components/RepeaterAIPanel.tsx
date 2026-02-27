@@ -2,6 +2,7 @@ import { aiAPI } from '../lib/api';
 import { useState, useEffect } from 'react';
 import { Sparkles, Play, Loader2, ChevronDown, ChevronUp, AlertTriangle, Shield, Zap, CheckCircle } from 'lucide-react';
 import { useAIStore } from '../stores/aiStore';
+import { toast } from '../stores/toastStore';
 
 interface TestSuggestion {
   id: string;
@@ -50,6 +51,12 @@ export function RepeaterAIPanel({
   const [expandedTests, setExpandedTests] = useState<Set<string>>(new Set());
   const [tokensUsed, setTokensUsed] = useState(0);
 
+  // Job system states
+  const [currentJobId, setCurrentJobId] = useState<string | null>(null);
+  const [jobStatus, setJobStatus] = useState<string | null>(null);
+  const [jobProgress, setJobProgress] = useState(0);
+  const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
+
   const estimatedCost = getEstimatedCost('suggestTests');
   const hasTokenData = tokenUsage !== null && actionCosts.length > 0;
 
@@ -76,6 +83,46 @@ export function RepeaterAIPanel({
     console.log('  tokenUsage:', tokenUsage);
     console.log('  actionCosts:', actionCosts);
   }, [hasTokenData, estimatedCost, tokenUsage, actionCosts]);
+
+  // Load active jobs on mount (job persistence)
+  useEffect(() => {
+    const loadActiveJobs = async () => {
+      try {
+        console.log('🔄 Checking for active AI jobs...');
+        const jobs = await aiAPI.getUserJobs(false); // Only active jobs
+
+        if (jobs && jobs.length > 0) {
+          console.log(`📋 Found ${jobs.length} active job(s)`);
+
+          // Find most recent SUGGEST_TESTS job
+          const suggestTestsJob = jobs.find(
+            (job: any) => job.type === 'SUGGEST_TESTS' &&
+            (job.status === 'PENDING' || job.status === 'PROCESSING')
+          );
+
+          if (suggestTestsJob) {
+            console.log('🔄 Resuming job:', suggestTestsJob.jobId);
+            setIsLoading(true);
+            startJobPolling(suggestTestsJob.jobId);
+          }
+        } else {
+          console.log('✅ No active jobs to resume');
+        }
+      } catch (error) {
+        console.error('❌ Failed to load active jobs:', error);
+      }
+    };
+
+    loadActiveJobs();
+
+    // Cleanup polling interval on unmount
+    return () => {
+      if (pollingInterval) {
+        console.log('🧹 Cleaning up polling interval');
+        clearInterval(pollingInterval);
+      }
+    };
+  }, []); // Empty deps = run once on mount
 
   const getSeverityIcon = (severity: string) => {
     switch (severity) {
@@ -111,29 +158,149 @@ export function RepeaterAIPanel({
     return category.toUpperCase();
   };
 
+  // Poll job status
+  const pollJobStatus = async (jobId: string) => {
+    try {
+      const jobData = await aiAPI.getJobStatus(jobId);
+      console.log('📊 Job status update:', {
+        jobId,
+        status: jobData.status,
+        progress: jobData.progress,
+      });
+
+      setJobStatus(jobData.status);
+      setJobProgress(jobData.progress);
+
+      if (jobData.status === 'COMPLETED') {
+        console.log('✅ Job completed successfully');
+
+        // Stop polling
+        if (pollingInterval) {
+          clearInterval(pollingInterval);
+          setPollingInterval(null);
+        }
+
+        // Set results
+        if (jobData.analysis && jobData.analysis.suggestions) {
+          setSuggestions(jobData.analysis.suggestions);
+          setTokensUsed(jobData.analysis.tokensUsed || 0);
+
+          // Check if no tests generated
+          if (!jobData.analysis.suggestions.tests || jobData.analysis.suggestions.tests.length === 0) {
+            console.warn('⚠️ No test suggestions in response');
+          }
+        }
+
+        setIsLoading(false);
+        setCurrentJobId(null);
+        setJobStatus(null);
+        setJobProgress(0);
+
+        // Reload token usage
+        loadTokenUsage();
+
+      } else if (jobData.status === 'FAILED') {
+        console.error('❌ Job failed:', jobData.errorMessage);
+
+        // Stop polling
+        if (pollingInterval) {
+          clearInterval(pollingInterval);
+          setPollingInterval(null);
+        }
+
+        toast.error('Job Failed', jobData.errorMessage || 'Unknown error');
+        setIsLoading(false);
+        setCurrentJobId(null);
+        setJobStatus(null);
+        setJobProgress(0);
+
+      } else if (jobData.status === 'CANCELLED') {
+        console.log('🚫 Job was cancelled');
+
+        // Stop polling
+        if (pollingInterval) {
+          clearInterval(pollingInterval);
+          setPollingInterval(null);
+        }
+
+        setIsLoading(false);
+        setCurrentJobId(null);
+        setJobStatus(null);
+        setJobProgress(0);
+      }
+      // If PENDING or PROCESSING, continue polling (interval will call again)
+
+    } catch (error) {
+      console.error('❌ Failed to poll job status:', error);
+      // Don't stop polling on temporary errors, will retry
+    }
+  };
+
+  // Start polling a job
+  const startJobPolling = (jobId: string) => {
+    console.log('🔄 Starting job polling for:', jobId);
+    setCurrentJobId(jobId);
+    setJobStatus('PENDING');
+    setJobProgress(0);
+
+    // Poll immediately
+    pollJobStatus(jobId);
+
+    // Then poll every 2 seconds
+    const interval = setInterval(() => {
+      pollJobStatus(jobId);
+    }, 2000);
+
+    setPollingInterval(interval);
+  };
+
+  // Cancel current job
+  const handleCancelJob = async () => {
+    if (!currentJobId) return;
+
+    try {
+      await aiAPI.cancelJob(currentJobId);
+      console.log('🚫 Job cancelled:', currentJobId);
+
+      if (pollingInterval) {
+        clearInterval(pollingInterval);
+        setPollingInterval(null);
+      }
+
+      setIsLoading(false);
+      setCurrentJobId(null);
+      setJobStatus(null);
+      setJobProgress(0);
+    } catch (error) {
+      console.error('❌ Failed to cancel job:', error);
+    }
+  };
+
   const handleSuggestTests = async () => {
     console.log('🚀 handleSuggestTests called');
 
     // Only check if we have token data AND insufficient tokens
     if (hasTokenData && !canAfford('suggestTests')) {
       const msg = `Insufficient tokens. Need ${estimatedCost?.toLocaleString() || 'N/A'}, have ${tokenUsage?.remaining.toLocaleString() || 0}`;
-      alert(msg);
+      toast.error('Analysis Error', msg);
       console.error('❌', msg);
       return;
     }
 
     setIsLoading(true);
-    console.log('📡 Calling aiAPI.suggestTests with request:', request);
+    console.log('📡 Creating AI job for test suggestions...');
 
     try {
+      // Create job (returns immediately with jobId)
       const result = await aiAPI.suggestTests(request, model);
-      console.log('✅ Suggestions received:', result);
-      setSuggestions(result.suggestions);
-      setTokensUsed(result.tokensUsed);
+      console.log('✅ Job created:', result);
+
+      // Start polling for results
+      startJobPolling(result.jobId);
+
     } catch (error) {
-      console.error('❌ Test suggestion failed:', error);
-      alert(error instanceof Error ? error.message : 'Failed to generate test suggestions');
-    } finally {
+      console.error('❌ Failed to create job:', error);
+      toast.error('Analysis Failed', error instanceof Error ? error.message : 'Failed to create job');
       setIsLoading(false);
     }
   };
@@ -179,7 +346,7 @@ export function RepeaterAIPanel({
           className="w-full mt-3 px-4 py-2 bg-electric-blue hover:bg-electric-blue/80 text-white rounded font-medium text-sm flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition"
           title={
             isLoading
-              ? 'Generating suggestions...'
+              ? jobStatus === 'PENDING' ? 'Job queued...' : jobStatus === 'PROCESSING' ? `Processing... ${jobProgress}%` : 'Generating suggestions...'
               : !hasTokenData
               ? 'Click to generate test suggestions (token data loading...)'
               : !canAfford('suggestTests')
@@ -190,7 +357,9 @@ export function RepeaterAIPanel({
           {isLoading ? (
             <>
               <Loader2 className="w-4 h-4 animate-spin" />
-              Analyzing...
+              {jobStatus === 'PENDING' && 'Queued...'}
+              {jobStatus === 'PROCESSING' && `${jobProgress}%`}
+              {!jobStatus && 'Analyzing...'}
             </>
           ) : (
             <>
@@ -199,6 +368,33 @@ export function RepeaterAIPanel({
             </>
           )}
         </button>
+
+        {/* Cancel Button - Only show when job is running */}
+        {isLoading && currentJobId && (
+          <button
+            onClick={handleCancelJob}
+            className="w-full mt-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded font-medium text-sm flex items-center justify-center gap-2 transition"
+          >
+            <AlertTriangle className="w-4 h-4" />
+            Cancel Job
+          </button>
+        )}
+
+        {/* Progress Bar - Show when job is processing */}
+        {isLoading && jobProgress > 0 && (
+          <div className="mt-3">
+            <div className="flex justify-between text-xs text-gray-400 mb-1">
+              <span>{jobStatus === 'PENDING' ? 'Queued' : 'Processing'}</span>
+              <span>{jobProgress}%</span>
+            </div>
+            <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden">
+              <div
+                className="bg-electric-blue h-full transition-all duration-300 ease-out"
+                style={{ width: `${jobProgress}%` }}
+              />
+            </div>
+          </div>
+        )}
 
         {/* Token info */}
         {hasTokenData && tokenUsage && (
@@ -247,7 +443,8 @@ export function RepeaterAIPanel({
             )}
 
             {/* Test List */}
-            {suggestions.tests.map((test) => (
+            {suggestions.tests && suggestions.tests.length > 0 ? (
+              suggestions.tests.map((test) => (
               <div
                 key={test.id}
                 className="bg-white/5 rounded-lg border border-white/10 overflow-hidden"
@@ -323,7 +520,15 @@ export function RepeaterAIPanel({
                   </div>
                 )}
               </div>
-            ))}
+            ))
+            ) : (
+              <div className="text-center text-gray-400 text-sm py-8">
+                <AlertTriangle className="w-12 h-12 mx-auto mb-3 opacity-50 text-yellow-500" />
+                <p className="font-medium text-white mb-2">No Test Suggestions Generated</p>
+                <p>The AI analyzed the request but couldn't generate specific test suggestions.</p>
+                <p className="mt-2 text-xs">The analysis has been saved to your history.</p>
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -55,6 +55,7 @@ export function Toast({ id, type, message, description, duration = 5000, onClose
       <button
         onClick={() => onClose(id)}
         className="flex-shrink-0 p-1 hover:bg-white/10 rounded transition"
+        aria-label="Dismiss notification"
       >
         <X className="w-4 h-4" />
       </button>

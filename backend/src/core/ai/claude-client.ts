@@ -136,7 +136,12 @@ export class ClaudeClient {
 
       return result;
     } catch (error) {
-      aiLogger.error('Claude API error', { error });
+      aiLogger.error('Claude API error - Original error:', {
+        error,
+        errorType: error?.constructor?.name,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined
+      });
 
       if (error instanceof Anthropic.APIError) {
         throw new AIServiceError(
@@ -145,7 +150,11 @@ export class ClaudeClient {
         );
       }
 
-      throw new AIServiceError('Failed to communicate with Claude AI');
+      throw new AIServiceError(
+        `Failed to communicate with Claude AI: ${error instanceof Error ? error.message : String(error)}`,
+        503,
+        error
+      );
     }
   }
 

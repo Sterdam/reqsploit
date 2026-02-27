@@ -13,7 +13,7 @@ export interface AIAnalysisRequest {
 
 export interface AIAnalysisResult {
   id: string;
-  requestLogId: string;
+  requestLogId: string | null;
   analysisType: 'request' | 'response' | 'full';
   aiResponse: string;
   vulnerabilities: VulnerabilityInfo[];

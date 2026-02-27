@@ -77,6 +77,10 @@ export function AIResultsViewer() {
   };
 
   const getSeverityColor = (severity: string) => {
+    if (!severity) {
+      // Default to MEDIUM if severity is undefined
+      severity = 'MEDIUM';
+    }
     const s = severity.toUpperCase();
     switch (s) {
       case 'CRITICAL':

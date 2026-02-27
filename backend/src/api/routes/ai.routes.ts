@@ -12,6 +12,8 @@ import pLimit from 'p-limit';
 import { falsePositiveService } from '../../services/false-positive.service.js';
 import { requestGrouperService } from '../../services/request-grouper.service.js';
 import Anthropic from '@anthropic-ai/sdk';
+import { parseAIResponse } from '../../utils/ai-parser.js';
+import { aiJobService } from '../../services/ai-job.service.js';
 
 const router = Router();
 const requestLogService = new RequestLogService(prisma);
@@ -29,7 +31,11 @@ router.post(
   asyncHandler(async (req: Request, res: Response) => {
     const userId = req.user!.id;
     const { requestId } = req.params;
-    const { model = 'auto' } = req.body; // Model selection
+    let { model = 'auto' } = req.body; // Model selection
+
+    // Map legacy model names to new format
+    if (model === 'haiku') model = 'haiku-4.5';
+    if (model === 'sonnet') model = 'sonnet-4.5';
 
     // Get request from database
     const requestLog = await prisma.requestLog.findFirst({
@@ -75,7 +81,11 @@ router.post(
   asyncHandler(async (req: Request, res: Response) => {
     const userId = req.user!.id;
     const { requestId } = req.params;
-    const { model = 'auto' } = req.body; // Model selection
+    let { model = 'auto' } = req.body; // Model selection
+
+    // Map legacy model names to new format
+    if (model === 'haiku') model = 'haiku-4.5';
+    if (model === 'sonnet') model = 'sonnet-4.5';
 
     // Get request from database
     const requestLog = await prisma.requestLog.findFirst({
@@ -300,30 +310,8 @@ router.get(
         tokensUsed: analysis.tokensUsed,
         model: analysis.model || 'unknown', // Return stored model (added in schema)
         timestamp: analysis.createdAt,
-        requestUrl: analysis.requestLog.url, // Include request URL for context
-        requestMethod: analysis.requestLog.method, // Include method for context
-      },
-    });
-  })
-);
-
-/**
- * GET /ai/history
- * Get AI analysis history for the user
- */
-router.get(
-  '/history',
-  asyncHandler(async (req: Request, res: Response) => {
-    const userId = req.user!.id;
-    const limit = parseInt(req.query.limit as string, 10) || 50;
-
-    const analyses = await aiAnalyzer.getAnalysisHistory(userId, limit);
-
-    res.json({
-      success: true,
-      data: {
-        analyses,
-        count: analyses.length,
+        requestUrl: analysis.requestLog?.url ?? 'N/A',
+        requestMethod: analysis.requestLog?.method ?? 'N/A',
       },
     });
   })
@@ -411,7 +399,11 @@ router.post(
   asyncHandler(async (req: Request, res: Response) => {
     const userId = req.user!.id;
     const { requestId } = req.params;
-    const { model = 'haiku' } = req.body; // Model selection (default to Haiku for quick scan)
+    let { model = 'haiku' } = req.body; // Model selection (default to Haiku for quick scan)
+
+    // Map legacy model names to new format
+    if (model === 'haiku') model = 'haiku-4.5';
+    if (model === 'sonnet') model = 'sonnet-4.5';
 
     // Try to get request from intercept queue first (like analyzeIntercepted)
     const session = proxySessionManager.getSessionByUserId(userId);
@@ -488,7 +480,11 @@ router.post(
   asyncHandler(async (req: Request, res: Response) => {
     const userId = req.user!.id;
     const { requestId } = req.params;
-    const { model = 'sonnet' } = req.body; // Model selection (default to Sonnet for deep scan)
+    let { model = 'sonnet' } = req.body; // Model selection (default to Sonnet for deep scan)
+
+    // Map legacy model names to new format
+    if (model === 'haiku') model = 'haiku-4.5';
+    if (model === 'sonnet') model = 'sonnet-4.5';
 
     // Try to get request from intercept queue first (like analyzeIntercepted)
     const session = proxySessionManager.getSessionByUserId(userId);
@@ -680,7 +676,11 @@ router.post(
   asyncHandler(async (req: Request, res: Response) => {
     const userId = req.user!.id;
     const { tabId } = req.params;
-    const { method, url, headers, body, model = 'auto' } = req.body; // Model selection
+    let { method, url, headers, body, model = 'auto' } = req.body; // Model selection
+
+    // Map legacy model names to new format
+    if (model === 'haiku') model = 'haiku-4.5';
+    if (model === 'sonnet') model = 'sonnet-4.5';
 
     if (!method || !url) {
       throw new NotFoundError('Method and URL required');
@@ -772,7 +772,11 @@ router.post(
   '/generate-payloads',
   asyncHandler(async (req: Request, res: Response) => {
     const userId = req.user!.id;
-    const { category, context, count = 50, model = 'auto' } = req.body; // Model selection
+    let { category, context, count = 50, model = 'auto' } = req.body; // Model selection
+
+    // Map legacy model names to new format
+    if (model === 'haiku') model = 'haiku-4.5';
+    if (model === 'sonnet') model = 'sonnet-4.5';
 
     if (!category) {
       throw new NotFoundError('Payload category required');
@@ -829,29 +833,54 @@ Provide diverse, effective payloads with modern bypass techniques.`;
 
     const response = await claudeClient.analyze(analysisContext, prompt, { model }); // Pass model to Claude client
 
-    // Parse response
-    let payloadData;
-    try {
-      payloadData = JSON.parse(response.content);
-    } catch {
-      // Fallback if parsing fails
-      payloadData = {
-        payloads: [],
-        category,
-        totalCount: 0,
-        summary: response.content.substring(0, 500),
-      };
-    }
+    // Use robust parser
+    const parsed = parseAIResponse(response.content);
+    const payloadData = parsed.success ? parsed.data : {
+      payloads: [],
+      category,
+      totalCount: 0,
+      summary: parsed.rawText?.substring(0, 500) || 'Failed to parse response',
+      parseError: true
+    };
+
+    const tokensUsed = response.inputTokens + response.outputTokens;
+
+    // Store in database with PAYLOAD_GENERATION type
+    const analysisRecord = await prisma.aIAnalysis.create({
+      data: {
+        userId,
+        analysisType: 'PAYLOAD_GENERATION',
+        mode: 'DEFAULT',
+        title: `Payloads: ${category}`,
+        category: category,
+        aiResponse: response.content,
+        suggestions: payloadData as any,
+        tokensUsed,
+        model: response.model,
+        confidence: parsed.success ? 85 : 40,
+      },
+    });
+
+    aiLogger.info('AI payloads generated and stored', {
+      userId,
+      analysisId: analysisRecord.id,
+      category,
+      payloadsCount: payloadData.payloads?.length || 0,
+      tokensUsed,
+      parseSuccess: parsed.success,
+    });
 
     res.json({
       success: true,
       data: {
+        analysisId: analysisRecord.id, // Return ID for future reference
         payloads: payloadData.payloads || [],
         category: payloadData.category || category,
         totalCount: payloadData.totalCount || payloadData.payloads?.length || 0,
         summary: payloadData.summary,
-        tokensUsed: response.inputTokens + response.outputTokens,
+        tokensUsed,
         model: response.model,
+        parseSuccess: parsed.success,
       },
       message: 'Payloads generated successfully',
     });
@@ -866,7 +895,11 @@ router.post(
   '/generate-dorks',
   asyncHandler(async (req: Request, res: Response) => {
     const userId = req.user!.id;
-    const { target, objective, platforms = ['google', 'shodan', 'github'], model = 'auto' } = req.body; // Model selection
+    let { target, objective, platforms = ['google', 'shodan', 'github'], model = 'auto' } = req.body; // Model selection
+
+    // Map legacy model names to new format
+    if (model === 'haiku') model = 'haiku-4.5';
+    if (model === 'sonnet') model = 'sonnet-4.5';
 
     if (!target || !objective) {
       throw new NotFoundError('Target and objective required');
@@ -937,35 +970,63 @@ Generate 5-10 dorks per requested platform. Focus on high-impact reconnaissance.
 
     const response = await claudeClient.analyze(analysisContext, prompt, { model }); // Pass model to Claude client
 
-    // Parse response
-    let dorkData;
-    try {
-      dorkData = JSON.parse(response.content);
-      // Calculate total dorks
+    // Use robust parser
+    const parsed = parseAIResponse(response.content);
+    let dorkData = parsed.success ? parsed.data : {
+      dorks: { google: [], shodan: [], github: [] },
+      target,
+      totalDorks: 0,
+      summary: parsed.rawText?.substring(0, 500) || 'Failed to parse response',
+      parseError: true
+    };
+
+    // Calculate total dorks if parsed successfully
+    if (parsed.success && dorkData.dorks) {
       const totalDorks =
         (dorkData.dorks?.google?.length || 0) +
         (dorkData.dorks?.shodan?.length || 0) +
         (dorkData.dorks?.github?.length || 0);
       dorkData.totalDorks = totalDorks;
-    } catch {
-      // Fallback if parsing fails
-      dorkData = {
-        dorks: { google: [], shodan: [], github: [] },
-        target,
-        totalDorks: 0,
-        summary: response.content.substring(0, 500),
-      };
     }
+
+    const tokensUsed = response.inputTokens + response.outputTokens;
+
+    // Store in database with DORK_GENERATION type
+    const analysisRecord = await prisma.aIAnalysis.create({
+      data: {
+        userId,
+        analysisType: 'DORK_GENERATION',
+        mode: 'DEFAULT',
+        title: `Dorks: ${target} - ${objective}`,
+        category: 'recon',
+        aiResponse: response.content,
+        suggestions: dorkData as any,
+        tokensUsed,
+        model: response.model,
+        confidence: parsed.success ? 85 : 40,
+      },
+    });
+
+    aiLogger.info('AI dorks generated and stored', {
+      userId,
+      analysisId: analysisRecord.id,
+      target,
+      totalDorks: dorkData.totalDorks || 0,
+      tokensUsed,
+      parseSuccess: parsed.success,
+    });
 
     res.json({
       success: true,
       data: {
+        analysisId: analysisRecord.id, // Return ID for future reference
         dorks: dorkData.dorks || { google: [], shodan: [], github: [] },
         target: dorkData.target || target,
         totalDorks: dorkData.totalDorks || 0,
         summary: dorkData.summary,
-        tokensUsed: response.inputTokens + response.outputTokens,
+        tokensUsed,
         model: response.model,
+        parseSuccess: parsed.success,
       },
       message: 'Dorks generated successfully',
     });
@@ -1075,27 +1136,57 @@ Provide a complete, executable attack chain with 3-8 steps.`;
 
     const response = await claudeClient.analyze(analysisContext, prompt, { model }); // Pass model to Claude client
 
-    // Parse response
-    let attackChainData;
-    try {
-      attackChainData = JSON.parse(response.content);
-      attackChainData.totalSteps = attackChainData.attackChain?.length || 0;
-    } catch {
-      // Fallback if parsing fails
-      attackChainData = {
-        attackChain: [],
-        summary: response.content.substring(0, 500),
-        totalSteps: 0,
-        estimatedImpact: 'medium',
-        prerequisites: [],
-        detectionRisk: 'medium',
-        recommendations: [],
-      };
+    // Use robust parser
+    const parsed = parseAIResponse(response.content);
+    let attackChainData = parsed.success ? parsed.data : {
+      attackChain: [],
+      summary: parsed.rawText?.substring(0, 500) || 'Failed to parse response',
+      totalSteps: 0,
+      estimatedImpact: 'medium',
+      prerequisites: [],
+      detectionRisk: 'medium',
+      recommendations: [],
+      parseError: true
+    };
+
+    // Calculate total steps if parsed successfully
+    if (parsed.success && attackChainData.attackChain) {
+      attackChainData.totalSteps = attackChainData.attackChain.length;
     }
+
+    const tokensUsed = response.inputTokens + response.outputTokens;
+
+    // Store in database with ATTACK_CHAIN type
+    const analysisRecord = await prisma.aIAnalysis.create({
+      data: {
+        userId,
+        projectId, // Link to project
+        analysisType: 'ATTACK_CHAIN',
+        mode: 'DEFAULT',
+        title: `Attack Chain: ${objective}`,
+        category: 'attack',
+        aiResponse: response.content,
+        suggestions: attackChainData as any,
+        tokensUsed,
+        model: response.model,
+        confidence: parsed.success ? 85 : 40,
+      },
+    });
+
+    aiLogger.info('AI attack chain generated and stored', {
+      userId,
+      analysisId: analysisRecord.id,
+      projectId,
+      objective,
+      totalSteps: attackChainData.totalSteps || 0,
+      tokensUsed,
+      parseSuccess: parsed.success,
+    });
 
     res.json({
       success: true,
       data: {
+        analysisId: analysisRecord.id, // Return ID for future reference
         attackChain: attackChainData.attackChain || [],
         summary: attackChainData.summary,
         totalSteps: attackChainData.totalSteps || 0,
@@ -1103,8 +1194,9 @@ Provide a complete, executable attack chain with 3-8 steps.`;
         prerequisites: attackChainData.prerequisites || [],
         detectionRisk: attackChainData.detectionRisk,
         recommendations: attackChainData.recommendations || [],
-        tokensUsed: response.inputTokens + response.outputTokens,
+        tokensUsed,
         model: response.model,
+        parseSuccess: parsed.success,
       },
       message: 'Attack chain generated successfully',
     });
@@ -1186,7 +1278,7 @@ ${analyses.slice(0, 20).map((analysis, i) => {
   }
   return `
 Analysis ${i + 1}:
-- Request: ${analysis.requestLog.method} ${analysis.requestLog.url}
+- Request: ${analysis.requestLog?.method ?? 'N/A'} ${analysis.requestLog?.url ?? 'N/A'}
 - Mode: ${analysis.mode}
 - Findings: ${parsed?.vulnerabilities?.length || 0} vulnerabilities
 - Severity: ${parsed?.vulnerabilities?.[0]?.severity || 'N/A'}
@@ -1257,48 +1349,75 @@ Provide a professional, actionable security report.`;
 
     const response = await claudeClient.analyze(analysisContext, prompt, { model }); // Pass model to Claude client
 
-    // Parse response
-    let reportData;
-    try {
-      reportData = JSON.parse(response.content);
-    } catch {
-      // Fallback if parsing fails
-      reportData = {
-        executiveSummary: {
-          overview: response.content.substring(0, 500),
-          criticalFindings: 0,
-          highFindings: 0,
-          mediumFindings: 0,
-          lowFindings: 0,
-          riskLevel: 'medium',
-          keyRecommendations: [],
-        },
-        projectOverview: {
-          name: project.name,
-          target: project.target || '',
-          testingPeriod: 'N/A',
-          requestsAnalyzed: requests.length,
-          aiAnalysesPerformed: analyses.length,
-        },
-        findings: [],
-        statistics: {},
-        recommendations: {
-          immediate: [],
-          shortTerm: [],
-          longTerm: [],
-        },
-        conclusion: '',
-      };
-    }
+    // Use robust parser
+    const parsed = parseAIResponse(response.content);
+    let reportData = parsed.success ? parsed.data : {
+      executiveSummary: {
+        overview: parsed.rawText?.substring(0, 500) || 'Failed to parse response',
+        criticalFindings: 0,
+        highFindings: 0,
+        mediumFindings: 0,
+        lowFindings: 0,
+        riskLevel: 'medium',
+        keyRecommendations: [],
+      },
+      projectOverview: {
+        name: project.name,
+        target: project.target || '',
+        testingPeriod: 'N/A',
+        requestsAnalyzed: requests.length,
+        aiAnalysesPerformed: analyses.length,
+      },
+      findings: [],
+      statistics: {},
+      recommendations: {
+        immediate: [],
+        shortTerm: [],
+        longTerm: [],
+      },
+      conclusion: '',
+      parseError: true
+    };
+
+    const tokensUsed = response.inputTokens + response.outputTokens;
+
+    // Store in database with SECURITY_REPORT type
+    const analysisRecord = await prisma.aIAnalysis.create({
+      data: {
+        userId,
+        projectId, // Link to project
+        analysisType: 'SECURITY_REPORT',
+        mode: 'DEFAULT',
+        title: `Security Report: ${project.name}`,
+        category: 'report',
+        aiResponse: response.content,
+        suggestions: reportData as any,
+        tokensUsed,
+        model: response.model,
+        confidence: parsed.success ? 90 : 40,
+      },
+    });
+
+    aiLogger.info('AI security report generated and stored', {
+      userId,
+      analysisId: analysisRecord.id,
+      projectId,
+      projectName: project.name,
+      findingsCount: reportData.findings?.length || 0,
+      tokensUsed,
+      parseSuccess: parsed.success,
+    });
 
     res.json({
       success: true,
       data: {
+        analysisId: analysisRecord.id, // Return ID for future reference
         projectId,
         projectName: project.name,
         report: reportData,
-        tokensUsed: response.inputTokens + response.outputTokens,
+        tokensUsed,
         model: response.model,
+        parseSuccess: parsed.success,
         generatedAt: new Date().toISOString(),
       },
       message: 'Security report generated successfully',
@@ -1308,99 +1427,145 @@ Provide a professional, actionable security report.`;
 
 /**
  * POST /ai/suggest-tests
- * Generate AI-powered security test suggestions for Repeater
+ * Generate AI-powered security test suggestions for Repeater (Job-based)
+ * Creates a background job and returns job ID for polling
  */
 router.post(
   '/suggest-tests',
   asyncHandler(async (req: Request, res: Response) => {
     const userId = req.user!.id;
-    const { request, model = 'auto' } = req.body;
+    let { request, model = 'auto' } = req.body;
+
+    // Map legacy model names to new format
+    if (model === 'haiku') model = 'haiku-4.5';
+    if (model === 'sonnet') model = 'sonnet-4.5';
 
     if (!request || !request.method || !request.url) {
       throw new ValidationError('Request data is required (method, url)');
     }
 
-    // Build context for test suggestion
-    const requestContext = `HTTP Request to analyze for security testing:
+    // Create background job
+    const jobId = await aiJobService.createJob({
+      userId,
+      type: 'SUGGEST_TESTS',
+      requestData: request,
+      model,
+    });
 
-Method: ${request.method}
-URL: ${request.url}
-Headers:
-${JSON.stringify(request.headers || {}, null, 2)}
-${request.body ? `\nBody:\n${request.body}` : ''}
+    aiLogger.info('Test suggestions job created', {
+      jobId,
+      userId,
+      model,
+      requestMethod: request.method,
+      requestUrl: request.url,
+    });
 
-Generate comprehensive security test suggestions for this request.`;
+    res.json({
+      success: true,
+      data: {
+        jobId, // Return job ID for polling
+        status: 'PENDING',
+        message: 'Job created, processing in background',
+      },
+    });
+  })
+);
 
-    try {
-      // Import prompts
-      const { TEST_SUGGESTION_PROMPT } = await import('../../core/ai/prompts.js');
+/**
+ * GET /ai/jobs/:jobId
+ * Get status and result of an AI job
+ */
+router.get(
+  '/jobs/:jobId',
+  asyncHandler(async (req: Request, res: Response) => {
+    const userId = req.user!.id;
+    const { jobId } = req.params;
 
-      // Call Claude API with test suggestion prompt
-      const selectedModel = model === 'auto' ? 'haiku-4.5' : model;
-      const response = await anthropic.messages.create({
-        model: selectedModel === 'sonnet-4.5' ? 'claude-sonnet-4-20250514' : 'claude-3-5-haiku-20241022',
-        max_tokens: 4096,
-        temperature: 0.7,
-        system: TEST_SUGGESTION_PROMPT,
-        messages: [
-          {
-            role: 'user',
-            content: requestContext,
-          },
-        ],
-      });
+    const job = await aiJobService.getJob(jobId);
 
-      // Extract AI response
-      const content = response.content[0];
-      if (content.type !== 'text') {
-        throw new AIServiceError('Unexpected AI response type');
-      }
-
-      let suggestions;
-      try {
-        // Try to parse JSON from response
-        const jsonMatch = content.text.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          suggestions = JSON.parse(jsonMatch[0]);
-        } else {
-          suggestions = JSON.parse(content.text);
-        }
-      } catch (parseError) {
-        aiLogger.error('Failed to parse AI test suggestions', { error: parseError });
-        throw new AIServiceError('AI returned invalid JSON response');
-      }
-
-      // Calculate and deduct tokens
-      const tokensUsed = response.usage.input_tokens + response.usage.output_tokens;
-      const tokenCost = aiPricingService.calculateTokenCost(
-        selectedModel,
-        response.usage.input_tokens,
-        response.usage.output_tokens
-      );
-      await aiPricingService.deductTokens(userId, tokenCost);
-
-      aiLogger.info('AI test suggestions generated', {
-        userId,
-        model: selectedModel,
-        testsCount: suggestions.tests?.length || 0,
-        tokensUsed,
-        tokenCost,
-      });
-
-      res.json({
-        success: true,
-        data: {
-          suggestions,
-          tokensUsed: tokenCost,
-          model: selectedModel,
-        },
-        message: 'Test suggestions generated successfully',
-      });
-    } catch (error) {
-      if (error instanceof AIServiceError) throw error;
-      aiLogger.error('Test suggestion generation failed', { error });
-      throw new AIServiceError('Failed to generate test suggestions');
+    if (!job) {
+      throw new NotFoundError('Job not found');
     }
+
+    // Verify job belongs to user
+    const jobRecord = await prisma.aIJob.findUnique({
+      where: { id: jobId },
+      select: { userId: true },
+    });
+
+    if (jobRecord?.userId !== userId) {
+      throw new NotFoundError('Job not found');
+    }
+
+    // If job is completed and has result, include the analysis
+    let analysisData = null;
+    if (job.status === 'COMPLETED' && job.resultId) {
+      const analysis = await prisma.aIAnalysis.findUnique({
+        where: { id: job.resultId },
+        select: {
+          id: true,
+          suggestions: true,
+          tokensUsed: true,
+          model: true,
+          confidence: true,
+          createdAt: true,
+        },
+      });
+
+      if (analysis) {
+        analysisData = analysis;
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        ...job,
+        analysis: analysisData,
+      },
+    });
+  })
+);
+
+/**
+ * GET /ai/jobs
+ * Get all jobs for current user
+ */
+router.get(
+  '/jobs',
+  asyncHandler(async (req: Request, res: Response) => {
+    const userId = req.user!.id;
+    const includeCompleted = req.query.includeCompleted === 'true';
+
+    const jobs = await aiJobService.getUserJobs(userId, includeCompleted);
+
+    res.json({
+      success: true,
+      data: jobs,
+    });
+  })
+);
+
+/**
+ * DELETE /ai/jobs/:jobId
+ * Cancel a pending or processing job
+ */
+router.delete(
+  '/jobs/:jobId',
+  asyncHandler(async (req: Request, res: Response) => {
+    const userId = req.user!.id;
+    const { jobId } = req.params;
+
+    const cancelled = await aiJobService.cancelJob(jobId, userId);
+
+    if (!cancelled) {
+      throw new NotFoundError('Job not found or cannot be cancelled');
+    }
+
+    res.json({
+      success: true,
+      message: 'Job cancelled successfully',
+    });
   })
 );
 

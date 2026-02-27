@@ -40,14 +40,41 @@ router.post(
       case 'base64':
         result = decoderService.base64Encode(input);
         break;
+      case 'base32':
+        result = decoderService.base32Encode(input);
+        break;
       case 'html':
         result = decoderService.htmlEncode(input);
         break;
       case 'hex':
         result = decoderService.hexEncode(input);
         break;
+      case 'binary':
+        result = decoderService.binaryEncode(input);
+        break;
+      case 'octal':
+        result = decoderService.octalEncode(input);
+        break;
+      case 'decimal':
+        result = decoderService.decimalEncode(input);
+        break;
       case 'unicode':
         result = decoderService.unicodeEncode(input);
+        break;
+      case 'rot13':
+        result = decoderService.rot13(input);
+        break;
+      case 'morse':
+        result = decoderService.morseEncode(input);
+        break;
+      case 'reverse':
+        result = decoderService.reverseString(input);
+        break;
+      case 'json':
+        result = decoderService.jsonFormat(input, false);
+        break;
+      case 'gzip':
+        result = decoderService.gzipEncode(input);
         break;
       default:
         return res.status(400).json({
@@ -112,14 +139,41 @@ router.post(
         case 'base64':
           result = decoderService.base64Decode(input);
           break;
+        case 'base32':
+          result = decoderService.base32Decode(input);
+          break;
         case 'html':
           result = decoderService.htmlDecode(input);
           break;
         case 'hex':
           result = decoderService.hexDecode(input);
           break;
+        case 'binary':
+          result = decoderService.binaryDecode(input);
+          break;
+        case 'octal':
+          result = decoderService.octalDecode(input);
+          break;
+        case 'decimal':
+          result = decoderService.decimalDecode(input);
+          break;
         case 'unicode':
           result = decoderService.unicodeDecode(input);
+          break;
+        case 'rot13':
+          result = decoderService.rot13(input);
+          break;
+        case 'morse':
+          result = decoderService.morseDecode(input);
+          break;
+        case 'reverse':
+          result = decoderService.reverseString(input);
+          break;
+        case 'json':
+          result = decoderService.jsonFormat(input, false);
+          break;
+        case 'gzip':
+          result = decoderService.gzipDecode(input);
           break;
         default:
           return res.status(400).json({
@@ -147,7 +201,7 @@ router.post(
       data: {
         input,
         output: result.output,
-        encoding: result.detectedEncoding || encoding,
+        encoding,
       },
     });
   })

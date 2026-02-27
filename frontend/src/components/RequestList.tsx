@@ -13,6 +13,7 @@ import { TagFilterPanel } from './TagFilterPanel';
 import { AdvancedFiltersPanel } from './AdvancedFiltersPanel';
 import { Copy, Send, Trash2, ArrowUpDown, Clock, AlertCircle, Filter, FilterX, Shield, Zap, AlertTriangle, CheckCircle, Info, XOctagon } from 'lucide-react';
 import { aiAPI, proxyAPI } from '../lib/api';
+import { toast } from '../stores/toastStore';
 
 const ITEMS_PER_PAGE = 100;
 
@@ -269,7 +270,7 @@ export function RequestList() {
       });
     } catch (error) {
       console.error('Quick scan failed:', error);
-      alert(error instanceof Error ? error.message : 'Quick scan failed');
+      toast.error('Quick Scan Failed', error instanceof Error ? error.message : 'Quick scan failed');
     } finally {
       setIsAnalyzing(false);
       setAiScanning(prev => {
@@ -321,7 +322,7 @@ export function RequestList() {
       });
     } catch (error) {
       console.error('Deep scan failed:', error);
-      alert(error instanceof Error ? error.message : 'Deep scan failed');
+      toast.error('Deep Scan Failed', error instanceof Error ? error.message : 'Deep scan failed');
     } finally {
       setIsAnalyzing(false);
       setAiScanning(prev => {
@@ -335,12 +336,12 @@ export function RequestList() {
   const handleBatchAnalyze = async () => {
     const selected = getSelectedRequests();
     if (selected.length === 0) {
-      alert('Please select requests to analyze');
+      toast.warning('No Selection', 'Please select requests to analyze');
       return;
     }
 
     if (!canAfford('quickScan')) {
-      alert('Insufficient credits for batch analysis');
+      toast.warning('Insufficient Credits', 'Not enough credits for batch analysis');
       return;
     }
 
@@ -389,17 +390,13 @@ export function RequestList() {
       // Show summary with performance metrics
       const durationSec = (summary.duration / 1000).toFixed(1);
       const avgTimeSec = (summary.averageTime / 1000).toFixed(2);
-      alert(
-        `Batch analysis completed in ${durationSec}s!\n\n` +
-        `Successful: ${summary.successful}\n` +
-        `Failed: ${summary.failed}\n` +
-        `Total: ${summary.total}\n` +
-        `Average time: ${avgTimeSec}s per request\n` +
-        `Concurrency: ${summary.concurrency} parallel requests`
+      toast.success(
+        `Batch Analysis Complete (${durationSec}s)`,
+        `${summary.successful} successful, ${summary.failed} failed out of ${summary.total} — avg ${avgTimeSec}s/request`
       );
     } catch (error) {
       console.error('Batch analysis failed:', error);
-      alert(error instanceof Error ? error.message : 'Batch analysis failed');
+      toast.error('Batch Analysis Failed', error instanceof Error ? error.message : 'Batch analysis failed');
     } finally {
       setBatchAnalyzing(false);
       setBatchProgress({ current: 0, total: 0 });
@@ -674,11 +671,12 @@ export function RequestList() {
       {/* Request List */}
       <div ref={listRef} className="overflow-y-auto" style={{ maxHeight: 'calc(100vh - 350px)' }}>
         {filteredRequests.length === 0 ? (
-          <div className="flex items-center justify-center" style={{ minHeight: '400px' }}>
-            <div className="text-center text-gray-400">
-              <p className="text-sm">No requests yet</p>
-              <p className="text-xs mt-1">Start the proxy to see intercepted traffic</p>
-            </div>
+          <div className="flex flex-col items-center justify-center py-12 text-center" style={{ minHeight: '400px' }}>
+            <svg className="w-10 h-10 text-gray-600 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 013 12c0-1.605.42-3.113 1.157-4.418" />
+            </svg>
+            <p className="text-sm text-gray-400 mb-1">No requests captured yet</p>
+            <p className="text-xs text-gray-500 max-w-xs">Start intercepting to capture HTTP traffic from your browser</p>
           </div>
         ) : (
           <div className="p-2">
@@ -902,7 +900,7 @@ export function RequestList() {
                   setContextMenu(null);
                 } catch (error) {
                   console.error('Failed to delete request:', error);
-                  alert(error instanceof Error ? error.message : 'Failed to delete request');
+                  toast.error('Delete Failed', error instanceof Error ? error.message : 'Failed to delete request');
                 }
               }
             },

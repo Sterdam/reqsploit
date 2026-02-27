@@ -57,9 +57,12 @@ export function AIAnalysisHistory({ isOpen, onClose }: AIAnalysisHistoryProps) {
     try {
       setLoading(true);
       const history = await aiAPI.getHistory(100); // Get last 100 analyses
-      setAnalyses(history);
+      console.log('📊 History loaded:', history);
+      // Ensure history is always an array
+      setAnalyses(Array.isArray(history) ? history : []);
     } catch (error) {
       console.error('Failed to load analysis history:', error);
+      setAnalyses([]); // Set empty array on error
     } finally {
       setLoading(false);
     }

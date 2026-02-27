@@ -21,9 +21,22 @@ import type {
 // Configuration
 // ============================================
 
-const BACKEND_URL = 'http://localhost:3000';
-const DASHBOARD_URL = 'http://localhost:5173';
+// Default URLs - can be overridden via chrome.storage.local (settingsBackendUrl / settingsDashboardUrl)
+const DEFAULT_BACKEND_URL = 'https://api.reqsploit.com';
+const DEFAULT_DASHBOARD_URL = 'https://app.reqsploit.com';
 const AUTO_CONTINUE_TIMEOUT_MS = 60000; // 60s timeout for pending actions
+
+let BACKEND_URL = DEFAULT_BACKEND_URL;
+let DASHBOARD_URL = DEFAULT_DASHBOARD_URL;
+
+/**
+ * Load server URLs from storage (allows overriding defaults)
+ */
+async function loadConfig(): Promise<void> {
+  const stored = await chrome.storage.local.get(['settingsBackendUrl', 'settingsDashboardUrl']);
+  BACKEND_URL = stored.settingsBackendUrl || DEFAULT_BACKEND_URL;
+  DASHBOARD_URL = stored.settingsDashboardUrl || DEFAULT_DASHBOARD_URL;
+}
 
 // ============================================
 // Core modules
@@ -465,10 +478,17 @@ chrome.runtime.onMessage.addListener((message: PopupMessage, _sender, sendRespon
 
 chrome.runtime.onMessageExternal.addListener((message, _sender, sendResponse) => {
   if (message.action === 'setAuthToken' && message.token) {
-    chrome.storage.local.set({ apiToken: message.token }, () => {
-      console.log('[BG] Auth token stored from frontend');
+    // Store token + optionally update server URLs from frontend
+    const storageUpdate: Record<string, string> = { apiToken: message.token };
+    if (message.backendUrl) storageUpdate.settingsBackendUrl = message.backendUrl;
+    if (message.dashboardUrl) storageUpdate.settingsDashboardUrl = message.dashboardUrl;
 
-      // Auto-connect to server if not connected
+    chrome.storage.local.set(storageUpdate, async () => {
+      // Reload config with possibly new URLs
+      await loadConfig();
+      console.log('[BG] Auth token stored from frontend, backend:', BACKEND_URL);
+
+      // Auto-connect to server if not connected (or reconnect if URL changed)
       if (!wsClient.isConnected()) {
         wsClient.connect(BACKEND_URL, message.token);
       }
@@ -571,8 +591,9 @@ function sleep(ms: number): Promise<void> {
 // Initialization
 // ============================================
 
-chrome.runtime.onInstalled.addListener(() => {
-  console.log('[BG] ReqSploit v2 extension installed (CDP mode)');
+chrome.runtime.onInstalled.addListener(async () => {
+  console.log('[BG] ReqSploit v2.1 extension installed (CDP mode)');
+  await loadConfig();
   chrome.storage.local.set({
     interceptEnabled: false,
     apiToken: null,
@@ -582,6 +603,7 @@ chrome.runtime.onInstalled.addListener(() => {
 
 // Auto-connect on startup if token exists
 (async () => {
+  await loadConfig();
   const token = await getAuthToken();
   if (token) {
     console.log('[BG] Auto-connecting to server with stored token');

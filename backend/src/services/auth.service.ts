@@ -260,3 +260,54 @@ function formatUserProfile(user: User): UserProfile {
 export async function getUserById(userId: string): Promise<User | null> {
   return prisma.user.findUnique({ where: { id: userId } });
 }
+
+/**
+ * Update user profile (name)
+ */
+export async function updateProfile(userId: string, data: { name?: string }): Promise<UserProfile> {
+  const user = await prisma.user.update({
+    where: { id: userId },
+    data: { name: data.name },
+  });
+
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    plan: user.plan,
+    isActive: user.isActive,
+    emailVerified: user.emailVerified,
+    createdAt: user.createdAt,
+  };
+}
+
+/**
+ * Change user password
+ */
+export async function changePassword(
+  userId: string,
+  currentPassword: string,
+  newPassword: string
+): Promise<void> {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) {
+    throw new NotFoundError('User not found');
+  }
+
+  const isValid = await bcrypt.compare(currentPassword, user.passwordHash);
+  if (!isValid) {
+    throw new UnauthorizedError('Current password is incorrect');
+  }
+
+  if (newPassword.length < 8) {
+    throw new ValidationError('New password must be at least 8 characters');
+  }
+
+  const hashedPassword = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
+  await prisma.user.update({
+    where: { id: userId },
+    data: { passwordHash: hashedPassword },
+  });
+
+  authLogger.info(`Password changed for user ${userId}`);
+}

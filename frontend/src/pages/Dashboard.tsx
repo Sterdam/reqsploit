@@ -240,71 +240,20 @@ export function Dashboard() {
         <KeyboardShortcutsModal isOpen={showKeyboardShortcuts} onClose={() => setShowKeyboardShortcuts(false)} />
 
         {/* Mobile Navigation */}
-        <div className="flex border-b border-white/10 bg-[#0A1929]">
-          <button
-            onClick={() => setMobileMenu('projects')}
-            className={`flex-1 px-4 py-3 text-sm font-medium transition ${
-              mobileMenu === 'projects' ? 'bg-blue-600/20 text-blue-400 border-b-2 border-blue-600' : 'text-gray-400'
-            }`}
-          >
-            Projects
-          </button>
-          <button
-            onClick={() => setMobileMenu('requests')}
-            className={`flex-1 px-4 py-3 text-sm font-medium transition ${
-              mobileMenu === 'requests' ? 'bg-blue-600/20 text-blue-400 border-b-2 border-blue-600' : 'text-gray-400'
-            }`}
-          >
-            Requests
-          </button>
-          <button
-            onClick={() => setMobileMenu('viewer')}
-            className={`flex-1 px-4 py-3 text-sm font-medium transition ${
-              mobileMenu === 'viewer' ? 'bg-blue-600/20 text-blue-400 border-b-2 border-blue-600' : 'text-gray-400'
-            }`}
-          >
-            Viewer
-          </button>
-          <button
-            onClick={() => setMobileMenu('ai')}
-            className={`flex-1 px-4 py-3 text-sm font-medium transition ${
-              mobileMenu === 'ai' ? 'bg-blue-600/20 text-blue-400 border-b-2 border-blue-600' : 'text-gray-400'
-            }`}
-          >
-            AI
-          </button>
-          <button
-            onClick={() => setMobileMenu('intercept')}
-            className={`flex-1 px-4 py-3 text-sm font-medium transition ${
-              mobileMenu === 'intercept' ? 'bg-blue-600/20 text-blue-400 border-b-2 border-blue-600' : 'text-gray-400'
-            }`}
-          >
-            Intercept
-          </button>
-          <button
-            onClick={() => setMobileMenu('repeater')}
-            className={`flex-1 px-4 py-3 text-sm font-medium transition ${
-              mobileMenu === 'repeater' ? 'bg-blue-600/20 text-blue-400 border-b-2 border-blue-600' : 'text-gray-400'
-            }`}
-          >
-            Repeater
-          </button>
-          <button
-            onClick={() => setMobileMenu('decoder')}
-            className={`flex-1 px-4 py-3 text-sm font-medium transition ${
-              mobileMenu === 'decoder' ? 'bg-blue-600/20 text-blue-400 border-b-2 border-blue-600' : 'text-gray-400'
-            }`}
-          >
-            Decoder
-          </button>
-          <button
-            onClick={() => setMobileMenu('intruder')}
-            className={`flex-1 px-4 py-3 text-sm font-medium transition ${
-              mobileMenu === 'intruder' ? 'bg-blue-600/20 text-blue-400 border-b-2 border-blue-600' : 'text-gray-400'
-            }`}
-          >
-            Intruder
-          </button>
+        <div className="flex border-b border-white/10 bg-[#0A1929] overflow-x-auto scrollbar-thin scrollbar-thumb-white/10" role="tablist">
+          {(['projects', 'requests', 'viewer', 'ai', 'intercept', 'repeater', 'decoder', 'intruder'] as const).map((tab) => (
+            <button
+              key={tab}
+              role="tab"
+              aria-selected={mobileMenu === tab}
+              onClick={() => setMobileMenu(tab)}
+              className={`flex-shrink-0 whitespace-nowrap px-4 py-3 text-sm font-medium transition ${
+                mobileMenu === tab ? 'bg-blue-600/20 text-blue-400 border-b-2 border-blue-600' : 'text-gray-400'
+              }`}
+            >
+              {tab.charAt(0).toUpperCase() + tab.slice(1)}
+            </button>
+          ))}
         </div>
 
         {/* Mobile Content */}

@@ -7,6 +7,7 @@ import { useState } from 'react';
 import { Sparkles, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
 import { useAIStore } from '../stores/aiStore';
 import { aiAPI } from '../lib/api';
+import { toast } from '../stores/toastStore';
 
 interface CompactAITestHeaderProps {
   request: {
@@ -35,7 +36,7 @@ export function CompactAITestHeader({
 
   const handleSuggestTests = async () => {
     if (!hasEnoughTokens) {
-      alert(`Insufficient tokens. Need ${estimatedCost?.toLocaleString() || 'N/A'}`);
+      toast.warning('Insufficient Tokens', 'Need ' + (estimatedCost?.toLocaleString() || 'N/A') + ' tokens');
       return;
     }
 
@@ -45,7 +46,7 @@ export function CompactAITestHeader({
       onTestSuggestionsReady(result);
     } catch (error) {
       console.error('Test suggestion failed:', error);
-      alert(error instanceof Error ? error.message : 'Failed to generate test suggestions');
+      toast.error('Generation Failed', error instanceof Error ? error.message : 'Failed to generate test suggestions');
     } finally {
       setIsLoading(false);
     }

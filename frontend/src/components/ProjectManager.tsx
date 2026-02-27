@@ -5,6 +5,7 @@
 import { useState, useEffect } from 'react';
 import { Folder, Plus, Search, Target, AlertCircle, TrendingUp, X } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
+import { toast } from '../stores/toastStore';
 
 interface Project {
   id: string;
@@ -121,10 +122,10 @@ export function ProjectManager({ onSelectProject, selectedProjectId }: Props) {
             <div className="text-gray-400 text-sm">Loading projects...</div>
           </div>
         ) : projects.length === 0 ? (
-          <div className="text-center py-8">
-            <Folder className="w-12 h-12 mx-auto text-gray-600 mb-3" />
-            <p className="text-gray-400 text-sm">No projects yet</p>
-            <p className="text-gray-500 text-xs mt-1">Create one to organize your pentests</p>
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <Folder className="w-10 h-10 text-gray-600 mb-3" />
+            <p className="text-sm text-gray-400 mb-1">No projects yet</p>
+            <p className="text-xs text-gray-500 max-w-xs">Create your first project to organize your pentests</p>
           </div>
         ) : (
           <div className="space-y-2">
@@ -193,12 +194,12 @@ function CreateProjectModal({ onClose, onSuccess }: CreateProjectModalProps) {
 
   const handleCreate = async () => {
     if (!name || !target) {
-      alert('Name and target are required');
+      toast.warning('Missing Fields', 'Name and target are required');
       return;
     }
 
     if (!accessToken) {
-      alert('You must be logged in to create a project');
+      toast.error('Not Authenticated', 'You must be logged in to create a project');
       return;
     }
 
@@ -217,11 +218,11 @@ function CreateProjectModal({ onClose, onSuccess }: CreateProjectModalProps) {
       if (data.success) {
         onSuccess();
       } else {
-        alert(data.error || 'Failed to create project');
+        toast.error('Creation Failed', data.error || 'Failed to create project');
       }
     } catch (error: any) {
       console.error('Error creating project:', error);
-      alert('Failed to create project');
+      toast.error('Creation Failed', 'Failed to create project');
     } finally {
       setCreating(false);
     }

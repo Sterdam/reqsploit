@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react';
 import { Check, Zap, Sparkles, Crown } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { useNavigate } from 'react-router-dom';
+import { toast } from '../stores/toastStore';
 
 interface Plan {
   id: string;
@@ -74,11 +75,11 @@ export function Pricing() {
         // Redirect to Stripe checkout
         window.location.href = data.data.url;
       } else {
-        alert(data.error || 'Failed to create checkout session');
+        toast.error('Checkout Failed', data.error || 'Failed to create checkout session');
       }
     } catch (error: any) {
       console.error('Error creating checkout:', error);
-      alert('Failed to create checkout session');
+      toast.error('Checkout Failed', 'Failed to create checkout session');
     } finally {
       setUpgrading(null);
     }

@@ -17,7 +17,7 @@ export interface LayoutConfig {
     showRequests: boolean;
     showAI: boolean;
   };
-  centerTab: 'history' | 'intercept' | 'repeater' | 'decoder' | 'intruder';
+  centerTab: 'history' | 'intercept' | 'repeater' | 'decoder' | 'intruder' | 'magic-scan';
 }
 
 const LAYOUT_STORAGE_KEY = 'reqsploit-layout-config';

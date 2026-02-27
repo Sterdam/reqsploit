@@ -6,11 +6,16 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci --only=production
+# Install ALL dependencies (need devDeps for build)
+RUN npm ci
 
 # Copy source code
 COPY . .
+
+# Set production config at build time
+ENV VITE_API_URL=https://reqsploit.com
+ENV VITE_WS_URL=wss://reqsploit.com
+ENV VITE_EXTENSION_ID=cbbmkcjbmpacdnicdeagminkpakefggn
 
 # Build the application
 RUN npm run build

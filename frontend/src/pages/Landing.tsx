@@ -1,7 +1,10 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Shield, Zap, Brain, Code, CheckCircle, ArrowRight } from 'lucide-react';
+import { Shield, Zap, Brain, Code, CheckCircle, ArrowRight, Menu, X } from 'lucide-react';
 
 export function Landing() {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#0A1929] via-[#0D1F33] to-[#0A1929]">
       {/* Navigation */}
@@ -10,12 +13,12 @@ export function Landing() {
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-2">
               <Shield className="w-8 h-8 text-blue-500" />
-              <span className="text-xl font-bold text-white">PentestAI Proxy</span>
+              <span className="text-xl font-bold text-white">Req<span className="text-green-400">Sploit</span></span>
             </div>
             <div className="hidden md:flex items-center space-x-8">
               <a href="#features" className="text-gray-300 hover:text-white transition">Features</a>
               <a href="#pricing" className="text-gray-300 hover:text-white transition">Pricing</a>
-              <a href="#docs" className="text-gray-300 hover:text-white transition">Docs</a>
+              <Link to="/docs" className="text-gray-300 hover:text-white transition">Docs</Link>
               <Link to="/login" className="text-gray-300 hover:text-white transition">Login</Link>
               <Link
                 to="/register"
@@ -24,7 +27,29 @@ export function Landing() {
                 Get Started
               </Link>
             </div>
+            <button
+              className="md:hidden text-gray-300 hover:text-white p-2"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              aria-label="Toggle menu"
+            >
+              {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+            </button>
           </div>
+          {mobileMenuOpen && (
+            <div className="md:hidden border-t border-white/10 py-4 space-y-3">
+              <a href="#features" onClick={() => setMobileMenuOpen(false)} className="block text-gray-300 hover:text-white transition px-2 py-2">Features</a>
+              <a href="#pricing" onClick={() => setMobileMenuOpen(false)} className="block text-gray-300 hover:text-white transition px-2 py-2">Pricing</a>
+              <Link to="/docs" onClick={() => setMobileMenuOpen(false)} className="block text-gray-300 hover:text-white transition px-2 py-2">Docs</Link>
+              <Link to="/login" onClick={() => setMobileMenuOpen(false)} className="block text-gray-300 hover:text-white transition px-2 py-2">Login</Link>
+              <Link
+                to="/register"
+                onClick={() => setMobileMenuOpen(false)}
+                className="block bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition font-medium text-center"
+              >
+                Get Started
+              </Link>
+            </div>
+          )}
         </div>
       </nav>
 
@@ -86,7 +111,7 @@ export function Landing() {
       <section id="features" className="py-24 bg-[#0D1F33]/50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold text-white mb-4">Why PentestAI Proxy?</h2>
+            <h2 className="text-4xl font-bold text-white mb-4">Why ReqSploit?</h2>
             <p className="text-xl text-gray-400 max-w-2xl mx-auto">
               Modern pentesting requires modern tools. Say goodbye to Burp Suite complexity.
             </p>
@@ -351,7 +376,7 @@ export function Landing() {
             <div>
               <div className="flex items-center space-x-2 mb-4">
                 <Shield className="w-6 h-6 text-blue-500" />
-                <span className="text-lg font-bold text-white">PentestAI</span>
+                <span className="text-lg font-bold text-white">Req<span className="text-green-400">Sploit</span></span>
               </div>
               <p className="text-gray-400 text-sm">
                 Modern MITM proxy with AI assistant for professional penetration testing.
@@ -362,7 +387,7 @@ export function Landing() {
               <ul className="space-y-2 text-sm text-gray-400">
                 <li><a href="#features" className="hover:text-white transition">Features</a></li>
                 <li><a href="#pricing" className="hover:text-white transition">Pricing</a></li>
-                <li><a href="#docs" className="hover:text-white transition">Documentation</a></li>
+                <li><Link to="/docs" className="hover:text-white transition">Documentation</Link></li>
                 <li><a href="#changelog" className="hover:text-white transition">Changelog</a></li>
               </ul>
             </div>
@@ -385,7 +410,7 @@ export function Landing() {
             </div>
           </div>
           <div className="border-t border-white/10 mt-8 pt-8 text-center text-sm text-gray-400">
-            <p>&copy; 2025 PentestAI Proxy. All rights reserved.</p>
+            <p>&copy; {new Date().getFullYear()} ReqSploit. All rights reserved.</p>
           </div>
         </div>
       </footer>

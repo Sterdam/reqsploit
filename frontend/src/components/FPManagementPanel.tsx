@@ -85,7 +85,11 @@ export function FPManagementPanel({ onClose }: { onClose: () => void }) {
 
         {loading ? (
           <div className="flex-1 flex items-center justify-center">
-            <div className="text-gray-400">Loading...</div>
+            <div className="space-y-4 w-full max-w-md animate-pulse px-4">
+              <div className="h-20 bg-white/5 rounded-lg" />
+              <div className="h-20 bg-white/5 rounded-lg" />
+              <div className="h-20 bg-white/5 rounded-lg" />
+            </div>
           </div>
         ) : (
           <div className="flex-1 overflow-y-auto p-4 space-y-4">

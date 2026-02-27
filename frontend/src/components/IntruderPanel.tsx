@@ -272,12 +272,10 @@ export function IntruderPanel() {
             Loading campaigns...
           </div>
         ) : campaigns.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-white/60 p-6">
-            <Zap className="w-12 h-12 mb-4 text-white/30" />
-            <p className="text-sm text-center">No campaigns yet</p>
-            <p className="text-xs text-white/40 mt-2 text-center">
-              Create your first fuzzing campaign to get started
-            </p>
+          <div className="flex flex-col items-center justify-center py-12 text-center p-6">
+            <Zap className="w-10 h-10 text-gray-600 mb-3" />
+            <p className="text-sm text-gray-400 mb-1">No campaigns yet</p>
+            <p className="text-xs text-gray-500 max-w-xs">Send a request from Intercept to start fuzzing</p>
           </div>
         ) : (
           <div className="divide-y divide-white/5">
@@ -828,8 +826,9 @@ export function IntruderPanel() {
             <tbody className="divide-y divide-white/5">
               {results.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-white/40">
-                    No results yet. Start the campaign to see results.
+                  <td colSpan={5} className="px-4 py-12 text-center">
+                    <p className="text-sm text-gray-400 mb-1">No results yet</p>
+                    <p className="text-xs text-gray-500">Start the campaign to see results</p>
                   </td>
                 </tr>
               ) : (

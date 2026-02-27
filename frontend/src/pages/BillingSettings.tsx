@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react';
 import { CreditCard, Calendar, AlertCircle, ExternalLink, Loader2 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { useNavigate } from 'react-router-dom';
+import { toast } from '../stores/toastStore';
 
 interface Subscription {
   id: string;
@@ -68,11 +69,11 @@ export function BillingSettings() {
         // Redirect to Stripe Customer Portal
         window.location.href = data.data.url;
       } else {
-        alert(data.error || 'Failed to open billing portal');
+        toast.error('Billing Portal', data.error || 'Failed to open billing portal');
       }
     } catch (error: any) {
       console.error('Error opening portal:', error);
-      alert('Failed to open billing portal');
+      toast.error('Billing Portal', 'Failed to open billing portal');
     } finally {
       setActionLoading(null);
     }
@@ -96,14 +97,14 @@ export function BillingSettings() {
 
       const data = await response.json();
       if (data.success) {
-        alert('Subscription will be canceled at the end of the billing period');
+        toast.success('Subscription Canceled', 'Subscription will be canceled at the end of the billing period');
         fetchSubscription();
       } else {
-        alert(data.error || 'Failed to cancel subscription');
+        toast.error('Cancel Subscription', data.error || 'Failed to cancel subscription');
       }
     } catch (error: any) {
       console.error('Error canceling subscription:', error);
-      alert('Failed to cancel subscription');
+      toast.error('Cancel Subscription', 'Failed to cancel subscription');
     } finally {
       setActionLoading(null);
     }
@@ -123,14 +124,14 @@ export function BillingSettings() {
 
       const data = await response.json();
       if (data.success) {
-        alert('Subscription reactivated successfully');
+        toast.success('Subscription Reactivated', 'Subscription reactivated successfully');
         fetchSubscription();
       } else {
-        alert(data.error || 'Failed to reactivate subscription');
+        toast.error('Reactivate Subscription', data.error || 'Failed to reactivate subscription');
       }
     } catch (error: any) {
       console.error('Error reactivating subscription:', error);
-      alert('Failed to reactivate subscription');
+      toast.error('Reactivate Subscription', 'Failed to reactivate subscription');
     } finally {
       setActionLoading(null);
     }

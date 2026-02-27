@@ -426,9 +426,24 @@ export const aiAPI = {
     return response.data.data;
   },
 
-  suggestTests: async (request: { method: string; url: string; headers: Record<string, string>; body?: string }, model?: string): Promise<any> => {
+  suggestTests: async (request: { method: string; url: string; headers: Record<string, string>; body?: string }, model?: string): Promise<{ jobId: string; status: string; message: string }> => {
     const response = await aiApi.post('/ai/suggest-tests', { request, model });
     return response.data.data;
+  },
+
+  // AI Job Management
+  getJobStatus: async (jobId: string): Promise<any> => {
+    const response = await aiApi.get(`/ai/jobs/${jobId}`);
+    return response.data.data;
+  },
+
+  getUserJobs: async (includeCompleted: boolean = false): Promise<any[]> => {
+    const response = await aiApi.get('/ai/jobs', { params: { includeCompleted } });
+    return response.data.data;
+  },
+
+  cancelJob: async (jobId: string): Promise<void> => {
+    await aiApi.delete(`/ai/jobs/${jobId}`);
   },
 
   // False Positive Management (Module 3.1)

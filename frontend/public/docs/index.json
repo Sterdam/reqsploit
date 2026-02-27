@@ -1,0 +1,243 @@
+{
+  "version": "1.0.0",
+  "lastUpdated": "2025-11-20",
+  "sections": [
+    {
+      "id": "getting-started",
+      "title": "🚀 Getting Started",
+      "description": "Everything you need to start using ReqSploit",
+      "pages": [
+        {
+          "id": "installation",
+          "title": "Installation Guide",
+          "path": "/docs/getting-started/installation.md",
+          "description": "Step-by-step installation for Chrome extension and SSL certificate",
+          "difficulty": "beginner",
+          "timeEstimate": "15 minutes",
+          "tags": ["setup", "certificate", "chrome", "ssl"]
+        },
+        {
+          "id": "quick-start",
+          "title": "Quick Start Tutorial",
+          "path": "/docs/getting-started/quick-start.md",
+          "description": "Get productive in 15 minutes with hands-on tutorial",
+          "difficulty": "beginner",
+          "timeEstimate": "15 minutes",
+          "tags": ["tutorial", "basics", "first-steps"]
+        },
+        {
+          "id": "interface",
+          "title": "User Interface Overview",
+          "path": "/docs/getting-started/interface.md",
+          "description": "Master the ReqSploit interface and navigation",
+          "difficulty": "beginner",
+          "timeEstimate": "10 minutes",
+          "tags": ["interface", "navigation", "ui", "dashboard"]
+        }
+      ]
+    },
+    {
+      "id": "core-features",
+      "title": "🔌 Core Features",
+      "description": "Master ReqSploit's essential tools",
+      "pages": [
+        {
+          "id": "intercept",
+          "title": "Intercept Mode - Real-Time Request Modification",
+          "path": "/docs/core-features/intercept.md",
+          "description": "Intercept and modify HTTP requests before they're sent",
+          "difficulty": "intermediate",
+          "timeEstimate": "20 minutes",
+          "tags": ["intercept", "modify", "real-time", "testing"],
+          "featured": true
+        },
+        {
+          "id": "repeater",
+          "title": "Repeater - Manual Request Testing",
+          "path": "/docs/core-features/repeater.md",
+          "description": "Manual security testing with repeated request modification",
+          "difficulty": "intermediate",
+          "timeEstimate": "25 minutes",
+          "tags": ["repeater", "manual-testing", "fuzzing", "analysis"],
+          "featured": true
+        },
+        {
+          "id": "magic-scan",
+          "title": "Magic Scan - Sensitive Data Detection",
+          "path": "/docs/core-features/magic-scan.md",
+          "description": "Automatic detection of 160+ types of sensitive information",
+          "difficulty": "beginner",
+          "timeEstimate": "10 minutes",
+          "tags": ["magic-scan", "secrets", "api-keys", "pii", "sensitive-data"],
+          "featured": true
+        }
+      ]
+    },
+    {
+      "id": "ai-features",
+      "title": "🤖 AI Features",
+      "description": "Claude-powered security intelligence",
+      "pages": [
+        {
+          "id": "ai-overview",
+          "title": "AI Features Overview",
+          "path": "/docs/ai-features/overview.md",
+          "description": "Complete guide to ReqSploit's AI-powered security testing",
+          "difficulty": "intermediate",
+          "timeEstimate": "20 minutes",
+          "tags": ["ai", "claude", "vulnerability-detection", "tokens"],
+          "featured": true
+        },
+        {
+          "id": "quick-deep-scan",
+          "title": "Quick Scan vs Deep Scan",
+          "path": "/docs/ai-features/quick-deep-scan.md",
+          "description": "Choose the right AI scan for your testing needs",
+          "difficulty": "beginner",
+          "timeEstimate": "15 minutes",
+          "tags": ["quick-scan", "deep-scan", "ai-analysis", "haiku", "sonnet"],
+          "featured": true
+        },
+        {
+          "id": "tokens",
+          "title": "Token System & Pricing",
+          "path": "/docs/ai-features/tokens.md",
+          "description": "Understand token usage, pricing plans, and optimization strategies",
+          "difficulty": "beginner",
+          "timeEstimate": "15 minutes",
+          "tags": ["tokens", "pricing", "billing", "plans", "optimization"]
+        }
+      ]
+    },
+    {
+      "id": "tutorials",
+      "title": "📖 Tutorials",
+      "description": "Real-world security testing scenarios",
+      "pages": [
+        {
+          "id": "testing-rest-api",
+          "title": "Testing a REST API",
+          "path": "/docs/tutorials/testing-rest-api.md",
+          "description": "Complete walkthrough of API security testing",
+          "difficulty": "intermediate",
+          "timeEstimate": "45 minutes",
+          "tags": ["tutorial", "api", "rest", "practical", "hands-on"],
+          "featured": true
+        }
+      ]
+    },
+    {
+      "id": "troubleshooting",
+      "title": "🛠️ Troubleshooting",
+      "description": "Solutions to common problems",
+      "pages": [
+        {
+          "id": "common-issues",
+          "title": "Common Issues & Solutions",
+          "path": "/docs/troubleshooting/common-issues.md",
+          "description": "Quick solutions to the most frequent problems",
+          "difficulty": "all",
+          "timeEstimate": "10 minutes",
+          "tags": ["troubleshooting", "issues", "problems", "solutions", "fixes"],
+          "featured": true
+        },
+        {
+          "id": "faq",
+          "title": "Frequently Asked Questions",
+          "path": "/docs/troubleshooting/faq.md",
+          "description": "Answers to the most common questions about ReqSploit",
+          "difficulty": "all",
+          "timeEstimate": "5 minutes",
+          "tags": ["faq", "help", "questions", "support"]
+        }
+      ]
+    }
+  ],
+  "quickLinks": [
+    {
+      "title": "Installation Guide",
+      "path": "/docs/getting-started/installation.md",
+      "icon": "⚙️",
+      "color": "blue"
+    },
+    {
+      "title": "Quick Start",
+      "path": "/docs/getting-started/quick-start.md",
+      "icon": "🚀",
+      "color": "green"
+    },
+    {
+      "title": "Interface Guide",
+      "path": "/docs/getting-started/interface.md",
+      "icon": "🖥️",
+      "color": "indigo"
+    },
+    {
+      "title": "Intercept Mode",
+      "path": "/docs/core-features/intercept.md",
+      "icon": "🚦",
+      "color": "red"
+    },
+    {
+      "title": "Repeater",
+      "path": "/docs/core-features/repeater.md",
+      "icon": "🔁",
+      "color": "teal"
+    },
+    {
+      "title": "Magic Scan",
+      "path": "/docs/core-features/magic-scan.md",
+      "icon": "🎣",
+      "color": "purple"
+    },
+    {
+      "title": "Quick vs Deep Scan",
+      "path": "/docs/ai-features/quick-deep-scan.md",
+      "icon": "⚡",
+      "color": "yellow"
+    },
+    {
+      "title": "Token System",
+      "path": "/docs/ai-features/tokens.md",
+      "icon": "💰",
+      "color": "emerald"
+    },
+    {
+      "title": "AI Features",
+      "path": "/docs/ai-features/overview.md",
+      "icon": "🤖",
+      "color": "cyan"
+    },
+    {
+      "title": "REST API Tutorial",
+      "path": "/docs/tutorials/testing-rest-api.md",
+      "icon": "📖",
+      "color": "orange"
+    },
+    {
+      "title": "FAQ",
+      "path": "/docs/troubleshooting/faq.md",
+      "icon": "❓",
+      "color": "pink"
+    }
+  ],
+  "searchIndex": [
+    "installation", "setup", "certificate", "ssl", "chrome", "extension",
+    "quick start", "tutorial", "beginner", "first steps",
+    "interface", "navigation", "dashboard", "ui", "keyboard shortcuts",
+    "intercept", "modify", "real-time", "request modification",
+    "repeater", "manual testing", "fuzzing", "analysis", "request replay",
+    "intruder", "automated", "payloads", "attack types",
+    "decoder", "encode", "decode", "base64", "jwt", "hash",
+    "magic scan", "sensitive data", "api keys", "secrets", "pii", "credentials",
+    "ai features", "claude", "vulnerability", "scan", "deep scan", "quick scan",
+    "haiku", "sonnet", "haiku 4.5", "sonnet 4.5", "ai models",
+    "tokens", "pricing", "billing", "plans", "free", "pro", "enterprise",
+    "token optimization", "cost", "usage", "limits",
+    "rest api", "testing", "security", "pentest", "bug bounty",
+    "idor", "sqli", "xss", "csrf", "xxe", "ssti", "owasp",
+    "authentication", "authorization", "privilege escalation",
+    "business logic", "price manipulation", "race condition",
+    "faq", "help", "troubleshooting", "support", "common issues"
+  ]
+}

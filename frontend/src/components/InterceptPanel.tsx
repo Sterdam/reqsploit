@@ -283,7 +283,7 @@ export function InterceptPanel() {
       useUnifiedAIStore.getState().addAnalysis(analysis, 'intercept');
     } catch (error) {
       console.error('AI Analysis failed:', error);
-      alert(error instanceof Error ? error.message : 'AI analysis failed');
+      toast.error('AI Analysis Failed', error instanceof Error ? error.message : 'AI analysis failed');
     } finally {
       setIsAnalyzing(false);
     }

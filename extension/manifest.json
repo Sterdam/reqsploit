@@ -2,11 +2,11 @@
   "manifest_version": 3,
   "name": "ReqSploit",
   "description": "AI-Powered Security Testing via Chrome DevTools Protocol",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "icons": {
-    "16": "icons/icon16.svg",
-    "48": "icons/icon48.svg",
-    "128": "icons/icon128.svg"
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
   },
   "permissions": [
     "debugger",
@@ -26,15 +26,15 @@
     ]
   },
   "background": {
-    "service_worker": "dist/background.js",
+    "service_worker": "background.js",
     "type": "module"
   },
   "action": {
     "default_popup": "popup.html",
     "default_icon": {
-      "16": "icons/icon16.svg",
-      "48": "icons/icon48.svg",
-      "128": "icons/icon128.svg"
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
     }
   }
 }

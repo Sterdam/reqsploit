@@ -121,4 +121,56 @@ router.get(
   })
 );
 
+/**
+ * PATCH /auth/me
+ * Update current user profile
+ */
+router.patch(
+  '/me',
+  authenticateToken,
+  asyncHandler(async (req: Request, res: Response) => {
+    if (!req.user) {
+      throw new Error('User not found in request');
+    }
+
+    const { name } = req.body;
+    const user = await authService.updateProfile(req.user.id, { name });
+
+    res.json({
+      success: true,
+      data: { user },
+      message: 'Profile updated successfully',
+    });
+  })
+);
+
+/**
+ * POST /auth/change-password
+ * Change current user password
+ */
+router.post(
+  '/change-password',
+  authenticateToken,
+  asyncHandler(async (req: Request, res: Response) => {
+    if (!req.user) {
+      throw new Error('User not found in request');
+    }
+
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        error: 'Current password and new password are required',
+      });
+    }
+
+    await authService.changePassword(req.user.id, currentPassword, newPassword);
+
+    res.json({
+      success: true,
+      message: 'Password changed successfully',
+    });
+  })
+);
+
 export default router;

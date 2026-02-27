@@ -56,7 +56,7 @@ export function DecoderPanel() {
         </p>
       </div>
 
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
         {/* Main Panel */}
         <div className="flex-1 flex flex-col p-6 space-y-4 overflow-auto">
           {/* Input */}
@@ -121,11 +121,29 @@ export function DecoderPanel() {
                   onChange={(e) => setSelectedEncoding(e.target.value as EncodingType)}
                   className="px-3 py-2 bg-[#0D1F2D] text-white border border-white/20 rounded text-sm"
                 >
-                  <option value="url">URL</option>
-                  <option value="base64">Base64</option>
-                  <option value="html">HTML Entities</option>
-                  <option value="hex">Hex</option>
-                  <option value="unicode">Unicode</option>
+                  <optgroup label="Common">
+                    <option value="url">URL Encoding</option>
+                    <option value="base64">Base64</option>
+                    <option value="base32">Base32</option>
+                    <option value="html">HTML Entities</option>
+                    <option value="hex">Hexadecimal</option>
+                    <option value="unicode">Unicode Escape</option>
+                  </optgroup>
+                  <optgroup label="Binary & Numbers">
+                    <option value="binary">Binary</option>
+                    <option value="octal">Octal</option>
+                    <option value="decimal">Decimal (ASCII)</option>
+                  </optgroup>
+                  <optgroup label="Ciphers & Codes">
+                    <option value="rot13">ROT13</option>
+                    <option value="morse">Morse Code</option>
+                    <option value="reverse">Reverse String</option>
+                  </optgroup>
+                  <optgroup label="Compression & Formatting">
+                    <option value="gzip">Gzip</option>
+                    <option value="json">JSON Prettify</option>
+                    <option value="jwt">JWT Decode</option>
+                  </optgroup>
                 </select>
 
                 {activeOperation === 'encode' ? (
@@ -167,10 +185,21 @@ export function DecoderPanel() {
                   onChange={(e) => setSelectedHash(e.target.value as HashType)}
                   className="px-3 py-2 bg-[#0D1F2D] text-white border border-white/20 rounded text-sm"
                 >
-                  <option value="md5">MD5</option>
-                  <option value="sha1">SHA-1</option>
-                  <option value="sha256">SHA-256</option>
-                  <option value="sha512">SHA-512</option>
+                  <optgroup label="Legacy">
+                    <option value="md5">MD5</option>
+                    <option value="sha1">SHA-1</option>
+                  </optgroup>
+                  <optgroup label="SHA-2">
+                    <option value="sha256">SHA-256</option>
+                    <option value="sha512">SHA-512</option>
+                  </optgroup>
+                  <optgroup label="SHA-3">
+                    <option value="sha3-256">SHA3-256</option>
+                    <option value="sha3-512">SHA3-512</option>
+                  </optgroup>
+                  <optgroup label="Modern">
+                    <option value="blake2b512">BLAKE2b-512</option>
+                  </optgroup>
                 </select>
 
                 <button
@@ -188,6 +217,7 @@ export function DecoderPanel() {
           <div className="space-y-2">
             <label className="text-xs font-medium text-white/60">Quick Actions</label>
             <div className="flex flex-wrap gap-2">
+              {/* Common Encodings */}
               <button
                 onClick={() => handleQuickAction('encode', 'url')}
                 className="px-3 py-1.5 bg-white/5 hover:bg-white/10 text-white text-xs rounded border border-white/10"
@@ -213,6 +243,68 @@ export function DecoderPanel() {
                 Base64 Decode
               </button>
               <button
+                onClick={() => handleQuickAction('encode', 'hex')}
+                className="px-3 py-1.5 bg-white/5 hover:bg-white/10 text-white text-xs rounded border border-white/10"
+              >
+                Hex Encode
+              </button>
+              <button
+                onClick={() => handleQuickAction('decode', 'hex')}
+                className="px-3 py-1.5 bg-white/5 hover:bg-white/10 text-white text-xs rounded border border-white/10"
+              >
+                Hex Decode
+              </button>
+
+              {/* Binary & Numbers */}
+              <button
+                onClick={() => handleQuickAction('encode', 'binary')}
+                className="px-3 py-1.5 bg-white/5 hover:bg-white/10 text-white text-xs rounded border border-white/10"
+              >
+                Binary
+              </button>
+              <button
+                onClick={() => handleQuickAction('encode', 'decimal')}
+                className="px-3 py-1.5 bg-white/5 hover:bg-white/10 text-white text-xs rounded border border-white/10"
+              >
+                ASCII Decimal
+              </button>
+
+              {/* Ciphers */}
+              <button
+                onClick={() => handleQuickAction('encode', 'rot13')}
+                className="px-3 py-1.5 bg-white/5 hover:bg-white/10 text-white text-xs rounded border border-white/10"
+              >
+                ROT13
+              </button>
+              <button
+                onClick={() => handleQuickAction('encode', 'morse')}
+                className="px-3 py-1.5 bg-white/5 hover:bg-white/10 text-white text-xs rounded border border-white/10"
+              >
+                Morse
+              </button>
+              <button
+                onClick={() => handleQuickAction('encode', 'reverse')}
+                className="px-3 py-1.5 bg-white/5 hover:bg-white/10 text-white text-xs rounded border border-white/10"
+              >
+                Reverse
+              </button>
+
+              {/* Formatting */}
+              <button
+                onClick={() => handleQuickAction('decode', 'jwt')}
+                className="px-3 py-1.5 bg-white/5 hover:bg-white/10 text-white text-xs rounded border border-white/10"
+              >
+                JWT Decode
+              </button>
+              <button
+                onClick={() => handleQuickAction('encode', 'json')}
+                className="px-3 py-1.5 bg-white/5 hover:bg-white/10 text-white text-xs rounded border border-white/10"
+              >
+                JSON Prettify
+              </button>
+
+              {/* Hashing */}
+              <button
                 onClick={() => handleQuickHash('md5')}
                 className="px-3 py-1.5 bg-white/5 hover:bg-white/10 text-white text-xs rounded border border-white/10"
               >
@@ -224,6 +316,14 @@ export function DecoderPanel() {
               >
                 SHA-256
               </button>
+              <button
+                onClick={() => handleQuickHash('sha512')}
+                className="px-3 py-1.5 bg-white/5 hover:bg-white/10 text-white text-xs rounded border border-white/10"
+              >
+                SHA-512
+              </button>
+
+              {/* Utilities */}
               <button
                 onClick={swapInputOutput}
                 disabled={!output}
@@ -280,7 +380,7 @@ export function DecoderPanel() {
 
         {/* History Sidebar */}
         {history.length > 0 && (
-          <div className="w-80 border-l border-white/10 flex flex-col bg-[#0D1F2D]">
+          <div className="w-full lg:w-80 border-t lg:border-t-0 lg:border-l border-white/10 flex flex-col bg-[#0D1F2D]">
             <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
               <h3 className="text-sm font-medium text-white">History ({history.length})</h3>
               <button

@@ -2,8 +2,24 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { useAuthStore } from './authStore';
 
-export type EncodingType = 'url' | 'base64' | 'html' | 'hex' | 'unicode';
-export type HashType = 'md5' | 'sha1' | 'sha256' | 'sha512';
+export type EncodingType =
+  | 'url'
+  | 'base64'
+  | 'base32'
+  | 'html'
+  | 'hex'
+  | 'binary'
+  | 'octal'
+  | 'decimal'
+  | 'unicode'
+  | 'rot13'
+  | 'morse'
+  | 'jwt'
+  | 'json'
+  | 'gzip'
+  | 'reverse';
+
+export type HashType = 'md5' | 'sha1' | 'sha256' | 'sha512' | 'sha3-256' | 'sha3-512' | 'blake2b512';
 export type OperationType = 'encode' | 'decode' | 'hash';
 
 /**
