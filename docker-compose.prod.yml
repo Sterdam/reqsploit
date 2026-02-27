@@ -58,6 +58,11 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost}
       BACKEND_URL: ${BACKEND_URL:-http://localhost:3000}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_PUBLISHABLE_KEY: ${STRIPE_PUBLISHABLE_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      STRIPE_PRICE_PRO: ${STRIPE_PRICE_PRO:-}
+      STRIPE_PRICE_ENTERPRISE: ${STRIPE_PRICE_ENTERPRISE:-}
     volumes:
       - ./data/certs:/data/certs
       - ./data/logs:/data/logs

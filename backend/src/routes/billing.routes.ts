@@ -12,7 +12,13 @@ import { asyncHandler } from '../utils/errors.js';
 const router = Router();
 import { prisma } from '../lib/prisma.js';
 
-const billingService = new BillingService(prisma);
+let billingService: BillingService;
+try {
+  billingService = new BillingService(prisma);
+} catch (e) {
+  console.warn('[billing] BillingService initialization failed:', (e as Error).message);
+  billingService = null as any;
+}
 
 /**
  * POST /billing/checkout

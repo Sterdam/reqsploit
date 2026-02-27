@@ -25,17 +25,26 @@ interface PortalSessionInput {
 }
 
 export class BillingService {
-  private stripe: Stripe;
+  private stripe: Stripe | null = null;
+  private initialized = false;
 
   constructor(private prisma: PrismaClient) {
-    if (!process.env.STRIPE_SECRET_KEY) {
-      throw new Error('STRIPE_SECRET_KEY environment variable is required');
+    if (process.env.STRIPE_SECRET_KEY && process.env.STRIPE_SECRET_KEY !== 'sk_test_disabled') {
+      this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+        apiVersion: '2023-10-16',
+        typescript: true,
+      });
+      this.initialized = true;
+    } else {
+      console.warn('[billing] Stripe not configured - billing features disabled');
     }
+  }
 
-    this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-      apiVersion: '2023-10-16',
-      typescript: true,
-    });
+  private ensureStripe(): Stripe {
+    if (!this.stripe) {
+      throw new Error('Billing is not configured. Set STRIPE_SECRET_KEY to enable.');
+    }
+    return this.stripe;
   }
 
   /**
@@ -78,7 +87,7 @@ export class BillingService {
     let customerId = user.subscription?.stripeCustomerId;
 
     if (!customerId) {
-      const customer = await this.stripe.customers.create({
+      const customer = await this.ensureStripe().customers.create({
         email: user.email,
         name: user.name,
         metadata: {
@@ -105,7 +114,7 @@ export class BillingService {
     }
 
     // Create checkout session
-    const session = await this.stripe.checkout.sessions.create({
+    const session = await this.ensureStripe().checkout.sessions.create({
       customer: customerId,
       mode: 'subscription',
       payment_method_types: ['card'],
@@ -140,7 +149,7 @@ export class BillingService {
       throw new Error('No active subscription found');
     }
 
-    const session = await this.stripe.billingPortal.sessions.create({
+    const session = await this.ensureStripe().billingPortal.sessions.create({
       customer: subscription.stripeCustomerId,
       return_url: input.returnUrl,
     });
@@ -426,7 +435,7 @@ export class BillingService {
     }
 
     // Cancel at period end in Stripe
-    await this.stripe.subscriptions.update(subscription.stripeSubscriptionId, {
+    await this.ensureStripe().subscriptions.update(subscription.stripeSubscriptionId, {
       cancel_at_period_end: true,
     });
 
@@ -450,7 +459,7 @@ export class BillingService {
     }
 
     // Reactivate in Stripe
-    await this.stripe.subscriptions.update(subscription.stripeSubscriptionId, {
+    await this.ensureStripe().subscriptions.update(subscription.stripeSubscriptionId, {
       cancel_at_period_end: false,
     });
 
