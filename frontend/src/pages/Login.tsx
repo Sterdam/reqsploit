@@ -88,6 +88,7 @@ export function Login() {
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
+          <img src="/icons/icon-96x96.png" alt="ReqSploit" className="w-16 h-16 mx-auto mb-3" />
           <h1 className="text-4xl font-bold text-white mb-2">
             Req<span className="text-cyber-green">Sploit</span>
           </h1>

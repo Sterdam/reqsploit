@@ -46,9 +46,12 @@ export function Header() {
       <div className="flex items-center justify-between">
         {/* Logo + Extension Status */}
         <div className="flex items-center gap-2 sm:gap-4">
-          <h1 className="text-lg sm:text-2xl font-bold text-white">
-            Req<span className="text-cyber-green">Sploit</span>
-          </h1>
+          <div className="flex items-center gap-2">
+            <img src="/icons/icon-48x48.png" alt="ReqSploit" className="w-7 h-7 sm:w-8 sm:h-8" />
+            <h1 className="text-lg sm:text-2xl font-bold text-white">
+              Req<span className="text-cyber-green">Sploit</span>
+            </h1>
+          </div>
           <div className="hidden md:block h-6 w-px bg-white/20" />
           <p className="hidden md:block text-sm text-gray-400">AI Security Testing</p>
 
