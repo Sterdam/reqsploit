@@ -6,6 +6,7 @@
 import { CDPEngine } from './cdp-engine';
 import { WSClient } from './ws-client';
 import { RequestExecutor } from './request-executor';
+import type { BrowserTab } from './ws-client';
 import type {
   CDPRequestPaused,
   PopupMessage,
@@ -320,6 +321,150 @@ wsClient.onEvents({
     if (controller) {
       controller.abort();
       activeCampaigns.delete(data.campaignId);
+    }
+  },
+
+  // Dashboard → Extension: start intercept
+  onStartIntercept: async (data) => {
+    try {
+      cdpEngine.setInterceptEnabled(true);
+
+      if (data.attachAll) {
+        // Attach all non-chrome tabs
+        const tabs = await chrome.tabs.query({});
+        for (const tab of tabs) {
+          if (tab.id && tab.url && !tab.url.startsWith('chrome://') && !tab.url.startsWith('chrome-extension://')) {
+            if (!cdpEngine.isAttached(tab.id)) {
+              try {
+                await cdpEngine.attach(tab.id);
+                wsClient.emitTabAttached(tab.id, tab.url);
+              } catch {
+                // Some tabs can't be attached (e.g. devtools)
+              }
+            }
+          }
+        }
+      } else if (data.tabIds) {
+        for (const tabId of data.tabIds) {
+          if (!cdpEngine.isAttached(tabId)) {
+            try {
+              await cdpEngine.attach(tabId);
+              const tab = await chrome.tabs.get(tabId);
+              wsClient.emitTabAttached(tabId, tab.url || '');
+            } catch {
+              // Tab might not exist
+            }
+          }
+        }
+      }
+
+      // Notify server of current state
+      wsClient.emitConnected(cdpEngine.getAttachedTabs());
+      updateBadge();
+    } catch (error) {
+      console.error('[BG] Failed to start intercept from dashboard:', error);
+    }
+  },
+
+  // Dashboard → Extension: stop intercept
+  onStopIntercept: async () => {
+    try {
+      cdpEngine.setInterceptEnabled(false);
+
+      // Auto-continue all pending requests
+      for (const [requestId, pending] of pendingRequests) {
+        clearTimeout(pending.timeoutId);
+        try {
+          await cdpEngine.continueRequest(pending.tabId, requestId);
+        } catch { /* tab might be closed */ }
+      }
+      pendingRequests.clear();
+
+      for (const [requestId, pending] of pendingResponses) {
+        clearTimeout(pending.timeoutId);
+        try {
+          await cdpEngine.continueResponse(pending.tabId, requestId);
+        } catch { /* tab might be closed */ }
+      }
+      pendingResponses.clear();
+
+      // Detach from all tabs
+      const tabs = cdpEngine.getAttachedTabs();
+      await cdpEngine.detachAll();
+
+      for (const tab of tabs) {
+        wsClient.emitTabDetached(tab.tabId, 'dashboard-stopped');
+      }
+
+      wsClient.emitConnected([]);
+      updateBadge();
+    } catch (error) {
+      console.error('[BG] Failed to stop intercept from dashboard:', error);
+    }
+  },
+
+  // Dashboard → Extension: list browser tabs
+  onListTabs: async () => {
+    try {
+      const chromeTabs = await chrome.tabs.query({});
+      const browserTabs: BrowserTab[] = chromeTabs
+        .filter((t) => t.id && t.url && !t.url.startsWith('chrome://') && !t.url.startsWith('chrome-extension://'))
+        .map((t) => ({
+          tabId: t.id!,
+          url: t.url || '',
+          title: t.title || '',
+          active: t.active,
+          attached: cdpEngine.isAttached(t.id!),
+        }));
+
+      wsClient.emitTabsList(browserTabs);
+    } catch (error) {
+      console.error('[BG] Failed to list tabs:', error);
+    }
+  },
+
+  // Dashboard → Extension: attach specific tab
+  onAttachTab: async (data) => {
+    try {
+      await cdpEngine.attach(data.tabId);
+      const tab = await chrome.tabs.get(data.tabId);
+      wsClient.emitTabAttached(data.tabId, tab.url || '');
+      updateBadge();
+    } catch (error) {
+      console.error('[BG] Failed to attach tab:', data.tabId, error);
+    }
+  },
+
+  // Dashboard → Extension: detach specific tab
+  onDetachTab: async (data) => {
+    try {
+      await cdpEngine.detach(data.tabId);
+      wsClient.emitTabDetached(data.tabId, 'dashboard-detached');
+      updateBadge();
+    } catch (error) {
+      console.error('[BG] Failed to detach tab:', data.tabId, error);
+    }
+  },
+
+  // Dashboard → Extension: attach all tabs
+  onAttachAllTabs: async () => {
+    try {
+      const chromeTabs = await chrome.tabs.query({});
+      for (const tab of chromeTabs) {
+        if (tab.id && tab.url && !tab.url.startsWith('chrome://') && !tab.url.startsWith('chrome-extension://')) {
+          if (!cdpEngine.isAttached(tab.id)) {
+            try {
+              await cdpEngine.attach(tab.id);
+              wsClient.emitTabAttached(tab.id, tab.url);
+            } catch {
+              // Some tabs can't be attached
+            }
+          }
+        }
+      }
+      updateBadge();
+    } catch (error) {
+      console.error('[BG] Failed to attach all tabs:', error);
     }
   },
 });

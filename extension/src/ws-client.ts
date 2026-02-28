@@ -20,16 +20,35 @@ import type {
   ExtIntruderStopPayload,
 } from './types';
 
+export interface ExtStartInterceptPayload {
+  attachAll?: boolean;
+  tabIds?: number[];
+}
+
+export interface BrowserTab {
+  tabId: number;
+  url: string;
+  title: string;
+  active: boolean;
+  attached: boolean;
+}
+
 export type WSClientEventHandlers = {
   onForwardRequest: (data: ExtForwardRequestPayload) => void;
   onDropRequest: (data: { requestId: string }) => void;
   onForwardResponse: (data: ExtForwardResponsePayload) => void;
   onDropResponse: (data: { requestId: string }) => void;
   onToggleIntercept: (data: ExtToggleInterceptPayload) => void;
+  onStartIntercept: (data: ExtStartInterceptPayload) => void;
+  onStopIntercept: () => void;
   onUpdateFilters: (data: ExtUpdateFiltersPayload) => void;
   onRepeaterSend: (data: ExtRepeaterSendPayload) => void;
   onIntruderStart: (data: ExtIntruderStartPayload) => void;
   onIntruderStop: (data: ExtIntruderStopPayload) => void;
+  onListTabs: () => void;
+  onAttachTab: (data: { tabId: number }) => void;
+  onDetachTab: (data: { tabId: number }) => void;
+  onAttachAllTabs: () => void;
 };
 
 export class WSClient {
@@ -178,6 +197,13 @@ export class WSClient {
     this.socket?.emit('ext:status', data);
   }
 
+  /**
+   * Send browser tabs list to server
+   */
+  emitTabsList(tabs: BrowserTab[]): void {
+    this.socket?.emit('ext:tabs-list', { tabs });
+  }
+
   // ============================================
   // Private
   // ============================================
@@ -254,6 +280,38 @@ export class WSClient {
     this.socket.on('ext:intruder-stop', (data: ExtIntruderStopPayload) => {
       console.log('[WS] Intruder stop:', data.campaignId);
       this.handlers?.onIntruderStop(data);
+    });
+
+    // Dashboard → Extension: start/stop intercept
+    this.socket.on('ext:start-intercept', (data: ExtStartInterceptPayload) => {
+      console.log('[WS] Start intercept from dashboard:', data);
+      this.handlers?.onStartIntercept(data);
+    });
+
+    this.socket.on('ext:stop-intercept', () => {
+      console.log('[WS] Stop intercept from dashboard');
+      this.handlers?.onStopIntercept();
+    });
+
+    // Dashboard → Extension: tab management
+    this.socket.on('ext:list-tabs', () => {
+      console.log('[WS] List tabs requested');
+      this.handlers?.onListTabs();
+    });
+
+    this.socket.on('ext:attach-tab', (data: { tabId: number }) => {
+      console.log('[WS] Attach tab requested:', data.tabId);
+      this.handlers?.onAttachTab(data);
+    });
+
+    this.socket.on('ext:detach-tab', (data: { tabId: number }) => {
+      console.log('[WS] Detach tab requested:', data.tabId);
+      this.handlers?.onDetachTab(data);
+    });
+
+    this.socket.on('ext:attach-all-tabs', () => {
+      console.log('[WS] Attach all tabs requested');
+      this.handlers?.onAttachAllTabs();
     });
   }
 

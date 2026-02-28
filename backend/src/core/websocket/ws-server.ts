@@ -164,20 +164,26 @@ export class WebSocketServer {
   private setupEventHandlers(socket: TypedSocket): void {
     const userId = socket.data.userId;
 
-    // Proxy Control Events
+    // Proxy Control Events - relay to extension for CDP attachment
     socket.on('proxy:start', async (data) => {
       wsLogger.info('Proxy start requested', { userId, data });
-      // This will be handled by proxy event handlers
+      if (extensionManager.isConnected(userId)) {
+        extensionManager.startIntercept(userId, { attachAll: true });
+      }
     });
 
     socket.on('proxy:stop', async () => {
       wsLogger.info('Proxy stop requested', { userId });
-      // This will be handled by proxy event handlers
+      if (extensionManager.isConnected(userId)) {
+        extensionManager.stopIntercept(userId);
+      }
     });
 
     socket.on('proxy:toggle-intercept', async (data) => {
       wsLogger.info('Intercept mode toggle requested', { userId, enabled: data.enabled });
-      // This will be handled by proxy event handlers
+      if (extensionManager.isConnected(userId)) {
+        extensionManager.toggleIntercept(userId, { enabled: data.enabled });
+      }
     });
 
     // Request Management Events
@@ -483,6 +489,37 @@ export class WebSocketServer {
       } catch (error) {
         wsLogger.error('Failed to update smart filters', { userId, error });
         socket.emit('error', { message: 'Failed to update smart filters' });
+      }
+    });
+
+    // Tab Management Events (Dashboard → Extension relay)
+    socket.on('tabs:list' as any, async () => {
+      wsLogger.debug('List tabs requested', { userId });
+      if (extensionManager.isConnected(userId)) {
+        extensionManager.listTabs(userId);
+      } else {
+        socket.emit('tabs:list' as any, { tabs: [] });
+      }
+    });
+
+    socket.on('tabs:attach' as any, async (data: { tabId: number }) => {
+      wsLogger.info('Attach tab requested', { userId, tabId: data.tabId });
+      if (extensionManager.isConnected(userId)) {
+        extensionManager.attachTab(userId, data.tabId);
+      }
+    });
+
+    socket.on('tabs:detach' as any, async (data: { tabId: number }) => {
+      wsLogger.info('Detach tab requested', { userId, tabId: data.tabId });
+      if (extensionManager.isConnected(userId)) {
+        extensionManager.detachTab(userId, data.tabId);
+      }
+    });
+
+    socket.on('tabs:attach-all' as any, async () => {
+      wsLogger.info('Attach all tabs requested', { userId });
+      if (extensionManager.isConnected(userId)) {
+        extensionManager.attachAllTabs(userId);
       }
     });
 

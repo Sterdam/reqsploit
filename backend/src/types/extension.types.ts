@@ -15,6 +15,7 @@ export interface ExtensionToServerEvents {
   'ext:response-continued': (data: { requestId: string }) => void;
   'ext:tab-attached': (data: { tabId: number; url: string }) => void;
   'ext:tab-detached': (data: { tabId: number; reason: string }) => void;
+  'ext:tabs-list': (data: { tabs: BrowserTab[] }) => void;
   'ext:repeater-result': (data: ExtRepeaterResultPayload) => void;
   'ext:intruder-result': (data: ExtIntruderResultPayload) => void;
   'ext:status': (data: ExtStatusPayload) => void;
@@ -31,10 +32,16 @@ export interface ServerToExtensionEvents {
   'ext:forward-response': (data: ExtForwardResponsePayload) => void;
   'ext:drop-response': (data: { requestId: string }) => void;
   'ext:toggle-intercept': (data: ExtToggleInterceptPayload) => void;
+  'ext:start-intercept': (data: ExtStartInterceptPayload) => void;
+  'ext:stop-intercept': (data: Record<string, never>) => void;
   'ext:update-filters': (data: ExtUpdateFiltersPayload) => void;
   'ext:repeater-send': (data: ExtRepeaterSendPayload) => void;
   'ext:intruder-start': (data: ExtIntruderStartPayload) => void;
   'ext:intruder-stop': (data: { campaignId: string }) => void;
+  'ext:list-tabs': (data: Record<string, never>) => void;
+  'ext:attach-tab': (data: { tabId: number }) => void;
+  'ext:detach-tab': (data: { tabId: number }) => void;
+  'ext:attach-all-tabs': (data: Record<string, never>) => void;
 }
 
 // ============================================
@@ -150,6 +157,19 @@ export interface ExtIntruderStartPayload {
   }>;
   concurrency: number;
   delayMs: number;
+}
+
+export interface ExtStartInterceptPayload {
+  attachAll?: boolean;
+  tabIds?: number[];
+}
+
+export interface BrowserTab {
+  tabId: number;
+  url: string;
+  title: string;
+  active: boolean;
+  attached: boolean;
 }
 
 // ============================================

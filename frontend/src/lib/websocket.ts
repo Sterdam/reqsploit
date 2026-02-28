@@ -90,6 +90,15 @@ export interface ExtensionConnectedPayload {
   attachedTabs: Array<{ tabId: number; url: string }>;
 }
 
+// Browser tab info (from extension)
+export interface BrowserTab {
+  tabId: number;
+  url: string;
+  title: string;
+  active: boolean;
+  attached: boolean;
+}
+
 export interface WebSocketEventHandlers {
   // Connection events
   onAuthenticated?: (data: { userId: string; sessionId: string }) => void;
@@ -126,6 +135,7 @@ export interface WebSocketEventHandlers {
   onExtensionDisconnected?: () => void;
   onTabAttached?: (data: { tabId: number; url: string }) => void;
   onTabDetached?: (data: { tabId: number; reason: string }) => void;
+  onTabsList?: (data: { tabs: BrowserTab[] }) => void;
 
   // AI events
   onAIAnalysisStarted?: (data: { requestId: string }) => void;
@@ -316,6 +326,10 @@ export class WebSocketService {
       this.handlers.onTabDetached?.(data);
     });
 
+    this.socket.on('tabs:list', (data: { tabs: BrowserTab[] }) => {
+      this.handlers.onTabsList?.(data);
+    });
+
     // AI events
     this.socket.on('ai:analysis-started', (data: { requestId: string }) => {
       this.handlers.onAIAnalysisStarted?.(data);
@@ -460,6 +474,38 @@ export class WebSocketService {
    */
   updateSmartFilters(filters: any[]): void {
     this.socket?.emit('smart-filters:update', { filters });
+  }
+
+  // ============================================
+  // Tab Management
+  // ============================================
+
+  /**
+   * Request browser tabs list from extension
+   */
+  listTabs(): void {
+    this.socket?.emit('tabs:list');
+  }
+
+  /**
+   * Attach a specific tab
+   */
+  attachTab(tabId: number): void {
+    this.socket?.emit('tabs:attach', { tabId });
+  }
+
+  /**
+   * Detach a specific tab
+   */
+  detachTab(tabId: number): void {
+    this.socket?.emit('tabs:detach', { tabId });
+  }
+
+  /**
+   * Attach all browser tabs
+   */
+  attachAllTabs(): void {
+    this.socket?.emit('tabs:attach-all');
   }
 
   // ============================================

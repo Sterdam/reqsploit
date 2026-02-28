@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { wsService, type PendingRequest } from '../lib/websocket';
 import { batchToRepeater } from '../lib/panel-bridge';
 import { useUndoStore } from './undoStore';
+import { useRequestsStore } from './requestsStore';
 
 /**
  * Editable request structure for modification
@@ -429,6 +430,8 @@ export const useInterceptStore = create<InterceptState>((set, get) => ({
 wsService.setHandlers({
   onRequestHeld: (data) => {
     useInterceptStore.getState().addRequest(data.request);
+    // Also feed requestsStore so intercepted requests appear in History
+    useRequestsStore.getState().addRequest(data.request);
   },
 
   onRequestForwarded: (data) => {

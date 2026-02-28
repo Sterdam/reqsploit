@@ -212,6 +212,13 @@ export function setupExtensionHandlers(socket: Socket, userId: string): void {
     }
   });
 
+  // ext:tabs-list - Extension sends browser tabs list
+  socket.on('ext:tabs-list', (data: { tabs: Array<{ tabId: number; url: string; title: string; active: boolean; attached: boolean }> }) => {
+    wsLogger.debug('Tabs list received from extension', { userId, count: data.tabs.length });
+    // Forward to dashboard
+    wsServer.emitToUser(userId, 'tabs:list' as any, { tabs: data.tabs });
+  });
+
   // ext:status - Extension sends periodic status updates
   socket.on('ext:status', (data: ExtStatusPayload) => {
     if (extensionManager.isConnected(userId)) {

@@ -172,6 +172,20 @@ export class ExtensionManager {
   }
 
   /**
+   * Start intercept (from dashboard → extension)
+   */
+  startIntercept(userId: string, options?: { attachAll?: boolean; tabIds?: number[] }): boolean {
+    return this.sendToExtension(userId, 'ext:start-intercept', options || { attachAll: true });
+  }
+
+  /**
+   * Stop intercept (from dashboard → extension)
+   */
+  stopIntercept(userId: string): boolean {
+    return this.sendToExtension(userId, 'ext:stop-intercept', {});
+  }
+
+  /**
    * Update smart filters
    */
   updateFilters(userId: string, data: ExtUpdateFiltersPayload): boolean {
@@ -197,6 +211,34 @@ export class ExtensionManager {
    */
   stopIntruder(userId: string, campaignId: string): boolean {
     return this.sendToExtension(userId, 'ext:intruder-stop', { campaignId });
+  }
+
+  /**
+   * Request browser tabs list from extension
+   */
+  listTabs(userId: string): boolean {
+    return this.sendToExtension(userId, 'ext:list-tabs', {});
+  }
+
+  /**
+   * Attach a specific tab via extension
+   */
+  attachTab(userId: string, tabId: number): boolean {
+    return this.sendToExtension(userId, 'ext:attach-tab', { tabId });
+  }
+
+  /**
+   * Detach a specific tab via extension
+   */
+  detachTab(userId: string, tabId: number): boolean {
+    return this.sendToExtension(userId, 'ext:detach-tab', { tabId });
+  }
+
+  /**
+   * Attach all browser tabs via extension
+   */
+  attachAllTabs(userId: string): boolean {
+    return this.sendToExtension(userId, 'ext:attach-all-tabs', {});
   }
 
   /**

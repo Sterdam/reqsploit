@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { proxyAPI, type ProxySession } from '../lib/api';
-import { wsService } from '../lib/websocket';
+import { wsService, type BrowserTab } from '../lib/websocket';
 
 /**
  * Extension Store
@@ -49,6 +49,15 @@ interface ExtensionState {
   removeTab: (tabId: number) => void;
   updateStats: (stats: ExtensionStats) => void;
   clearError: () => void;
+
+  // Tab management actions
+  availableTabs: BrowserTab[];
+  isLoadingTabs: boolean;
+  requestTabsList: () => void;
+  attachTab: (tabId: number) => void;
+  detachTab: (tabId: number) => void;
+  attachAllTabs: () => void;
+  setAvailableTabs: (tabs: BrowserTab[]) => void;
 }
 
 export const useExtensionStore = create<ExtensionState>((set, get) => ({
@@ -68,6 +77,10 @@ export const useExtensionStore = create<ExtensionState>((set, get) => ({
   attachedTabs: [],
   stats: null,
 
+  // Tab management
+  availableTabs: [],
+  isLoadingTabs: false,
+
   // Start session with CDP mode
   startSession: async (interceptMode: boolean = false) => {
     set({ isLoading: true, error: null });
@@ -80,6 +93,9 @@ export const useExtensionStore = create<ExtensionState>((set, get) => ({
         isLoading: false,
         interceptEnabled: interceptMode,
       });
+
+      // Trigger extension to attach tabs and start CDP interception
+      wsService.startProxy(true);
     } catch (error: any) {
       set({
         error: error.response?.data?.error?.message || 'Failed to start session',
@@ -101,6 +117,9 @@ export const useExtensionStore = create<ExtensionState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       await proxyAPI.stopSession();
+
+      // Trigger extension to detach tabs and stop CDP interception
+      wsService.stopProxy();
 
       set({
         session: null,
@@ -232,6 +251,44 @@ export const useExtensionStore = create<ExtensionState>((set, get) => ({
 
   // Clear error
   clearError: () => set({ error: null }),
+
+  // Tab management
+  requestTabsList: () => {
+    set({ isLoadingTabs: true });
+    wsService.listTabs();
+  },
+
+  attachTab: (tabId: number) => {
+    wsService.attachTab(tabId);
+    // Optimistic update
+    set((state) => ({
+      availableTabs: state.availableTabs.map((t) =>
+        t.tabId === tabId ? { ...t, attached: true } : t
+      ),
+    }));
+  },
+
+  detachTab: (tabId: number) => {
+    wsService.detachTab(tabId);
+    // Optimistic update
+    set((state) => ({
+      availableTabs: state.availableTabs.map((t) =>
+        t.tabId === tabId ? { ...t, attached: false } : t
+      ),
+    }));
+  },
+
+  attachAllTabs: () => {
+    wsService.attachAllTabs();
+    // Optimistic update
+    set((state) => ({
+      availableTabs: state.availableTabs.map((t) => ({ ...t, attached: true })),
+    }));
+  },
+
+  setAvailableTabs: (tabs: BrowserTab[]) => {
+    set({ availableTabs: tabs, isLoadingTabs: false });
+  },
 }));
 
 // Backward-compatible alias
@@ -253,6 +310,10 @@ wsService.setHandlers({
   // Extension connection events
   onExtensionConnected: (data) => {
     useExtensionStore.getState().setExtensionConnected(true, data.version, data.attachedTabs);
+    // If extension reports attached tabs, sync active/intercept state
+    if (data.attachedTabs && data.attachedTabs.length > 0) {
+      useExtensionStore.setState({ isActive: true, interceptEnabled: true });
+    }
   },
 
   onExtensionDisconnected: () => {
@@ -266,6 +327,10 @@ wsService.setHandlers({
 
   onTabDetached: (data) => {
     useExtensionStore.getState().removeTab(data.tabId);
+  },
+
+  onTabsList: (data) => {
+    useExtensionStore.getState().setAvailableTabs(data.tabs);
   },
 
   // Session events (backward compat with proxy events)
