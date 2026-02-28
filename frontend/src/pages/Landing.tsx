@@ -222,7 +222,7 @@ export function Landing() {
               </div>
               <div className="flex flex-col sm:flex-row gap-3 flex-shrink-0">
                 <a
-                  href="/reqsploit-extension-v2.1.0.zip"
+                  href="/reqsploit-extension-v2.1.1.zip"
                   download
                   className="inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg transition font-semibold"
                 >

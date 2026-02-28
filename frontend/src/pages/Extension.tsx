@@ -15,7 +15,7 @@ import {
   Settings,
 } from 'lucide-react';
 
-const EXTENSION_VERSION = '2.1.0';
+const EXTENSION_VERSION = '2.1.1';
 const EXTENSION_FILE = `/reqsploit-extension-v${EXTENSION_VERSION}.zip`;
 
 export function Extension() {

@@ -51,6 +51,12 @@ const DEFAULT_SMART_FILTERS: SmartFilterConfig[] = [
     enabled: true,
     description: 'Favicon requests',
   },
+  {
+    name: 'reqsploit-internal',
+    pattern: '(reqsploit\\.com|localhost:(3000|5173))',
+    enabled: true,
+    description: 'ReqSploit dashboard requests (prevent self-interception)',
+  },
 ];
 
 export type CDPEventCallback = (

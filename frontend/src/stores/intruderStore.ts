@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { useAuthStore } from './authStore';
+import api from '../lib/api';
 
 /**
  * Attack Types
@@ -173,7 +173,6 @@ interface IntruderState {
   getCampaignProgress: (campaignId: string) => CampaignProgress | null;
 }
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
 
 /**
  * Intruder Store
@@ -196,14 +195,8 @@ export const useIntruderStore = create<IntruderState>()(
         set({ isLoading: true, error: null });
 
         try {
-          const token = useAuthStore.getState().accessToken;
-          const response = await fetch(`${BACKEND_URL}/api/intruder/campaigns`, {
-            headers: {
-              Authorization: token ? `Bearer ${token}` : '',
-            },
-          });
-
-          const data = await response.json();
+          const response = await api.get('/intruder/campaigns');
+          const data = response.data;
 
           if (!data.success) {
             throw new Error(data.error?.message || 'Failed to fetch campaigns');
@@ -221,14 +214,8 @@ export const useIntruderStore = create<IntruderState>()(
       // Fetch single campaign
       fetchCampaign: async (campaignId: string) => {
         try {
-          const token = useAuthStore.getState().accessToken;
-          const response = await fetch(`${BACKEND_URL}/api/intruder/campaigns/${campaignId}`, {
-            headers: {
-              Authorization: token ? `Bearer ${token}` : '',
-            },
-          });
-
-          const data = await response.json();
+          const response = await api.get(`/intruder/campaigns/${campaignId}`);
+          const data = response.data;
 
           if (!data.success) {
             throw new Error(data.error?.message || 'Failed to fetch campaign');
@@ -251,17 +238,8 @@ export const useIntruderStore = create<IntruderState>()(
         set({ isLoading: true, error: null });
 
         try {
-          const token = useAuthStore.getState().accessToken;
-          const response = await fetch(`${BACKEND_URL}/api/intruder/campaigns`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: token ? `Bearer ${token}` : '',
-            },
-            body: JSON.stringify(campaign),
-          });
-
-          const data = await response.json();
+          const response = await api.post('/intruder/campaigns', campaign);
+          const data = response.data;
 
           if (!data.success) {
             throw new Error(data.error?.message || 'Failed to create campaign');
@@ -285,13 +263,7 @@ export const useIntruderStore = create<IntruderState>()(
       // Delete campaign
       deleteCampaign: async (campaignId: string) => {
         try {
-          const token = useAuthStore.getState().accessToken;
-          await fetch(`${BACKEND_URL}/api/intruder/campaigns/${campaignId}`, {
-            method: 'DELETE',
-            headers: {
-              Authorization: token ? `Bearer ${token}` : '',
-            },
-          });
+          await api.delete(`/intruder/campaigns/${campaignId}`);
 
           set((state) => ({
             campaigns: state.campaigns.filter((c) => c.id !== campaignId),
@@ -313,13 +285,7 @@ export const useIntruderStore = create<IntruderState>()(
       // Start campaign
       startCampaign: async (campaignId: string) => {
         try {
-          const token = useAuthStore.getState().accessToken;
-          await fetch(`${BACKEND_URL}/api/intruder/campaigns/${campaignId}/start`, {
-            method: 'POST',
-            headers: {
-              Authorization: token ? `Bearer ${token}` : '',
-            },
-          });
+          await api.post(`/intruder/campaigns/${campaignId}/start`);
 
           // Update status
           set((state) => ({
@@ -338,13 +304,7 @@ export const useIntruderStore = create<IntruderState>()(
       // Pause campaign
       pauseCampaign: async (campaignId: string) => {
         try {
-          const token = useAuthStore.getState().accessToken;
-          await fetch(`${BACKEND_URL}/api/intruder/campaigns/${campaignId}/pause`, {
-            method: 'POST',
-            headers: {
-              Authorization: token ? `Bearer ${token}` : '',
-            },
-          });
+          await api.post(`/intruder/campaigns/${campaignId}/pause`);
 
           set((state) => ({
             campaigns: state.campaigns.map((c) =>
@@ -359,13 +319,7 @@ export const useIntruderStore = create<IntruderState>()(
       // Resume campaign
       resumeCampaign: async (campaignId: string) => {
         try {
-          const token = useAuthStore.getState().accessToken;
-          await fetch(`${BACKEND_URL}/api/intruder/campaigns/${campaignId}/resume`, {
-            method: 'POST',
-            headers: {
-              Authorization: token ? `Bearer ${token}` : '',
-            },
-          });
+          await api.post(`/intruder/campaigns/${campaignId}/resume`);
 
           set((state) => ({
             campaigns: state.campaigns.map((c) =>
@@ -383,13 +337,7 @@ export const useIntruderStore = create<IntruderState>()(
       // Stop campaign
       stopCampaign: async (campaignId: string) => {
         try {
-          const token = useAuthStore.getState().accessToken;
-          await fetch(`${BACKEND_URL}/api/intruder/campaigns/${campaignId}/stop`, {
-            method: 'POST',
-            headers: {
-              Authorization: token ? `Bearer ${token}` : '',
-            },
-          });
+          await api.post(`/intruder/campaigns/${campaignId}/stop`);
 
           set((state) => ({
             campaigns: state.campaigns.map((c) =>
@@ -404,14 +352,8 @@ export const useIntruderStore = create<IntruderState>()(
       // Fetch progress
       fetchProgress: async (campaignId: string) => {
         try {
-          const token = useAuthStore.getState().accessToken;
-          const response = await fetch(`${BACKEND_URL}/api/intruder/campaigns/${campaignId}/progress`, {
-            headers: {
-              Authorization: token ? `Bearer ${token}` : '',
-            },
-          });
-
-          const data = await response.json();
+          const response = await api.get(`/intruder/campaigns/${campaignId}/progress`);
+          const data = response.data;
 
           if (data.success) {
             set((state) => {
@@ -441,18 +383,10 @@ export const useIntruderStore = create<IntruderState>()(
       // Fetch results
       fetchResults: async (campaignId: string, filters = {}) => {
         try {
-          const token = useAuthStore.getState().accessToken;
-          const params = new URLSearchParams(filters as any);
-          const response = await fetch(
-            `${BACKEND_URL}/api/intruder/campaigns/${campaignId}/results?${params}`,
-            {
-              headers: {
-                Authorization: token ? `Bearer ${token}` : '',
-              },
-            }
-          );
-
-          const data = await response.json();
+          const response = await api.get(`/intruder/campaigns/${campaignId}/results`, {
+            params: filters,
+          });
+          const data = response.data;
 
           if (data.success) {
             set((state) => {
@@ -609,14 +543,8 @@ export const useIntruderStore = create<IntruderState>()(
       // Fetch builtin payloads
       fetchBuiltinPayloads: async () => {
         try {
-          const token = useAuthStore.getState().accessToken;
-          const response = await fetch(`${BACKEND_URL}/api/intruder/payloads/builtin`, {
-            headers: {
-              Authorization: token ? `Bearer ${token}` : '',
-            },
-          });
-
-          const data = await response.json();
+          const response = await api.get('/intruder/payloads/builtin');
+          const data = response.data;
 
           if (data.success) {
             set({ builtinPayloads: data.data });
@@ -629,20 +557,11 @@ export const useIntruderStore = create<IntruderState>()(
       // Generate number payloads
       generateNumberPayloads: async (from: number, to: number, step: number) => {
         try {
-          const token = useAuthStore.getState().accessToken;
-          const response = await fetch(`${BACKEND_URL}/api/intruder/payloads/generate`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: token ? `Bearer ${token}` : '',
-            },
-            body: JSON.stringify({
-              type: 'numbers',
-              config: { from, to, step },
-            }),
+          const response = await api.post('/intruder/payloads/generate', {
+            type: 'numbers',
+            config: { from, to, step },
           });
-
-          const data = await response.json();
+          const data = response.data;
 
           if (data.success) {
             return data.data.payloads;

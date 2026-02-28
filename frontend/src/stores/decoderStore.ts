@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { useAuthStore } from './authStore';
+import api from '../lib/api';
 
 export type EncodingType =
   | 'url'
@@ -72,7 +72,6 @@ interface DecoderState {
   clearHistory: () => void;
 }
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
 
 export const useDecoderStore = create<DecoderState>()(
   persist(
@@ -131,20 +130,11 @@ export const useDecoderStore = create<DecoderState>()(
         set({ isLoading: true, error: null });
 
         try {
-          const token = useAuthStore.getState().accessToken;
-          const response = await fetch(`${BACKEND_URL}/api/decoder/encode`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': token ? `Bearer ${token}` : '',
-            },
-            body: JSON.stringify({
-              input,
-              encoding: encodingToUse,
-            }),
+          const response = await api.post('/decoder/encode', {
+            input,
+            encoding: encodingToUse,
           });
-
-          const data = await response.json();
+          const data = response.data;
 
           if (!data.success) {
             throw new Error(data.error?.message || 'Encoding failed');
@@ -183,20 +173,11 @@ export const useDecoderStore = create<DecoderState>()(
         set({ isLoading: true, error: null, detectedEncoding: null });
 
         try {
-          const token = useAuthStore.getState().accessToken;
-          const response = await fetch(`${BACKEND_URL}/api/decoder/decode`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': token ? `Bearer ${token}` : '',
-            },
-            body: JSON.stringify({
-              input,
-              encoding: encodingToUse,
-            }),
+          const response = await api.post('/decoder/decode', {
+            input,
+            encoding: encodingToUse,
           });
-
-          const data = await response.json();
+          const data = response.data;
 
           if (!data.success) {
             throw new Error(data.error?.message || 'Decoding failed');
@@ -235,20 +216,11 @@ export const useDecoderStore = create<DecoderState>()(
         set({ isLoading: true, error: null, detectedEncoding: null });
 
         try {
-          const token = useAuthStore.getState().accessToken;
-          const response = await fetch(`${BACKEND_URL}/api/decoder/decode`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': token ? `Bearer ${token}` : '',
-            },
-            body: JSON.stringify({
-              input,
-              encoding: 'auto',
-            }),
+          const response = await api.post('/decoder/decode', {
+            input,
+            encoding: 'auto',
           });
-
-          const data = await response.json();
+          const data = response.data;
 
           if (!data.success) {
             throw new Error(data.error?.message || 'Auto-detection failed');
@@ -293,20 +265,11 @@ export const useDecoderStore = create<DecoderState>()(
         set({ isLoading: true, error: null });
 
         try {
-          const token = useAuthStore.getState().accessToken;
-          const response = await fetch(`${BACKEND_URL}/api/decoder/hash`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': token ? `Bearer ${token}` : '',
-            },
-            body: JSON.stringify({
-              input,
-              algorithm: algorithmToUse,
-            }),
+          const response = await api.post('/decoder/hash', {
+            input,
+            algorithm: algorithmToUse,
           });
-
-          const data = await response.json();
+          const data = response.data;
 
           if (!data.success) {
             throw new Error(data.error?.message || 'Hashing failed');

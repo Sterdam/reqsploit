@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { useAuthStore } from './authStore';
+import api from '../lib/api';
 import { panelBridge } from '../lib/panel-bridge';
 
 /**
@@ -97,7 +97,6 @@ interface RepeaterState {
   getActiveTab: () => RepeaterTab | null;
 }
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
 
 /**
  * Default empty request
@@ -277,22 +276,8 @@ export const useRepeaterStore = create<RepeaterState>()(
         }));
 
         try {
-          // Get token from auth store
-          const token = useAuthStore.getState().accessToken;
-          const response = await fetch(`${BACKEND_URL}/api/repeater/send`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': token ? `Bearer ${token}` : '',
-            },
-            body: JSON.stringify(tab.request),
-          });
-
-          if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-          }
-
-          const data = await response.json();
+          const response = await api.post('/repeater/send', tab.request);
+          const data = response.data;
 
           if (!data.success) {
             throw new Error(data.error?.message || 'Request failed');
@@ -371,26 +356,12 @@ export const useRepeaterStore = create<RepeaterState>()(
         if (!tab) return;
 
         try {
-          const token = localStorage.getItem('token');
-          const response = await fetch(`${BACKEND_URL}/api/repeater/templates`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': token ? `Bearer ${token}` : '',
-            },
-            body: JSON.stringify({
-              name,
-              ...tab.request,
-            }),
+          const response = await api.post('/repeater/templates', {
+            name,
+            ...tab.request,
           });
 
-          if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-          }
-
-          const data = await response.json();
-
-          if (data.success) {
+          if (response.data.success) {
             // Refresh templates
             await get().fetchTemplates();
           }
@@ -411,18 +382,9 @@ export const useRepeaterStore = create<RepeaterState>()(
       // Delete template
       deleteTemplate: async (templateId: string) => {
         try {
-          const token = localStorage.getItem('token');
-          const response = await fetch(
-            `${BACKEND_URL}/api/repeater/templates/${templateId}`,
-            {
-              method: 'DELETE',
-              headers: {
-                'Authorization': token ? `Bearer ${token}` : '',
-              },
-            }
-          );
+          const response = await api.delete(`/repeater/templates/${templateId}`);
 
-          if (response.ok) {
+          if (response.status === 200) {
             // Refresh templates
             await get().fetchTemplates();
           }
@@ -434,18 +396,10 @@ export const useRepeaterStore = create<RepeaterState>()(
       // Fetch templates
       fetchTemplates: async () => {
         try {
-          const token = localStorage.getItem('token');
-          const response = await fetch(`${BACKEND_URL}/api/repeater/templates`, {
-            headers: {
-              'Authorization': token ? `Bearer ${token}` : '',
-            },
-          });
-
-          if (response.ok) {
-            const data = await response.json();
-            if (data.success) {
-              set({ templates: data.data || [] });
-            }
+          const response = await api.get('/repeater/templates');
+          const data = response.data;
+          if (data.success) {
+            set({ templates: data.data || [] });
           }
         } catch (error) {
           console.error('Failed to fetch templates:', error);

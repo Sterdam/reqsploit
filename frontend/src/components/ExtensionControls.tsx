@@ -157,7 +157,7 @@ export function ExtensionControls() {
             Get Chrome Extension
           </a>
           <a
-            href="/reqsploit-extension-v2.1.0.zip"
+            href="/reqsploit-extension-v2.1.1.zip"
             download
             className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300 rounded-md transition text-xs"
           >
