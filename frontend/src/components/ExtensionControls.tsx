@@ -36,10 +36,14 @@ export function ExtensionControls() {
   // --- Handlers ---
 
   const handleStartStop = async () => {
-    if (isActive) {
-      await stopSession();
-    } else {
-      await startSession();
+    try {
+      if (isActive) {
+        await stopSession();
+      } else {
+        await startSession();
+      }
+    } catch (error) {
+      console.error('[ExtensionControls] Start/stop failed:', error);
     }
   };
 

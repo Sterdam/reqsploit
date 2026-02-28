@@ -151,7 +151,7 @@ export class WebSocketServer {
         if (isExtension) {
           extensionManager.unregister(userId);
           // Notify dashboard that extension disconnected
-          this.emitToUser(userId, 'ext:disconnected' as any);
+          this.emitToUser(userId, 'ext:disconnected');
         }
         this.handleDisconnect(userId, socket.id);
       });
@@ -288,7 +288,7 @@ export class WebSocketServer {
     });
 
     // Response Management Events (CDP only)
-    socket.on('response:forward' as any, async (data: { requestId: string; modifications?: any }) => {
+    socket.on('response:forward', async (data) => {
       wsLogger.debug('Response forward', { userId, requestId: data.requestId });
       try {
         cdpRequestQueue.forward(userId, data.requestId, data.modifications);
@@ -298,7 +298,7 @@ export class WebSocketServer {
       }
     });
 
-    socket.on('response:drop' as any, async (data: { requestId: string }) => {
+    socket.on('response:drop', async (data) => {
       wsLogger.debug('Response drop', { userId, requestId: data.requestId });
       try {
         cdpRequestQueue.drop(userId, data.requestId);
@@ -493,30 +493,30 @@ export class WebSocketServer {
     });
 
     // Tab Management Events (Dashboard → Extension relay)
-    socket.on('tabs:list' as any, async () => {
+    socket.on('tabs:list', async () => {
       wsLogger.debug('List tabs requested', { userId });
       if (extensionManager.isConnected(userId)) {
         extensionManager.listTabs(userId);
       } else {
-        socket.emit('tabs:list' as any, { tabs: [] });
+        socket.emit('tabs:list', { tabs: [] });
       }
     });
 
-    socket.on('tabs:attach' as any, async (data: { tabId: number }) => {
+    socket.on('tabs:attach', async (data) => {
       wsLogger.info('Attach tab requested', { userId, tabId: data.tabId });
       if (extensionManager.isConnected(userId)) {
         extensionManager.attachTab(userId, data.tabId);
       }
     });
 
-    socket.on('tabs:detach' as any, async (data: { tabId: number }) => {
+    socket.on('tabs:detach', async (data) => {
       wsLogger.info('Detach tab requested', { userId, tabId: data.tabId });
       if (extensionManager.isConnected(userId)) {
         extensionManager.detachTab(userId, data.tabId);
       }
     });
 
-    socket.on('tabs:attach-all' as any, async () => {
+    socket.on('tabs:attach-all', async () => {
       wsLogger.info('Attach all tabs requested', { userId });
       if (extensionManager.isConnected(userId)) {
         extensionManager.attachAllTabs(userId);
@@ -553,9 +553,9 @@ export class WebSocketServer {
     });
 
     cdpRequestQueue.on('response:forwarded', (data: { userId: string; requestId: string; wasModified: boolean }) => {
-      this.emitToUser(data.userId, 'response:forwarded' as any, {
+      this.emitToUser(data.userId, 'response:forwarded', {
+        userId: data.userId,
         requestId: data.requestId,
-        wasModified: data.wasModified,
       });
     });
 
@@ -569,10 +569,9 @@ export class WebSocketServer {
     });
 
     cdpRequestQueue.on('response:dropped', (data: { userId: string; requestId: string; canUndo: boolean; graceSeconds: number }) => {
-      this.emitToUser(data.userId, 'response:dropped' as any, {
+      this.emitToUser(data.userId, 'response:dropped', {
+        userId: data.userId,
         requestId: data.requestId,
-        canUndo: data.canUndo,
-        graceSeconds: data.graceSeconds,
       });
     });
 

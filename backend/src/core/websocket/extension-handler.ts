@@ -31,7 +31,7 @@ export function setupExtensionHandlers(socket: Socket, userId: string): void {
     extensionManager.register(userId, socket.id, data.extensionVersion, data.attachedTabs);
 
     // Notify dashboard
-    wsServer.emitToUser(userId, 'ext:connected' as any, {
+    wsServer.emitToUser(userId, 'ext:connected', {
       version: data.extensionVersion,
       attachedTabs: data.attachedTabs,
     });
@@ -76,7 +76,7 @@ export function setupExtensionHandlers(socket: Socket, userId: string): void {
       });
 
       // Emit to dashboard
-      wsServer.emitToUser(userId, 'request:held' as any, {
+      wsServer.emitToUser(userId, 'request:held', {
         sessionId: session.sessionId,
         userId,
         request: {
@@ -117,7 +117,7 @@ export function setupExtensionHandlers(socket: Socket, userId: string): void {
       });
 
       // Emit to dashboard (new response:held event)
-      wsServer.emitToUser(userId, 'response:held' as any, {
+      wsServer.emitToUser(userId, 'response:held', {
         userId,
         response: {
           id: data.requestId,
@@ -154,7 +154,7 @@ export function setupExtensionHandlers(socket: Socket, userId: string): void {
     extensionManager.addTab(userId, data.tabId, data.url);
 
     // Notify dashboard
-    wsServer.emitToUser(userId, 'ext:tab-attached' as any, data);
+    wsServer.emitToUser(userId, 'ext:tab-attached', data);
   });
 
   // ext:tab-detached - Extension detached from a tab
@@ -163,7 +163,7 @@ export function setupExtensionHandlers(socket: Socket, userId: string): void {
     extensionManager.removeTab(userId, data.tabId);
 
     // Notify dashboard
-    wsServer.emitToUser(userId, 'ext:tab-detached' as any, data);
+    wsServer.emitToUser(userId, 'ext:tab-detached', data);
   });
 
   // ext:repeater-result - Extension executed a repeater request
@@ -174,7 +174,7 @@ export function setupExtensionHandlers(socket: Socket, userId: string): void {
     cdpRequestQueue.resolveRepeaterResult(data.requestId, data);
 
     // Notify dashboard
-    wsServer.emitToUser(userId, 'repeater:result' as any, data);
+    wsServer.emitToUser(userId, 'repeater:result', data);
   });
 
   // ext:intruder-result - Extension executed an intruder request
@@ -206,7 +206,7 @@ export function setupExtensionHandlers(socket: Socket, userId: string): void {
       });
 
       // Notify dashboard
-      wsServer.emitToUser(userId, 'intruder:result' as any, data);
+      wsServer.emitToUser(userId, 'intruder:result', data);
     } catch (error) {
       wsLogger.error('Failed to store intruder result', { userId, error });
     }
@@ -216,7 +216,7 @@ export function setupExtensionHandlers(socket: Socket, userId: string): void {
   socket.on('ext:tabs-list', (data: { tabs: Array<{ tabId: number; url: string; title: string; active: boolean; attached: boolean }> }) => {
     wsLogger.debug('Tabs list received from extension', { userId, count: data.tabs.length });
     // Forward to dashboard
-    wsServer.emitToUser(userId, 'tabs:list' as any, { tabs: data.tabs });
+    wsServer.emitToUser(userId, 'tabs:list', { tabs: data.tabs });
   });
 
   // ext:status - Extension sends periodic status updates

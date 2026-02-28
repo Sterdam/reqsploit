@@ -260,29 +260,38 @@ export const useExtensionStore = create<ExtensionState>((set, get) => ({
 
   attachTab: (tabId: number) => {
     wsService.attachTab(tabId);
-    // Optimistic update
-    set((state) => ({
-      availableTabs: state.availableTabs.map((t) =>
-        t.tabId === tabId ? { ...t, attached: true } : t
-      ),
-    }));
+    // Optimistic update: both availableTabs and attachedTabs
+    set((state) => {
+      const tab = state.availableTabs.find((t) => t.tabId === tabId);
+      const alreadyAttached = state.attachedTabs.some((t) => t.tabId === tabId);
+      return {
+        availableTabs: state.availableTabs.map((t) =>
+          t.tabId === tabId ? { ...t, attached: true } : t
+        ),
+        attachedTabs: alreadyAttached
+          ? state.attachedTabs
+          : [...state.attachedTabs, { tabId, url: tab?.url || '' }],
+      };
+    });
   },
 
   detachTab: (tabId: number) => {
     wsService.detachTab(tabId);
-    // Optimistic update
+    // Optimistic update: both availableTabs and attachedTabs
     set((state) => ({
       availableTabs: state.availableTabs.map((t) =>
         t.tabId === tabId ? { ...t, attached: false } : t
       ),
+      attachedTabs: state.attachedTabs.filter((t) => t.tabId !== tabId),
     }));
   },
 
   attachAllTabs: () => {
     wsService.attachAllTabs();
-    // Optimistic update
+    // Optimistic update: both availableTabs and attachedTabs
     set((state) => ({
       availableTabs: state.availableTabs.map((t) => ({ ...t, attached: true })),
+      attachedTabs: state.availableTabs.map((t) => ({ tabId: t.tabId, url: t.url })),
     }));
   },
 
@@ -305,6 +314,7 @@ wsService.setHandlers({
 
   onDisconnect: () => {
     useExtensionStore.getState().setExtensionConnected(false);
+    useExtensionStore.setState({ availableTabs: [], isLoadingTabs: false });
   },
 
   // Extension connection events

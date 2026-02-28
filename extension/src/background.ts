@@ -248,6 +248,8 @@ wsClient.onEvents({
       cdpEngine.setResponseInterceptEnabled(data.responseIntercept);
     }
     updateBadge();
+    // Confirm state back to server
+    wsClient.emitConnected(cdpEngine.getAttachedTabs());
   },
 
   onUpdateFilters: (data) => {
@@ -358,8 +360,6 @@ wsClient.onEvents({
         }
       }
 
-      // Notify server of current state
-      wsClient.emitConnected(cdpEngine.getAttachedTabs());
       updateBadge();
     } catch (error) {
       console.error('[BG] Failed to start intercept from dashboard:', error);

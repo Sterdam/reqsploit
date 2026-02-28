@@ -39,6 +39,16 @@ export interface ClientToServerEvents {
   'ai:analyze-request': (data: { requestId: string }) => void;
   'ai:apply-suggestion': (data: { requestId: string; suggestionId: string }) => void;
 
+  // Tab Management (Dashboard → Backend → Extension)
+  'tabs:list': () => void;
+  'tabs:attach': (data: { tabId: number }) => void;
+  'tabs:detach': (data: { tabId: number }) => void;
+  'tabs:attach-all': () => void;
+
+  // Response Interception (Dashboard → Backend → Extension)
+  'response:forward': (data: { requestId: string; modifications?: { statusCode?: number; headers?: Record<string, string>; body?: string } }) => void;
+  'response:drop': (data: { requestId: string }) => void;
+
   // Magic Scan
   'scan:get-results': (data?: { severity?: string; category?: string; limit?: number }) => void;
   'scan:get-stats': () => void;
@@ -61,11 +71,11 @@ export interface ServerToClientEvents {
 
   // Request Events
   'request:intercepted': (data: RequestInterceptedPayload) => void;
-  'request:held': (data: { requestId: string }) => void;
-  'request:forwarded': (data: { requestId: string }) => void;
-  'request:dropped': (data: { requestId: string }) => void;
+  'request:held': (data: RequestHeldPayload) => void;
+  'request:forwarded': (data: { sessionId: string; userId: string; requestId: string; wasModified: boolean }) => void;
+  'request:dropped': (data: { sessionId: string; userId: string; requestId: string }) => void;
   'request:queue': (data: { queue: any[] }) => void;
-  'queue:changed': (data: { count: number }) => void;
+  'queue:changed': (data: QueueChangedPayload) => void;
   'response:received': (data: ResponseReceivedPayload) => void;
 
   // Bulk Action Results
@@ -73,6 +83,22 @@ export interface ServerToClientEvents {
 
   // Smart Filters
   'smart-filters:config': (data: { filters: any[] }) => void;
+
+  // Extension Events (Backend → Dashboard)
+  'ext:connected': (data: { version: string; attachedTabs: Array<{ tabId: number; url: string }> }) => void;
+  'ext:disconnected': () => void;
+  'ext:tab-attached': (data: { tabId: number; url: string }) => void;
+  'ext:tab-detached': (data: { tabId: number; reason: string }) => void;
+  'tabs:list': (data: { tabs: BrowserTabPayload[] }) => void;
+
+  // Response Interception Events (Backend → Dashboard)
+  'response:held': (data: ResponseHeldPayload) => void;
+  'response:forwarded': (data: { userId: string; requestId: string }) => void;
+  'response:dropped': (data: { userId: string; requestId: string }) => void;
+
+  // Repeater/Intruder Events
+  'repeater:result': (data: any) => void;
+  'intruder:result': (data: any) => void;
 
   // AI Events
   'ai:analysis-started': (data: { requestId: string }) => void;
@@ -156,6 +182,53 @@ export interface ScanStatsPayload {
   byCategory: Record<string, number>;
   criticalCount: number;
   highCount: number;
+}
+
+export interface RequestHeldPayload {
+  sessionId: string;
+  userId: string;
+  request: {
+    id: string;
+    method: string;
+    url: string;
+    headers: Record<string, string>;
+    body?: string | null;
+    timestamp: Date | string;
+    queuedAt: string;
+    isIntercepted: boolean;
+    tabId?: number;
+    resourceType?: string;
+  };
+}
+
+export interface QueueChangedPayload {
+  sessionId: string;
+  action: 'hold' | 'forward' | 'drop';
+  requestId: string;
+  queueSize: number;
+}
+
+export interface ResponseHeldPayload {
+  userId: string;
+  response: {
+    id: string;
+    statusCode: number;
+    headers: Record<string, string>;
+    body?: string;
+    originalRequestUrl: string;
+    originalRequestMethod: string;
+    tabId?: number;
+    timestamp: Date | string;
+    queuedAt: string;
+  };
+}
+
+export interface BrowserTabPayload {
+  tabId: number;
+  url: string;
+  title: string;
+  active: boolean;
+  attached: boolean;
 }
 
 // ============================================
