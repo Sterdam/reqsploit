@@ -116,7 +116,7 @@ export function Dashboard() {
   }, [_hasHydrated, selectedProjectId, setFilters, fetchRequests, accessToken]);
 
   // Keyboard shortcuts handler
-  const { toggleIntercept, session } = useProxyStore();
+  const { toggleIntercept, interceptEnabled } = useProxyStore();
   const { createTab: createRepeaterTab, tabs: repeaterTabs } = useRepeaterStore();
   const { startDraft: startIntruderDraft, campaigns: intruderCampaigns } = useIntruderStore();
   const { queuedRequests: interceptQueue } = useInterceptStore();
@@ -124,8 +124,7 @@ export function Dashboard() {
   const handleShortcut = useCallback((action: ShortcutAction) => {
     switch (action) {
       case 'toggle-intercept':
-        const currentInterceptMode = session?.interceptMode || false;
-        toggleIntercept(!currentInterceptMode);
+        toggleIntercept(!interceptEnabled);
         break;
       case 'send-to-repeater':
         // If in intercept panel with selections, use bulk send

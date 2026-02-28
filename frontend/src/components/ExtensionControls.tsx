@@ -1,14 +1,13 @@
-import { useState } from 'react';
+import { useEffect } from 'react';
 import { useExtensionStore } from '../stores/extensionStore';
-import { Wifi, WifiOff, Play, Square, Monitor, Loader2, Chrome, Download, RefreshCw, Link, Unlink } from 'lucide-react';
+import { Wifi, WifiOff, Play, Square, Monitor, Loader2, Chrome, Download, RefreshCw, Link, Unlink, AlertTriangle } from 'lucide-react';
 import { wsService } from '../lib/websocket';
 
 /**
  * ExtensionControls - CDP Architecture Control Panel
  *
- * Replaces ProxyControls for the Chrome DevTools Protocol architecture.
  * Shows extension connection status, intercept controls, tab management, and stats.
- * No certificate or proxy port sections needed with CDP.
+ * Filters out the ReqSploit dashboard tab from the list.
  */
 export function ExtensionControls() {
   const {
@@ -18,7 +17,6 @@ export function ExtensionControls() {
     isLoading,
     interceptEnabled,
     responseInterceptEnabled,
-    attachedTabs,
     stats,
     startSession,
     stopSession,
@@ -28,10 +26,31 @@ export function ExtensionControls() {
     requestTabsList,
     attachTab,
     detachTab,
-    attachAllTabs,
   } = useExtensionStore();
 
-  const [showTabManager, setShowTabManager] = useState(false);
+  // Auto-refresh tabs when connected
+  useEffect(() => {
+    if (isConnected && isActive) {
+      requestTabsList();
+    }
+  }, [isConnected, isActive]);
+
+  // --- Helpers ---
+
+  // Filter out the ReqSploit dashboard tab
+  const filteredTabs = availableTabs.filter((tab) => {
+    const url = tab.url.toLowerCase();
+    const title = (tab.title || '').toLowerCase();
+    return !url.includes('reqsploit') && !url.includes('localhost:5173') && !title.includes('reqsploit');
+  });
+
+  const attachedCount = filteredTabs.filter((t) => t.attached).length;
+  const allAttached = filteredTabs.length > 0 && attachedCount === filteredTabs.length;
+
+  const truncateUrl = (url: string, maxLength: number = 48): string => {
+    if (url.length <= maxLength) return url;
+    return url.substring(0, maxLength - 3) + '...';
+  };
 
   // --- Handlers ---
 
@@ -40,7 +59,7 @@ export function ExtensionControls() {
       if (isActive) {
         await stopSession();
       } else {
-        await startSession();
+        await startSession(true);
       }
     } catch (error) {
       console.error('[ExtensionControls] Start/stop failed:', error);
@@ -55,26 +74,17 @@ export function ExtensionControls() {
     wsService.toggleIntercept(!responseInterceptEnabled);
   };
 
-  const handleOpenTabManager = () => {
-    setShowTabManager(!showTabManager);
-    if (!showTabManager) {
-      requestTabsList();
-    }
-  };
-
   const handleDetachAllTabs = () => {
-    for (const tab of availableTabs.filter((t) => t.attached)) {
+    for (const tab of filteredTabs.filter((t) => t.attached)) {
       detachTab(tab.tabId);
     }
   };
 
-  const truncateUrl = (url: string, maxLength: number = 48): string => {
-    if (url.length <= maxLength) return url;
-    return url.substring(0, maxLength - 3) + '...';
+  const handleAttachAllFiltered = () => {
+    for (const tab of filteredTabs.filter((t) => !t.attached)) {
+      attachTab(tab.tabId);
+    }
   };
-
-  const attachedCount = availableTabs.filter((t) => t.attached).length;
-  const allAttached = availableTabs.length > 0 && attachedCount === availableTabs.length;
 
   return (
     <div className="p-4 border-b border-white/10 space-y-4">
@@ -201,139 +211,105 @@ export function ExtensionControls() {
             </div>
           </div>
 
-          {/* Tab Management Section */}
+          {/* Tab Management Section - Always visible */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <p className="text-xs font-medium text-gray-400 uppercase tracking-wider">
-                Browser Tabs ({attachedTabs.length} attached)
+                Browser Tabs ({attachedCount} intercepted)
               </p>
-              <button
-                onClick={handleOpenTabManager}
-                className="text-xs text-blue-400 hover:text-blue-300 transition"
-              >
-                {showTabManager ? 'Hide' : 'Manage Tabs'}
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={requestTabsList}
+                  disabled={isLoadingTabs}
+                  className="p-1 bg-white/5 hover:bg-white/10 border border-white/10 text-gray-400 hover:text-gray-300 rounded transition disabled:opacity-50"
+                  title="Refresh tabs"
+                >
+                  <RefreshCw className={`w-3 h-3 ${isLoadingTabs ? 'animate-spin' : ''}`} />
+                </button>
+                {!allAttached ? (
+                  <button
+                    onClick={handleAttachAllFiltered}
+                    className="p-1 bg-cyber-green/10 hover:bg-cyber-green/20 border border-cyber-green/20 text-cyber-green rounded transition"
+                    title="Attach all tabs"
+                  >
+                    <Link className="w-3 h-3" />
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleDetachAllTabs}
+                    className="p-1 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 rounded transition"
+                    title="Detach all tabs"
+                  >
+                    <Unlink className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
             </div>
 
-            {/* Tab Manager Panel */}
-            {showTabManager && (
-              <div className="space-y-2 p-3 bg-white/5 rounded-md border border-white/10">
-                {/* Controls */}
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={requestTabsList}
-                    disabled={isLoadingTabs}
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300 rounded text-xs transition disabled:opacity-50"
-                  >
-                    <RefreshCw className={`w-3 h-3 ${isLoadingTabs ? 'animate-spin' : ''}`} />
-                    Refresh
-                  </button>
-                  {!allAttached ? (
-                    <button
-                      onClick={attachAllTabs}
-                      className="flex items-center gap-1.5 px-2.5 py-1.5 bg-cyber-green/10 hover:bg-cyber-green/20 border border-cyber-green/20 text-cyber-green rounded text-xs transition"
-                    >
-                      <Link className="w-3 h-3" />
-                      Attach All
-                    </button>
-                  ) : (
-                    <button
-                      onClick={handleDetachAllTabs}
-                      className="flex items-center gap-1.5 px-2.5 py-1.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 rounded text-xs transition"
-                    >
-                      <Unlink className="w-3 h-3" />
-                      Detach All
-                    </button>
-                  )}
-                  {attachedCount > 0 && (
-                    <span className="text-xs text-gray-500 ml-auto">
-                      {attachedCount}/{availableTabs.length}
-                    </span>
-                  )}
-                </div>
-
-                {/* Tabs List */}
-                {isLoadingTabs ? (
-                  <div className="flex items-center justify-center py-4">
-                    <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
-                    <span className="text-xs text-gray-400 ml-2">Loading tabs...</span>
-                  </div>
-                ) : availableTabs.length === 0 ? (
-                  <div className="text-center py-3">
-                    <Monitor className="w-5 h-5 text-gray-500 mx-auto mb-1" />
-                    <p className="text-xs text-gray-500">No browser tabs found</p>
-                    <p className="text-xs text-gray-600 mt-1">Click Refresh to scan</p>
-                  </div>
-                ) : (
-                  <div className="space-y-1 max-h-48 overflow-y-auto">
-                    {availableTabs.map((tab) => (
-                      <div
-                        key={tab.tabId}
-                        className={`flex items-center gap-2 p-2 rounded-md transition ${
-                          tab.attached
-                            ? 'bg-cyber-green/5 border border-cyber-green/20'
-                            : 'bg-white/5 border border-transparent hover:border-white/10'
-                        }`}
-                      >
-                        <Monitor
-                          className={`w-3.5 h-3.5 flex-shrink-0 ${
-                            tab.attached ? 'text-cyber-green' : 'text-gray-500'
-                          }`}
-                        />
-                        <div className="flex-1 min-w-0">
-                          {tab.title && (
-                            <p className="text-xs text-gray-300 truncate">{tab.title}</p>
-                          )}
-                          <p className="text-xs text-gray-500 font-mono truncate" title={tab.url}>
-                            {truncateUrl(tab.url)}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-1.5 flex-shrink-0">
-                          {tab.active && (
-                            <span className="w-1.5 h-1.5 rounded-full bg-blue-400" title="Active tab" />
-                          )}
-                          <button
-                            onClick={() => tab.attached ? detachTab(tab.tabId) : attachTab(tab.tabId)}
-                            className={`px-2 py-1 rounded text-xs transition ${
-                              tab.attached
-                                ? 'bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20'
-                                : 'bg-cyber-green/10 hover:bg-cyber-green/20 text-cyber-green border border-cyber-green/20'
-                            }`}
-                          >
-                            {tab.attached ? 'Detach' : 'Attach'}
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+            {/* Warning when 0 tabs attached */}
+            {attachedCount === 0 && !isLoadingTabs && (
+              <div className="flex items-center gap-2 p-2.5 bg-amber-500/10 border border-amber-500/20 rounded-md">
+                <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                <p className="text-xs text-amber-300">
+                  No tabs intercepted. Select at least one tab below to capture traffic.
+                </p>
               </div>
             )}
 
-            {/* Compact attached tabs view (when manager is closed) */}
-            {!showTabManager && attachedTabs && attachedTabs.length > 0 && (
-              <div className="space-y-1 max-h-40 overflow-y-auto">
-                {attachedTabs.map((tab) => (
+            {/* Tabs List */}
+            {isLoadingTabs ? (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+                <span className="text-xs text-gray-400 ml-2">Loading tabs...</span>
+              </div>
+            ) : filteredTabs.length === 0 ? (
+              <div className="text-center py-3 bg-white/5 rounded-md">
+                <Monitor className="w-5 h-5 text-gray-500 mx-auto mb-1" />
+                <p className="text-xs text-gray-500">No browser tabs found</p>
+                <p className="text-xs text-gray-600 mt-1">Click refresh to scan</p>
+              </div>
+            ) : (
+              <div className="space-y-1 max-h-56 overflow-y-auto">
+                {filteredTabs.map((tab) => (
                   <div
                     key={tab.tabId}
-                    className="flex items-center gap-2 p-2 bg-white/5 rounded-md"
+                    className={`flex items-center gap-2 p-2 rounded-md transition ${
+                      tab.attached
+                        ? 'bg-cyber-green/5 border border-cyber-green/20'
+                        : 'bg-white/5 border border-transparent hover:border-white/10'
+                    }`}
                   >
-                    <Monitor className="w-3.5 h-3.5 text-cyber-green flex-shrink-0" />
+                    {/* Toggle switch per tab */}
+                    <button
+                      onClick={() => tab.attached ? detachTab(tab.tabId) : attachTab(tab.tabId)}
+                      className={`relative w-8 h-4 rounded-full transition-colors duration-200 flex-shrink-0 ${
+                        tab.attached ? 'bg-cyber-green' : 'bg-gray-600'
+                      }`}
+                      title={tab.attached ? 'Stop intercepting this tab' : 'Intercept this tab'}
+                    >
+                      <div
+                        className={`absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full transition-transform duration-200 ${
+                          tab.attached ? 'translate-x-4' : ''
+                        }`}
+                      />
+                    </button>
+
+                    {/* Tab info */}
                     <div className="flex-1 min-w-0">
+                      {tab.title && (
+                        <p className="text-xs text-gray-300 truncate">{tab.title}</p>
+                      )}
                       <p className="text-xs text-gray-500 font-mono truncate" title={tab.url}>
                         {truncateUrl(tab.url)}
                       </p>
                     </div>
+
+                    {/* Active tab indicator */}
+                    {tab.active && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-blue-400 flex-shrink-0" title="Active tab" />
+                    )}
                   </div>
                 ))}
-              </div>
-            )}
-
-            {/* Empty tabs state (when manager is closed) */}
-            {!showTabManager && attachedTabs && attachedTabs.length === 0 && (
-              <div className="p-3 bg-white/5 rounded-md text-center">
-                <Monitor className="w-5 h-5 text-gray-500 mx-auto mb-1" />
-                <p className="text-xs text-gray-500">No tabs attached yet</p>
               </div>
             )}
           </div>

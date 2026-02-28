@@ -40,7 +40,7 @@ import {
 } from 'lucide-react';
 
 export function InterceptPanel() {
-  const { session, toggleIntercept } = useProxyStore();
+  const { toggleIntercept, isConnected, interceptEnabled, attachedTabs } = useProxyStore();
   const { createTab } = useRepeaterStore();
   const {
     queuedRequests,
@@ -352,10 +352,10 @@ export function InterceptPanel() {
 
   // Load queue on mount if intercept is enabled
   useEffect(() => {
-    if (session?.interceptMode) {
+    if (interceptEnabled) {
       wsService.getRequestQueue();
     }
-  }, [session?.interceptMode]);
+  }, [interceptEnabled]);
 
   // Handle checkbox click with Shift+Click range selection
   const handleCheckboxClick = useCallback((index: number, requestId: string, e: React.MouseEvent) => {
@@ -419,14 +419,15 @@ export function InterceptPanel() {
 
           {/* Intercept Toggle */}
           <button
-            onClick={() => toggleIntercept(!session?.interceptMode)}
+            onClick={() => toggleIntercept(!interceptEnabled)}
+            disabled={!isConnected || attachedTabs.length === 0}
             className={`px-4 py-2 rounded-lg font-medium transition-all ${
-              session?.interceptMode
+              interceptEnabled
                 ? 'bg-green-600 hover:bg-green-700 text-white shadow-lg shadow-green-600/30'
                 : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
-            }`}
+            } disabled:opacity-50 disabled:cursor-not-allowed`}
           >
-            {session?.interceptMode ? 'ON' : 'OFF'}
+            {interceptEnabled ? 'ON' : 'OFF'}
           </button>
 
           {/* Queue Counter */}
@@ -452,13 +453,19 @@ export function InterceptPanel() {
       </div>
 
       {/* Main Content */}
-      {!session?.interceptMode ? (
+      {!(isConnected && interceptEnabled && attachedTabs.length > 0) ? (
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center text-gray-400 space-y-4">
             <div className="text-6xl">🛑</div>
             <div>
               <p className="text-lg font-medium mb-2">Interception is OFF</p>
-              <p className="text-sm">Click "ON" to start intercepting requests</p>
+              {!isConnected ? (
+                <p className="text-sm">Connect the Chrome extension to start intercepting</p>
+              ) : attachedTabs.length === 0 ? (
+                <p className="text-sm">Attach at least one browser tab to intercept</p>
+              ) : (
+                <p className="text-sm">Click "Start Intercepting" in the Extension panel</p>
+              )}
             </div>
           </div>
         </div>
