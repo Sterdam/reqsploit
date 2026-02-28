@@ -14,6 +14,20 @@ import {
   formatResponseSize,
 } from '../../utils/contentTypeUtils';
 
+/** UTF-8 safe base64 encode (btoa crashes on non-Latin1 characters) */
+function safeBase64(str: string): string {
+  try {
+    return btoa(str);
+  } catch {
+    const bytes = new TextEncoder().encode(str);
+    let binary = '';
+    for (let i = 0; i < bytes.length; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
+  }
+}
+
 interface ResponseViewerProps {
   statusCode?: number;
   statusMessage?: string;
@@ -187,7 +201,7 @@ export function ResponseViewer({
           // Image preview
           <div className="flex items-center justify-center h-full p-4">
             <img
-              src={`data:${contentInfo.mimeType};base64,${btoa(body)}`}
+              src={`data:${contentInfo.mimeType};base64,${safeBase64(body)}`}
               alt="Response"
               className="max-w-full max-h-full object-contain"
             />

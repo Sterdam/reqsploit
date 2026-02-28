@@ -7,6 +7,7 @@ import { prisma } from '../../lib/prisma.js';
 import { aiLogger } from '../../utils/logger.js';
 import { aiPricingService } from '../../services/ai-pricing.service.js';
 import { proxySessionManager } from '../../core/proxy/session-manager.js';
+import { cdpRequestQueue } from '../../core/proxy/cdp-request-queue.js';
 import { RequestLogService } from '../../services/request-log.service.js';
 import pLimit from 'p-limit';
 import { falsePositiveService } from '../../services/false-positive.service.js';
@@ -191,33 +192,49 @@ router.post(
     const { requestId } = req.params;
     const { action, modifications, model = 'auto' } = req.body; // Model selection
 
-    // Try to get request from intercept queue first
-    const session = proxySessionManager.getSessionByUserId(userId);
+    // Try to get request from CDP queue first (extension-based interception)
     let httpRequest;
 
-    if (session) {
-      const queue = session.proxy.getRequestQueue();
-      const queuedRequest = queue.get(requestId);
+    const cdpQueued = cdpRequestQueue.getQueue(userId).find((r) => r.requestId === requestId);
+    if (cdpQueued) {
+      httpRequest = {
+        id: cdpQueued.requestId,
+        method: modifications?.method || cdpQueued.method,
+        url: modifications?.url || cdpQueued.url,
+        headers: modifications?.headers || cdpQueued.headers,
+        body: modifications?.body !== undefined ? modifications.body : cdpQueued.body || undefined,
+        timestamp: new Date(cdpQueued.timestamp),
+      };
+    }
 
-      if (queuedRequest) {
-        // Request found in queue - use it
-        httpRequest = {
-          id: queuedRequest.id,
-          method: modifications?.method || queuedRequest.method,
-          url: modifications?.url || queuedRequest.url,
-          headers: modifications?.headers || queuedRequest.headers,
-          body: modifications?.body !== undefined ? modifications.body : queuedRequest.body || undefined,
-          timestamp: queuedRequest.timestamp,
-        };
+    // Try legacy proxy queue
+    if (!httpRequest) {
+      const session = proxySessionManager.getSessionByUserId(userId);
+      if (session) {
+        const queue = session.proxy.getRequestQueue();
+        const queuedRequest = queue.get(requestId);
+
+        if (queuedRequest) {
+          httpRequest = {
+            id: queuedRequest.id,
+            method: modifications?.method || queuedRequest.method,
+            url: modifications?.url || queuedRequest.url,
+            headers: modifications?.headers || queuedRequest.headers,
+            body: modifications?.body !== undefined ? modifications.body : queuedRequest.body || undefined,
+            timestamp: queuedRequest.timestamp,
+          };
+        }
       }
     }
 
-    // Fallback to database if not in queue
+    // Fallback to database
     if (!httpRequest) {
       const requestLog = await prisma.requestLog.findFirst({
         where: {
-          id: requestId,
-          userId,
+          OR: [
+            { id: requestId, userId },
+            { userId, url: { contains: requestId } },
+          ],
         },
       });
 
