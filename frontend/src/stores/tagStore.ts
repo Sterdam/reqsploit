@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import api from '../lib/api';
 import { toast } from './toastStore';
 
 export enum TagType {
@@ -98,16 +99,8 @@ export const useTagStore = create<TagStore>((set, get) => ({
   addTagToRequests: async (requestIds: string[], tag: string) => {
     set({ isLoading: true });
     try {
-      const response = await fetch('/api/tags/add', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
-        },
-        body: JSON.stringify({ requestIds, tag }),
-      });
-
-      const data = await response.json();
+      const response = await api.post('/tags/add', { requestIds, tag });
+      const data = response.data;
 
       if (data.success) {
         const count = requestIds.length;
@@ -134,16 +127,8 @@ export const useTagStore = create<TagStore>((set, get) => ({
   removeTagFromRequests: async (requestIds: string[], tag: string) => {
     set({ isLoading: true });
     try {
-      const response = await fetch('/api/tags/remove', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
-        },
-        body: JSON.stringify({ requestIds, tag }),
-      });
-
-      const data = await response.json();
+      const response = await api.post('/tags/remove', { requestIds, tag });
+      const data = response.data;
 
       if (data.success) {
         const count = requestIds.length;
@@ -170,14 +155,8 @@ export const useTagStore = create<TagStore>((set, get) => ({
   clearTagsFromRequest: async (requestId: string) => {
     set({ isLoading: true });
     try {
-      const response = await fetch(`/api/tags/clear/${requestId}`, {
-        method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
-        },
-      });
-
-      const data = await response.json();
+      const response = await api.delete(`/tags/clear/${requestId}`);
+      const data = response.data;
 
       if (data.success) {
         toast.success('Tags cleared', 'All tags removed from request');
@@ -198,13 +177,8 @@ export const useTagStore = create<TagStore>((set, get) => ({
   // Load tag usage statistics
   loadTagStats: async () => {
     try {
-      const response = await fetch('/api/tags/stats', {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
-        },
-      });
-
-      const data = await response.json();
+      const response = await api.get('/tags/stats');
+      const data = response.data;
 
       if (data.success) {
         set({ tagStats: data.stats });
